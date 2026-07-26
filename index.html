@@ -145,8 +145,11 @@
   .kb-card .acts{display:flex;gap:4px;margin-top:8px;justify-content:flex-end}
   .kb-card.done .t{text-decoration:line-through;color:var(--smoke)}
   .membro-chip{display:flex;align-items:center;gap:8px;background:var(--ash);border-radius:20px;padding:7px 14px;font-size:13px}
-  .membro-chip .dono{font-size:10px;color:var(--ember);text-transform:uppercase;letter-spacing:.05em}
   .membro-chip .icon-btn{font-size:12px;padding:0 2px}
+  .papel{font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:10px;background:var(--paper);color:var(--smoke);border:1px solid var(--line)}
+  .papel.dono,.papel.admin{color:var(--ember);border-color:var(--ember)}
+  .papel.socio{color:var(--ok);border-color:var(--ok)}
+  .no-fin th:nth-child(5),.no-fin td:nth-child(5),.no-fin th:nth-child(6),.no-fin td:nth-child(6){display:none!important}
   .prazo-item{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
   .prazo-item:last-child{border-bottom:none}
   .prazo-item.late,.prazo-item.late b{color:var(--ember)}
@@ -344,7 +347,7 @@ try{aplicarPrefs(JSON.parse(localStorage.getItem('cinereaPrefs')||'{}'));}catch(
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if((window.__prefs||{}).tema==='auto')aplicarPrefs(window.__prefs);});
 let charts={};
 
-Object.assign(window,{doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,del,addRecipeLine,rmRecipeLine,updateCost,exportCSV,exportPDF,exportCompras,saveCheck,buyDone,exportJSON,importJSON,setMeta,setMeiTeto,quickCliente,publicarCatalogo,doUndo,renderProducao,renderPedidos,fP,fV,criarEmpresaUI,entrarEmpresaUI,gerarConvite,removerMembro,renomearMe,moveTarefa,repetir,toggleTimer,exportDRE,openPerfil,sairEmpresa,esqueciSenha,toggleMinhas});
+Object.assign(window,{doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,del,addRecipeLine,rmRecipeLine,updateCost,exportCSV,exportPDF,exportCompras,saveCheck,buyDone,exportJSON,importJSON,setMeta,setMeiTeto,quickCliente,publicarCatalogo,doUndo,renderProducao,renderPedidos,fP,fV,criarEmpresaUI,entrarEmpresaUI,gerarConvite,removerMembro,renomearMe,moveTarefa,repetir,toggleTimer,exportDRE,openPerfil,sairEmpresa,esqueciSenha,toggleMinhas,mudarPapel});
 
 if(!isConfigured){document.getElementById('gateSetup').style.display='block';}
 else{
@@ -398,7 +401,7 @@ async function entrarEmpresaUI(){
     const cs=await getDoc(doc(fdb,'convites',cod));
     if(!cs.exists()){err.textContent='Código inválido ou expirado.';return;}
     const e2=cs.data().empresaId;
-    await setDoc(doc(fdb,'empresas',e2,'membros',uid),{nome:nomePadrao(),codigo:cod,entrou:Date.now()});
+    await setDoc(doc(fdb,'empresas',e2,'membros',uid),{nome:nomePadrao(),codigo:cod,papel:cs.data().papel||'empregado',entrou:Date.now()});
     await setDoc(doc(fdb,'usuarios',uid),{empresaId:e2},{merge:true});
     eid=e2;iniciarEmpresa();
   }catch(e){console.error(e);err.textContent='Não foi possível entrar. Confira o código e as regras do Firestore.';}
@@ -408,17 +411,23 @@ function iniciarEmpresa(){
   backupChecado=false;subscribe();subscribeMembros();
 }
 async function gerarConvite(){
+  if(!pode('gerir')){toast('Só dono e admin podem convidar');return;}
+  let papel=prompt('Papel do convidado — digite: empregado, socio ou admin','empregado');
+  if(papel===null)return;
+  papel=papel.trim().toLowerCase().replace('ó','o');
+  if(!PAPEIS.includes(papel)){toast('Papel inválido — use empregado, socio ou admin');return;}
   try{
-    let c=db.conviteAtual;
+    db.convitesPorPapel=db.convitesPorPapel||{};
+    let c=db.convitesPorPapel[papel];
     if(!c){c=Math.random().toString(36).slice(2,8).toUpperCase();
-      await setDoc(doc(fdb,'convites',c),{empresaId:eid,criado:Date.now()});
-      db.conviteAtual=c;cloudSave();}
+      await setDoc(doc(fdb,'convites',c),{empresaId:eid,papel,criado:Date.now()});
+      db.convitesPorPapel[papel]=c;cloudSave();}
     if(navigator.clipboard)navigator.clipboard.writeText(c).catch(()=>{});
-    toast('Código de convite <b>'+c+'</b> copiado — envie para quem vai entrar');
+    toast('Convite de <b>'+PAPEL_LABEL[papel]+'</b>: <b>'+c+'</b> — copiado');
   }catch(e){console.error(e);toast('Erro ao gerar convite — confira as regras do Firestore');}
 }
 async function removerMembro(mUid){
-  if(uid!==empresaDono||mUid===empresaDono)return;
+  if(!pode('gerir')||mUid===empresaDono){toast('Sem permissão');return;}
   if(!confirm('Remover este membro da empresa?'))return;
   try{await deleteDoc(doc(fdb,'empresas',eid,'membros',mUid));toast('Membro removido');}
   catch(e){console.error(e);toast('Erro ao remover membro');}
@@ -428,6 +437,29 @@ async function renomearMe(){
   const n=prompt('Seu nome (aparece nas tarefas):',atual);
   if(!n)return;
   try{await setDoc(doc(fdb,'empresas',eid,'membros',uid),{nome:n.trim()},{merge:true});}catch(e){console.error(e);}
+}
+// ---------- papéis e governança ----------
+// dono: tudo · admin: tudo menos mexer no dono · sócio: vê financeiro, não gere equipe · empregado: só operação
+const PAPEIS=['empregado','socio','admin'];
+const PAPEL_LABEL={dono:'dono',admin:'admin',socio:'sócio',empregado:'empregado'};
+function meuPapel(){if(!uid)return'empregado';if(uid===empresaDono)return'dono';return (membros[uid]&&membros[uid].papel)||'empregado';}
+function pode(cap){const p=meuPapel();if(cap==='gerir')return p==='dono'||p==='admin';if(cap==='fin')return p!=='empregado';return true;}
+function aplicarPapel(){
+  const fin=pode('fin'),ger=pode('gerir');
+  const tabOrc=document.querySelector('[data-tab="orcamento"]');if(tabOrc)tabOrc.style.display=fin?'':'none';
+  ['chCusto','chMargem','chRec','chMes','chLph'].forEach(id=>{const el=document.getElementById(id);if(el){const card=el.closest('.chartcard');if(card)card.style.display=fin?'':'none';}});
+  document.querySelectorAll('#p-dashboard .head-btns .btn2').forEach(b=>b.style.display=fin?'':'none');
+  const conv=document.querySelector('[onclick="gerarConvite()"]');if(conv)conv.style.display=ger?'':'none';
+  const pt=document.querySelector('#p-pedidos table');if(pt)pt.classList.toggle('no-fin',!fin);
+  const pOrc=document.getElementById('p-orcamento');
+  if(!fin&&pOrc&&pOrc.classList.contains('active')){const d=document.querySelector('[data-tab="dashboard"]');if(d)d.click();}
+}
+async function mudarPapel(mUid){
+  if(!pode('gerir')||mUid===empresaDono)return;
+  const atual=(membros[mUid]||{}).papel||'empregado';
+  const prox=PAPEIS[(PAPEIS.indexOf(atual)+1)%PAPEIS.length];
+  try{await setDoc(doc(fdb,'empresas',eid,'membros',mUid),{papel:prox},{merge:true});toast('Papel de <b>'+esc((membros[mUid]||{}).nome||'membro')+'</b> agora é <b>'+PAPEL_LABEL[prox]+'</b>');}
+  catch(e){console.error(e);toast('Erro ao mudar papel — confira as regras do Firestore');}
 }
 // ---------- perfil ----------
 function openPerfil(){
@@ -439,7 +471,8 @@ function openPerfil(){
     <div class="field"><label>Meu nome (aparece no time)</label><input id="f_pnome" value="${esc(m.nome||'')}"></div>
     <div class="field"><label>E-mail de login</label><input id="f_pemail" type="email" value="${esc((auth.currentUser&&auth.currentUser.email)||'')}"><div class="hint">Alterar pode pedir sua senha atual ou confirmação por link no novo e-mail</div></div>
     <div class="field"><label>Nova senha</label><input id="f_psenha" type="password" placeholder="deixe vazio para manter a atual"></div>
-    ${uid===empresaDono?`<div class="field"><label>Nome da empresa</label><input id="f_pempresa" value="${esc(empresaNome)}"></div>`:''}
+    ${pode('gerir')?`<div class="field"><label>Nome da empresa</label><input id="f_pempresa" value="${esc(empresaNome)}"></div>`:''}
+    <div class="field"><label>Meu papel</label><div style="padding:6px 0"><span class="papel ${meuPapel()}">${PAPEL_LABEL[meuPapel()]}</span> <span class="hint" style="display:inline">— define o que você vê e gerencia</span></div></div>
     <div class="field-row">
       <div class="field"><label>Tema</label><select id="f_ptema">${['claro','escuro','auto'].map(t=>`<option ${p.tema===t?'selected':''}>${t}</option>`).join('')}</select></div>
       <div class="field"><label>Cor de destaque</label><select id="f_pacento">${Object.entries(ACENTOS).map(([n,c])=>`<option value="${c}" ${(p.acento||'#B5462A')===c?'selected':''}>${n}</option>`).join('')}</select></div>
@@ -463,7 +496,7 @@ async function salvarPerfil(){
   aplicarPrefs(prefs);try{localStorage.setItem('cinereaPrefs',JSON.stringify(prefs));}catch(e){}
   setDoc(doc(fdb,'usuarios',uid),{prefs},{merge:true}).catch(()=>{});
   if(nome&&eid&&nome!==(membros[uid]||{}).nome)setDoc(doc(fdb,'empresas',eid,'membros',uid),{nome},{merge:true}).catch(()=>{});
-  if(uid===empresaDono&&eid){const en=(val('f_pempresa')||'').trim();if(en&&en!==empresaNome)setDoc(doc(fdb,'empresas',eid),{nome:en},{merge:true}).catch(()=>{});}
+  if(pode('gerir')&&eid){const en=(val('f_pempresa')||'').trim();if(en&&en!==empresaNome)setDoc(doc(fdb,'empresas',eid),{nome:en},{merge:true}).catch(()=>{});}
   const cur=auth.currentUser;
   try{
     if(email&&cur&&email!==cur.email){
@@ -519,7 +552,7 @@ function subscribe(){
 }
 function subscribeMembros(){
   if(unsubMembros)unsubMembros();
-  unsubMembros=onSnapshot(collection(fdb,'empresas',eid,'membros'),qs=>{membros={};qs.forEach(d=>membros[d.id]=d.data());renderEquipe();},err=>console.error(err));
+  unsubMembros=onSnapshot(collection(fdb,'empresas',eid,'membros'),qs=>{membros={};qs.forEach(d=>membros[d.id]=d.data());renderAll();},err=>console.error(err));
 }
 function cloudSave(){if(!uid||!eid)return;flashSync(false);clearTimeout(saveTimer);saveTimer=setTimeout(()=>{try{const p=setDoc(doc(fdb,'empresas',eid),{dados:db,atualizado:Date.now()},{merge:true});if(navigator.onLine){p.then(()=>flashSync(true)).catch(e=>console.error(e));}else{flashSync(true);}}catch(e){console.error(e);}},400);}
 function flashSync(ok){const el=document.getElementById('syncState');if(!ok){el.innerHTML='<span class="dot off"></span> salvando…';return;}el.innerHTML=navigator.onLine?'<span class="dot"></span> sincronizado':'<span class="dot off"></span> offline · salvo no aparelho';}
@@ -584,16 +617,17 @@ function renderDash(){
   const recAno=db.pedidos.filter(p=>(p.situacao==='Pago'||p.situacao==='Entregue')&&(p.data||'').slice(0,4)===ano).reduce((s,p)=>s+Number(p.valor||0),0);
   const teto=Number(db.meiTeto||81000);
   const pctMei=Math.min(100,Math.round(recAno/teto*100));
+  const fin=pode('fin');
   document.getElementById('dashStats').innerHTML=`
     <div class="stat ${lowIns.length?'alert':''}"><div class="k">Insumos p/ repor</div><div class="v">${lowIns.length}</div><div class="s">de ${db.insumos.length}</div></div>
     <div class="stat ${lowMold.length?'alert':''}"><div class="k">Moldes no limite</div><div class="v">${lowMold.length}</div><div class="s">de ${db.moldes.length}</div></div>
-    <div class="stat"><div class="k">Peças produzidas</div><div class="v">${totalProd}</div><div class="s">${db.producao.length} registros</div></div>
+    <div class="stat"><div class="k">Peças produzidas</div><div class="v">${totalProd}</div><div class="s">${db.producao.length} registros</div></div>`+(fin?`
     <div class="stat"><div class="k">Receita</div><div class="v" style="font-size:22px">${brl(receita)}</div><div class="s">${db.pedidos.length} pedidos</div></div>
     <div class="stat"><div class="k">Custos fixos / mês</div><div class="v" style="font-size:22px">${brl(fixosTot)}</div><div class="s">${(db.fixos||[]).length?(db.fixos.length+' lançamentos'):'cadastre no Orçamento'}</div></div>
     <div class="stat"><div class="k">Ponto de equilíbrio</div><div class="v">${pe||'—'}</div><div class="s">${pe?'peças/mês para empatar':'precisa de custos fixos e produtos'}</div></div>
     <div class="stat" style="cursor:pointer" onclick="setMeta()" title="Toque para definir a meta"><div class="k">Meta do mês</div><div class="v">${meta?pctMeta+'%':'—'}</div><div class="s">${meta?brl(recMes)+' de '+brl(meta):'toque para definir'}</div>${meta?`<div class="bar" style="margin-top:8px"><span class="${pctMeta>=100?'':'warn'}" style="width:${pctMeta}%"></span></div>`:''}</div>
     <div class="stat ${pctMei>=80?'alert':''}" style="cursor:pointer" onclick="setMeiTeto()" title="Toque para ajustar o teto"><div class="k">Teto MEI (${ano})</div><div class="v">${pctMei}%</div><div class="s">${brl(recAno)} de ${brl(teto)}</div><div class="bar" style="margin-top:8px"><span class="${pctMei>=80?'low':pctMei>=50?'warn':''}" style="width:${pctMei}%"></span></div></div>
-    <div class="stat"><div class="k">A receber</div><div class="v" style="font-size:22px">${brl(db.pedidos.filter(p=>p.situacao==='Pendente').reduce((s,p)=>s+Number(p.valor||0),0))}</div><div class="s">${db.pedidos.filter(p=>p.situacao==='Pendente').length} pedido(s) pendente(s)</div></div>`;
+    <div class="stat"><div class="k">A receber</div><div class="v" style="font-size:22px">${brl(db.pedidos.filter(p=>p.situacao==='Pendente').reduce((s,p)=>s+Number(p.valor||0),0))}</div><div class="s">${db.pedidos.filter(p=>p.situacao==='Pendente').length} pedido(s) pendente(s)</div></div>`:'');
   renderPrazos();
   let a=[];lowIns.forEach(i=>a.push(`Repor <b>${esc(i.nome)}</b> — restam ${i.estoque} ${esc(i.unidade)}`));lowMold.forEach(m=>a.push(`Molde <b>${esc(m.nome)}</b> — ${m.usos}/${m.vida}`));
   document.getElementById('dashAlerts').innerHTML=a.length?('<b>Atenção:</b><br>'+a.join('<br>')):'Tudo em ordem.';
@@ -650,8 +684,13 @@ function renderClientes(){const rows=db.clientes||[];document.getElementById('tb
 function renderCanais(){const rows=db.canais||[];document.getElementById('tbCanais').innerHTML=rows.length?rows.map(c=>`<tr><td>${esc(c.nome)}</td><td>${Number(c.taxa||0)}%</td><td>${rowActions('canal',c.id)}</td></tr>`).join(''):`<tr><td colspan=3><div class="empty-t">Nenhum canal — ex.: Feira 0%, Marketplace 12%.</div></td></tr>`;}
 function renderEquipe(){
   const box=document.getElementById('membrosBox');if(!box)return;
-  document.getElementById('equipeDesc').textContent=(empresaNome?empresaNome+' — ':'')+'membros e tarefas';
-  box.innerHTML=Object.entries(membros).map(([id,m])=>`<div class="membro-chip">${esc(m.nome||'membro')}${id===empresaDono?' <span class="dono">dono</span>':''}${id===uid?' <button class="icon-btn" title="Editar meu nome" onclick="renomearMe()">✎</button>':(uid===empresaDono?` <button class="icon-btn" title="Remover" onclick="removerMembro('${id}')">✕</button>`:'')}</div>`).join('')||'<span style="color:var(--smoke);font-size:13px">Carregando membros…</span>';
+  const ger=pode('gerir');
+  document.getElementById('equipeDesc').textContent=(empresaNome?empresaNome+' — ':'')+'você é '+PAPEL_LABEL[meuPapel()]+(ger?' · toque no papel de alguém para trocá-lo':'');
+  box.innerHTML=Object.entries(membros).map(([id,m])=>{
+    const papel=id===empresaDono?'dono':(m.papel||'empregado');
+    const badge=`<span class="papel ${papel}" ${ger&&id!==empresaDono?`style="cursor:pointer" title="Trocar papel" onclick="mudarPapel('${id}')"`:''}>${PAPEL_LABEL[papel]}</span>`;
+    return `<div class="membro-chip">${esc(m.nome||'membro')} ${badge}${id===uid?' <button class="icon-btn" title="Editar meu nome" onclick="renomearMe()">✎</button>':(ger&&id!==empresaDono?` <button class="icon-btn" title="Remover" onclick="removerMembro('${id}')">✕</button>`:'')}</div>`;
+  }).join('')||'<span style="color:var(--smoke);font-size:13px">Carregando membros…</span>';
   const minhasAbertas=(db.tarefas||[]).filter(t=>t.resp===uid&&(t.status||'aberta')!=='feita').length;
   const tabBtn=document.querySelector('[data-tab="equipe"]');
   if(tabBtn)tabBtn.textContent='Equipe'+(minhasAbertas?' ('+minhasAbertas+')':'');
@@ -694,6 +733,7 @@ function renderPrazos(){
   box.innerHTML=html;
 }
 function exportDRE(){
+  if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}
   const mes=prompt('Fechamento de qual mês? (AAAA-MM)',hoje().slice(0,7));
   if(!mes||!/^\d{4}-\d{2}$/.test(mes.trim())){if(mes!==null)toast('Use o formato AAAA-MM');return;}
   const m=mes.trim();
@@ -714,7 +754,7 @@ function exportDRE(){
 function renderChecks(){document.querySelectorAll('.checklist input').forEach(c=>{c.checked=!!(db.checks&&db.checks[c.dataset.c]);});}
 function saveCheck(){db.checks=db.checks||{};document.querySelectorAll('.checklist input').forEach(c=>db.checks[c.dataset.c]=c.checked);cloudSave();}
 window.saveCheck=saveCheck;
-function renderAll(){if(!uid)return;renderDash();renderEquip();renderMoldes();renderInsumos();renderProdutos();renderProducao();renderPedidos();renderClientes();renderCanais();renderCompras();renderComprasHist();renderFixos();renderEquipe();renderChecks();labelize();}
+function renderAll(){if(!uid)return;aplicarPapel();renderDash();renderEquip();renderMoldes();renderInsumos();renderProdutos();renderProducao();renderPedidos();renderClientes();renderCanais();renderCompras();renderComprasHist();renderFixos();renderEquipe();renderChecks();labelize();}
 
 // formulários (igual antes + baixa de estoque)
 let currentForm={type:null,id:null,recipe:[]};
@@ -837,6 +877,7 @@ function del(type,id){
 }
 function quickCliente(sel){const nome=prompt('Nome do cliente:');if(!nome){sel.value='';return;}const whats=prompt('WhatsApp (opcional, só números com DDD):')||'';const c={id:uidGen(),nome,whats,obs:''};db.clientes=db.clientes||[];db.clientes.push(c);cloudSave();const o=document.createElement('option');o.value=c.id;o.textContent=nome;sel.insertBefore(o,sel.querySelector('option[value="__new"]'));sel.value=c.id;toast('Cliente <b>'+esc(nome)+'</b> cadastrado');}
 async function publicarCatalogo(){
+  if(!pode('fin')){toast('Sem permissão');return;}
   const itens=db.produtos.filter(p=>p.publico).map(p=>{const c=calcCusto(p).total;const preco=Number(p.preco)||c*Number(p.markup||3);return{nome:p.nome,preco:Math.round(preco*100)/100,foto:p.foto||''};});
   if(!itens.length){toast('Marque "mostrar no catálogo" em algum produto primeiro');return;}
   const whats=prompt('WhatsApp para encomendas no catálogo (só números com DDD, vazio = sem botão):',db.catWhats||'');
@@ -855,6 +896,7 @@ document.getElementById('overlay').onclick=e=>{if(e.target.id==='overlay')closeM
 // ---------- exportações ----------
 function dl(name,content,mime){const b=new Blob([content],{type:mime});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();}
 function exportCSV(){
+  if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}
   let out='';
   const sec=(t,head,rows)=>{out+=t+'\n'+head.join(';')+'\n'+rows.map(r=>r.join(';')).join('\n')+'\n\n';};
   sec('INSUMOS',['Nome','Estoque','Unidade','Mínimo','Custo'],db.insumos.map(i=>[i.nome,i.estoque,i.unidade,i.minimo,i.custo]));
@@ -871,8 +913,9 @@ function exportCSV(){
   toast('Planilha exportada');
 }
 function buyDone(id,sug){openForm('compra');const s=document.getElementById('f_insumo');if(s)s.value=id;const q=document.getElementById('f_qtd');if(q)q.value=sug;const v=document.getElementById('f_valor');if(v)v.focus();}
-function exportJSON(){dl('cinerea-backup-'+hoje()+'.json',JSON.stringify(db,null,2),'application/json');toast('Backup salvo — guarde este arquivo');}
-function importJSON(){const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||typeof d!=='object'||!Array.isArray(d.insumos))throw 0;if(!confirm('Substituir TODOS os dados atuais pelos do arquivo de backup?'))return;db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],meta:0,checks:{},...d};cloudSave();renderAll();toast('Dados restaurados do backup');}catch(e){toast('Arquivo inválido — use um backup gerado pelo app');}};r.readAsText(f);};inp.click();}
+function exportJSON(){if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}dl('cinerea-backup-'+hoje()+'.json',JSON.stringify(db,null,2),'application/json');toast('Backup salvo — guarde este arquivo');}
+function importJSON(){
+  if(!pode('gerir')){toast('Só dono e admin restauram backups');return;}const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||typeof d!=='object'||!Array.isArray(d.insumos))throw 0;if(!confirm('Substituir TODOS os dados atuais pelos do arquivo de backup?'))return;db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],meta:0,checks:{},...d};cloudSave();renderAll();toast('Dados restaurados do backup');}catch(e){toast('Arquivo inválido — use um backup gerado pelo app');}};r.readAsText(f);};inp.click();}
 function exportCompras(){
   const low=db.insumos.filter(i=>insumoStatus(i)!=='ok');
   if(!low.length){toast('Nada para comprar');return;}
@@ -880,6 +923,7 @@ function exportCompras(){
   navigator.clipboard?.writeText(txt).then(()=>toast('Lista copiada — cole no WhatsApp'),()=>dl('lista-compras.txt',txt,'text/plain'));
 }
 function exportPDF(){
+  if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}
   const receita=db.pedidos.filter(p=>p.situacao==='Pago'||p.situacao==='Entregue').reduce((s,p)=>s+Number(p.valor||0),0);
   const win=window.open('','_blank');
   const row=(a)=>'<tr>'+a.map(x=>`<td>${x}</td>`).join('')+'</tr>';

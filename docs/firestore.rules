@@ -2,52 +2,76 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Conta individual: ponteiro para a empresa + dados legados (pré-migração)
+    // ---------- funções de papel ----------
+    function ehMembro(eid) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/empresas/$(eid)/membros/$(request.auth.uid));
+    }
+    function ehDono(eid) {
+      return request.auth != null
+        && get(/databases/$(database)/documents/empresas/$(eid)).data.dono == request.auth.uid;
+    }
+    function ehGestor(eid) {
+      // dono ou admin
+      return ehDono(eid) || (ehMembro(eid)
+        && get(/databases/$(database)/documents/empresas/$(eid)/membros/$(request.auth.uid)).data.get('papel','') == 'admin');
+    }
+
+    // Conta individual: ponteiro para a empresa + preferências + dados legados
     match /usuarios/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Empresa: dados compartilhados entre os membros
+    // Empresa: dados compartilhados
     match /empresas/{eid} {
       allow create: if request.auth != null && request.resource.data.dono == request.auth.uid;
-      allow read, update, delete: if request.auth != null
-        && exists(/databases/$(database)/documents/empresas/$(eid)/membros/$(request.auth.uid));
+      allow read: if ehMembro(eid);
+      // qualquer membro salva os DADOS; nome só gestor; o dono nunca muda
+      allow update: if ehMembro(eid)
+        && request.resource.data.dono == resource.data.dono
+        && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dados','atualizado'])
+            || ehGestor(eid));
+      allow delete: if ehDono(eid);
 
-      // Membros: entra quem é o dono (na criação) ou quem apresenta um convite válido
+      // Membros: papel definido pelo convite; só gestor muda papéis
       match /membros/{mUid} {
-        allow read: if request.auth != null
-          && exists(/databases/$(database)/documents/empresas/$(eid)/membros/$(request.auth.uid));
+        allow read: if ehMembro(eid);
         allow create: if request.auth != null && request.auth.uid == mUid && (
-          get(/databases/$(database)/documents/empresas/$(eid)).data.dono == request.auth.uid
+          ehDono(eid)
           || (request.resource.data.codigo is string
-              && get(/databases/$(database)/documents/convites/$(request.resource.data.codigo)).data.empresaId == eid)
+              && get(/databases/$(database)/documents/convites/$(request.resource.data.codigo)).data.empresaId == eid
+              && request.resource.data.get('papel','empregado')
+                 == get(/databases/$(database)/documents/convites/$(request.resource.data.codigo)).data.get('papel','empregado'))
         );
-        allow update: if request.auth != null && request.auth.uid == mUid;
-        allow delete: if request.auth != null && (request.auth.uid == mUid
-          || get(/databases/$(database)/documents/empresas/$(eid)).data.dono == request.auth.uid);
+        // cada um só edita o próprio NOME; papel é com o gestor
+        allow update: if request.auth != null && (
+          (request.auth.uid == mUid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome']))
+          || ehGestor(eid)
+        );
+        // sair (não sendo dono) ou gestor remove (menos o dono)
+        allow delete: if request.auth != null
+          && mUid != get(/databases/$(database)/documents/empresas/$(eid)).data.dono
+          && (request.auth.uid == mUid || ehGestor(eid));
       }
 
       // Backups mensais automáticos
       match /backups/{b} {
-        allow read, write: if request.auth != null
-          && exists(/databases/$(database)/documents/empresas/$(eid)/membros/$(request.auth.uid));
+        allow read, write: if ehMembro(eid);
       }
     }
 
-    // Convites: o código (id do doc) é o segredo — só quem o recebe consegue ler
+    // Convites: o código (id do doc) é o segredo; só gestor cria
     match /convites/{codigo} {
       allow get: if request.auth != null;
-      allow create: if request.auth != null
-        && exists(/databases/$(database)/documents/empresas/$(request.resource.data.empresaId)/membros/$(request.auth.uid));
-      allow delete: if request.auth != null
-        && exists(/databases/$(database)/documents/empresas/$(resource.data.empresaId)/membros/$(request.auth.uid));
+      allow create: if request.auth != null && ehGestor(request.resource.data.empresaId);
+      allow delete: if request.auth != null && ehGestor(resource.data.empresaId);
     }
 
-    // Catálogo público: qualquer um lê, só membros da empresa escrevem
+    // Catálogo público: qualquer um lê, membros escrevem
     match /catalogo/{cid} {
       allow read: if true;
-      allow write: if request.auth != null
-        && exists(/databases/$(database)/documents/empresas/$(cid)/membros/$(request.auth.uid));
+      allow write: if ehMembro(cid);
     }
   }
 }

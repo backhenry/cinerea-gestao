@@ -8,6 +8,18 @@ entrar nela. O dono gera um **código de convite** (aba Equipe → Convidar) e c
 pessoa cria a própria conta e entra com o código. A aba **Equipe** tem um kanban
 de tarefas (A fazer / Fazendo / Feito) com responsável e prazo.
 
+**Papéis e governança** — o convite já define o papel; gestores trocam papéis
+tocando no selo do membro na aba Equipe:
+
+| | Dono | Admin | Sócio | Empregado |
+|---|:-:|:-:|:-:|:-:|
+| Operação (produção, insumos, pedidos, tarefas) | ✓ | ✓ | ✓ | ✓ |
+| Financeiro (orçamento, lucro, fechamento, metas, exportações) | ✓ | ✓ | ✓ | — |
+| Equipe (convidar, papéis, remover, nome da empresa, restaurar backup) | ✓ | ✓ | — | — |
+
+O empregado vê o painel operacional (estoque, moldes, produção, prazos, plano de
+produção) sem valores de venda, lucro ou metas.
+
 ## O que faz
 
 - **Insumos** com estoque, alerta de reposição e **baixa automática** ao registrar produção

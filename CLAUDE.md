@@ -57,6 +57,17 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
 - Ícones PNG 192/512 gerados da marca (também `purpose: maskable`).
 - Equipe (aba nova): kanban de tarefas (`db.tarefas`, status aberta/fazendo/feita,
   responsável = uid de membro), convite por código, remover membro (só dono).
+- PAPÉIS/governança: membros/{uid}.papel ∈ {admin, socio, empregado}; dono = empresa.dono.
+  meuPapel()/pode(cap): 'gerir' = dono/admin (convites, papéis, remover, nome da
+  empresa, restaurar backup); 'fin' = dono/admin/socio (orçamento, lucro, fechamento,
+  metas, MEI, exports, catálogo). Empregado: só operação — aplicarPapel() esconde
+  aba Orçamento, cartões/gráficos financeiros e colunas Valor/Lucro (classe .no-fin).
+  Convites carregam papel (db.convitesPorPapel). Regras do Firestore validam:
+  papel do membro = papel do convite, self-update só do nome, update da empresa
+  por não-gestor limitado a dados/atualizado, dono imutável.
+  LIMITAÇÃO: dados ficam num doc único — a ocultação financeira é de interface;
+  um empregado tecnicamente hábil lê o doc via console. Enforcement real exige
+  dividir os dados em docs separados por sensibilidade (próximo passo se necessário).
 - Perfil (openPerfil/salvarPerfil): nome no time, e-mail (updateEmail com reauth,
   fallback verifyBeforeUpdateEmail), senha, nome da empresa (dono), tema
   claro/escuro/auto e cor de destaque (prefs em usuarios/{uid}.prefs + localStorage;
