@@ -19,6 +19,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Testa as regras de segurança no emulador (paralelo ao deploy; falha aparece no Actions)
+  test-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: npx firebase emulators:exec --only firestore "node --test tests/"
+
   deploy:
     runs-on: ubuntu-latest
     environment:
@@ -28,8 +39,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Testar sintaxe dos scripts antes de publicar
         run: |
-          awk '/<script type="module">/{f=1;next}/<\/script>/{f=0}f' index.html > /tmp/app.mjs
-          node --check /tmp/app.mjs
+          node --check app.js
           awk '/<script type="module">/{f=1;next}/<\/script>/{f=0}f' catalogo.html > /tmp/cat.mjs
           node --check /tmp/cat.mjs
           node --check sw.js

@@ -1,0 +1,782 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, verifyBeforeUpdateEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ============================================================
+// COLE AQUI AS SUAS CHAVES DO FIREBASE (as mesmas do app anterior)
+// As chaves vêm de config.js (que fica fora do Git — veja config.example.js)
+const firebaseConfig = window.CINEREA_CONFIG || {
+  apiKey: "COLE_AQUI", authDomain: "COLE_AQUI", projectId: "COLE_AQUI",
+  storageBucket: "COLE_AQUI", messagingSenderId: "COLE_AQUI", appId: "COLE_AQUI"
+};
+// ============================================================
+
+const isConfigured = firebaseConfig.apiKey !== "COLE_AQUI";
+let app,auth,fdb,uid=null,saveTimer=null;
+let eid=null,empresaNome='',empresaDono='',membros={},unsubData=null,unsubMembros=null,unsubFin=null,backupChecado=false;
+let rawOp=null,rawFin=null,dbFinLoaded=false,migrouFin=false,minhasEmpresas={};
+let db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],atividade:[],meta:0,checks:{}};
+// dados financeiros vivem num doc separado (empresas/{eid}/fin/dados) — só dono/admin/sócio leem
+const FIN_KEYS=['fixos','meta','meiTeto','ultimoBackup'];
+const PROD_FIN=['preco','markup','taxa','custohora','perda','equip'];
+function rebuildDb(){
+  const base=JSON.parse(JSON.stringify(rawOp||{}));
+  db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],atividade:[],meta:0,checks:{},...base};
+  if(rawFin){
+    FIN_KEYS.forEach(k=>{if(rawFin[k]!==undefined)db[k]=rawFin[k];});
+    const pf=rawFin.prodFin||{};db.produtos.forEach(p=>Object.assign(p,pf[p.id]||{}));
+  }
+}
+function splitDb(){
+  const op=JSON.parse(JSON.stringify(db));
+  const fin={prodFin:{}};
+  FIN_KEYS.forEach(k=>{if(op[k]!==undefined){fin[k]=op[k];delete op[k];}});
+  (op.produtos||[]).forEach(p=>{const f={};PROD_FIN.forEach(k=>{if(p[k]!==undefined){f[k]=p[k];delete p[k];}});fin.prodFin[p.id]=f;});
+  return{op,fin};
+}
+function migrarFinSePreciso(){
+  if(migrouFin||!dbFinLoaded||!rawOp||!pode('fin'))return;
+  const temFinNoOp=FIN_KEYS.some(k=>rawOp[k]!==undefined)||(rawOp.produtos||[]).some(p=>PROD_FIN.some(k=>p[k]!==undefined));
+  if(!temFinNoOp)return;
+  migrouFin=true;cloudSave(); // db já está mesclado; o save divide e limpa o doc operacional
+}
+let undoState=null,toastTimer=null,timerT0=null,timerInt=null,filtroMinhas=false;
+const fP={q:'',m:''},fV={q:'',m:''};
+
+// ---------- preferências de interface (tema + cor de destaque) ----------
+const ACENTOS={'Brasa':'#B5462A','Verde':'#3F7D5B','Azul':'#33628C','Violeta':'#6D4E8C','Âmbar':'#C08A2E'};
+function aplicarPrefs(p){
+  p=p||{};window.__prefs=p;
+  const escuro=p.tema==='escuro'||(p.tema==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.tema=escuro?'escuro':'claro';
+  document.documentElement.style.setProperty('--ember',p.acento||'#B5462A');
+  const mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.content=escuro?'#201D19':'#F2EFEA';
+  if(uid&&typeof renderCharts==='function')try{renderCharts();}catch(e){}
+}
+try{aplicarPrefs(JSON.parse(localStorage.getItem('cinereaPrefs')||'{}'));}catch(e){}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if((window.__prefs||{}).tema==='auto')aplicarPrefs(window.__prefs);});
+let charts={};
+
+Object.assign(window,{doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,del,addRecipeLine,rmRecipeLine,updateCost,exportCSV,exportPDF,exportCompras,saveCheck,buyDone,exportJSON,importJSON,setMeta,setMeiTeto,quickCliente,publicarCatalogo,doUndo,renderProducao,renderPedidos,fP,fV,criarEmpresaUI,entrarEmpresaUI,gerarConvite,removerMembro,renomearMe,moveTarefa,repetir,toggleTimer,exportDRE,openPerfil,sairEmpresa,esqueciSenha,toggleMinhas,mudarPapel,dragTarefa,dropTarefa,addComent,gerarCotacao,importarCotacao,verCotacao});
+
+if(!isConfigured){document.getElementById('gateSetup').style.display='block';}
+else{
+  app=initializeApp(firebaseConfig);auth=getAuth(app);
+  // cache local persistente: o app funciona offline e sincroniza ao reconectar
+  fdb=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
+  document.getElementById('gateLogin').style.display='block';
+  onAuthStateChanged(auth,user=>{
+    if(user){uid=user.uid;carregarConta();}
+    else{uid=null;eid=null;if(unsubData)unsubData();if(unsubMembros)unsubMembros();
+      document.getElementById('gateEmpresa').style.display='none';
+      document.getElementById('gateLogin').style.display='block';
+      document.getElementById('gate').style.display='flex';}
+  });
+}
+// ---------- conta → empresa (multi-usuário) ----------
+async function carregarConta(){
+  try{
+    const ps=await getDoc(doc(fdb,'usuarios',uid));
+    const pdata=ps.exists()?ps.data():{};
+    if(pdata.prefs){aplicarPrefs(pdata.prefs);try{localStorage.setItem('cinereaPrefs',JSON.stringify(pdata.prefs));}catch(e){}}
+    minhasEmpresas=pdata.minhasEmpresas||{};
+    if(pdata.empresaId){eid=pdata.empresaId;iniciarEmpresa();}
+    else if(pdata.dados&&pdata.dados.insumos){await criarEmpresa('Cinérea',pdata.dados);} // migração automática do modelo antigo
+    else{mostrarOnboarding('');}
+  }catch(e){console.error(e);mostrarOnboarding('Erro ao carregar sua conta. Publique as novas regras do Firestore (docs/firestore.rules) e recarregue.');}
+}
+function mostrarOnboarding(msg){
+  document.getElementById('gate').style.display='flex';
+  document.getElementById('gateLogin').style.display='none';
+  document.getElementById('gateEmpresa').style.display='block';
+  document.getElementById('gateEmpErr').textContent=msg||'';
+}
+function nomePadrao(){return ((auth.currentUser&&auth.currentUser.email)||'membro').split('@')[0];}
+async function criarEmpresa(nome,dadosLegado){
+  const ref=doc(collection(fdb,'empresas'));
+  await setDoc(ref,{nome,dono:uid,dados:dadosLegado||{},atualizado:Date.now()});
+  await setDoc(doc(fdb,'empresas',ref.id,'membros',uid),{nome:nomePadrao(),entrou:Date.now()});
+  minhasEmpresas[ref.id]=nome;
+  await setDoc(doc(fdb,'usuarios',uid),{empresaId:ref.id,minhasEmpresas:{[ref.id]:nome}},{merge:true});
+  eid=ref.id;iniciarEmpresa();
+}
+async function criarEmpresaUI(){
+  const nome=document.getElementById('gEmpNome').value.trim();
+  if(!nome){document.getElementById('gateEmpErr').textContent='Dê um nome à empresa.';return;}
+  try{await criarEmpresa(nome,null);}catch(e){console.error(e);document.getElementById('gateEmpErr').textContent='Erro ao criar. Confira as regras do Firestore.';}
+}
+async function entrarEmpresaUI(){
+  const cod=document.getElementById('gEmpCod').value.trim().toUpperCase();
+  const err=document.getElementById('gateEmpErr');
+  if(!cod){err.textContent='Digite o código de convite.';return;}
+  try{
+    const cs=await getDoc(doc(fdb,'convites',cod));
+    if(!cs.exists()){err.textContent='Código inválido ou expirado.';return;}
+    const e2=cs.data().empresaId;
+    await setDoc(doc(fdb,'empresas',e2,'membros',uid),{nome:nomePadrao(),codigo:cod,papel:cs.data().papel||'empregado',entrou:Date.now()});
+    minhasEmpresas[e2]='Empresa';
+    await setDoc(doc(fdb,'usuarios',uid),{empresaId:e2,minhasEmpresas:{[e2]:'Empresa'}},{merge:true});
+    eid=e2;iniciarEmpresa();
+  }catch(e){console.error(e);err.textContent='Não foi possível entrar. Confira o código e as regras do Firestore.';}
+}
+function iniciarEmpresa(){
+  document.getElementById('gate').style.display='none';
+  backupChecado=false;subscribe();subscribeMembros();
+}
+async function gerarConvite(){
+  if(!pode('gerir')){toast('Só dono e admin podem convidar');return;}
+  let papel=prompt('Papel do convidado — digite: empregado, socio ou admin','empregado');
+  if(papel===null)return;
+  papel=papel.trim().toLowerCase().replace('ó','o');
+  if(!PAPEIS.includes(papel)){toast('Papel inválido — use empregado, socio ou admin');return;}
+  try{
+    db.convitesPorPapel=db.convitesPorPapel||{};
+    let c=db.convitesPorPapel[papel];
+    if(!c){c=Math.random().toString(36).slice(2,8).toUpperCase();
+      await setDoc(doc(fdb,'convites',c),{empresaId:eid,papel,criado:Date.now()});
+      db.convitesPorPapel[papel]=c;cloudSave();}
+    if(navigator.clipboard)navigator.clipboard.writeText(c).catch(()=>{});
+    toast('Convite de <b>'+PAPEL_LABEL[papel]+'</b>: <b>'+c+'</b> — copiado');
+  }catch(e){console.error(e);toast('Erro ao gerar convite — confira as regras do Firestore');}
+}
+async function removerMembro(mUid){
+  if(!pode('gerir')||mUid===empresaDono){toast('Sem permissão');return;}
+  if(!confirm('Remover este membro da empresa?'))return;
+  try{await deleteDoc(doc(fdb,'empresas',eid,'membros',mUid));toast('Membro removido');}
+  catch(e){console.error(e);toast('Erro ao remover membro');}
+}
+async function renomearMe(){
+  const atual=(membros[uid]||{}).nome||nomePadrao();
+  const n=prompt('Seu nome (aparece nas tarefas):',atual);
+  if(!n)return;
+  try{await setDoc(doc(fdb,'empresas',eid,'membros',uid),{nome:n.trim()},{merge:true});}catch(e){console.error(e);}
+}
+// ---------- papéis e governança ----------
+// dono: tudo · admin: tudo menos mexer no dono · sócio: vê financeiro, não gere equipe · empregado: só operação
+const PAPEIS=['empregado','socio','admin'];
+const PAPEL_LABEL={dono:'dono',admin:'admin',socio:'sócio',empregado:'empregado'};
+function meuPapel(){if(!uid)return'empregado';if(uid===empresaDono)return'dono';return (membros[uid]&&membros[uid].papel)||'empregado';}
+function pode(cap){const p=meuPapel();if(cap==='gerir')return p==='dono'||p==='admin';if(cap==='fin')return p!=='empregado';return true;}
+function aplicarPapel(){
+  const fin=pode('fin'),ger=pode('gerir');
+  const tabOrc=document.querySelector('[data-tab="orcamento"]');if(tabOrc)tabOrc.style.display=fin?'':'none';
+  ['chCusto','chMargem','chRec','chMes','chLph'].forEach(id=>{const el=document.getElementById(id);if(el){const card=el.closest('.chartcard');if(card)card.style.display=fin?'':'none';}});
+  document.querySelectorAll('#p-dashboard .head-btns .btn2').forEach(b=>b.style.display=fin?'':'none');
+  const conv=document.querySelector('[onclick="gerarConvite()"]');if(conv)conv.style.display=ger?'':'none';
+  const pt=document.querySelector('#p-pedidos table');if(pt)pt.classList.toggle('no-fin',!fin);
+  const pOrc=document.getElementById('p-orcamento');
+  if(!fin&&pOrc&&pOrc.classList.contains('active')){const d=document.querySelector('[data-tab="dashboard"]');if(d)d.click();}
+}
+async function mudarPapel(mUid){
+  if(!pode('gerir')||mUid===empresaDono)return;
+  const atual=(membros[mUid]||{}).papel||'empregado';
+  const prox=PAPEIS[(PAPEIS.indexOf(atual)+1)%PAPEIS.length];
+  try{await setDoc(doc(fdb,'empresas',eid,'membros',mUid),{papel:prox},{merge:true});toast('Papel de <b>'+esc((membros[mUid]||{}).nome||'membro')+'</b> agora é <b>'+PAPEL_LABEL[prox]+'</b>');}
+  catch(e){console.error(e);toast('Erro ao mudar papel — confira as regras do Firestore');}
+}
+// ---------- perfil ----------
+function openPerfil(){
+  if(!uid)return;
+  currentForm={type:'perfil',id:null,recipe:[]};window.currentForm=currentForm;
+  document.getElementById('modalTitle').textContent='Meu perfil';
+  const m=membros[uid]||{};const p=window.__prefs||{};
+  document.getElementById('modalBody').innerHTML=`
+    <div class="field"><label>Meu nome (aparece no time)</label><input id="f_pnome" value="${esc(m.nome||'')}"></div>
+    <div class="field"><label>E-mail de login</label><input id="f_pemail" type="email" value="${esc((auth.currentUser&&auth.currentUser.email)||'')}"><div class="hint">Alterar pode pedir sua senha atual ou confirmação por link no novo e-mail</div></div>
+    <div class="field"><label>Nova senha</label><input id="f_psenha" type="password" placeholder="deixe vazio para manter a atual"></div>
+    ${pode('gerir')?`<div class="field"><label>Nome da empresa</label><input id="f_pempresa" value="${esc(empresaNome)}"></div>`:''}
+    <div class="field"><label>Meu papel</label><div style="padding:6px 0"><span class="papel ${meuPapel()}">${PAPEL_LABEL[meuPapel()]}</span> <span class="hint" style="display:inline">— define o que você vê e gerencia</span></div></div>
+    <div class="field-row">
+      <div class="field"><label>Tema</label><select id="f_ptema">${['claro','escuro','auto'].map(t=>`<option ${p.tema===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="field"><label>Cor de destaque</label><select id="f_pacento">${Object.entries(ACENTOS).map(([n,c])=>`<option value="${c}" ${(p.acento||'#B5462A')===c?'selected':''}>${n}</option>`).join('')}</select></div>
+    </div>
+    ${Object.keys(minhasEmpresas).length>1?`<div class="field"><label>Trocar de empresa</label><select id="f_ptrocar">${Object.entries(minhasEmpresas).map(([k,n])=>`<option value="${k}" ${k===eid?'selected':''}>${esc(n)}</option>`).join('')}</select></div>`:''}
+    ${eid&&uid!==empresaDono?`<button class="btn2" style="color:var(--ember);border-color:var(--ember);width:100%" onclick="sairEmpresa()">Sair desta empresa</button>`:''}`;
+  document.getElementById('overlay').classList.add('open');
+}
+async function comReauth(cur,fn){
+  try{await fn();}
+  catch(e){
+    if(e.code==='auth/requires-recent-login'){
+      const pw=prompt('Por segurança, confirme sua senha atual:');if(!pw)throw e;
+      await reauthenticateWithCredential(cur,EmailAuthProvider.credential(cur.email,pw));
+      await fn();
+    }else throw e;
+  }
+}
+async function salvarPerfil(){
+  const nome=val('f_pnome').trim(),email=val('f_pemail').trim(),senha=val('f_psenha');
+  const prefs={tema:val('f_ptema')||'claro',acento:val('f_pacento')||'#B5462A'};
+  aplicarPrefs(prefs);try{localStorage.setItem('cinereaPrefs',JSON.stringify(prefs));}catch(e){}
+  setDoc(doc(fdb,'usuarios',uid),{prefs},{merge:true}).catch(()=>{});
+  if(nome&&eid&&nome!==(membros[uid]||{}).nome)setDoc(doc(fdb,'empresas',eid,'membros',uid),{nome},{merge:true}).catch(()=>{});
+  if(pode('gerir')&&eid){const en=(val('f_pempresa')||'').trim();if(en&&en!==empresaNome)setDoc(doc(fdb,'empresas',eid),{nome:en},{merge:true}).catch(()=>{});}
+  const cur=auth.currentUser;
+  try{
+    if(email&&cur&&email!==cur.email){
+      try{await comReauth(cur,()=>updateEmail(cur,email));toast('E-mail alterado para '+esc(email));}
+      catch(e){if(e.code==='auth/operation-not-allowed'){await comReauth(cur,()=>verifyBeforeUpdateEmail(cur,email));toast('Enviamos um link de confirmação para '+esc(email)+' — o e-mail muda após confirmar');}else throw e;}
+    }
+    if(senha){if(senha.length<6){toast('Senha nova muito curta (mínimo 6)');return;}await comReauth(cur,()=>updatePassword(cur,senha));toast('Senha alterada ✓');}
+  }catch(e){console.error(e);const msgs={'auth/invalid-email':'E-mail inválido.','auth/email-already-in-use':'Este e-mail já está em uso.','auth/wrong-password':'Senha atual incorreta.','auth/invalid-credential':'Senha atual incorreta.'};toast(msgs[e.code]||'Erro ao atualizar a conta: '+e.code);return;}
+  const trocar=val('f_ptrocar');
+  if(trocar&&trocar!==eid){await setDoc(doc(fdb,'usuarios',uid),{empresaId:trocar},{merge:true});eid=trocar;backupChecado=false;iniciarEmpresa();subscribeMembros();closeModal();toast('Empresa trocada');return;}
+  closeModal();toast('Perfil salvo ✓');
+}
+async function sairEmpresa(){
+  if(uid===empresaDono){toast('O dono não pode sair da própria empresa');return;}
+  if(!confirm('Sair desta empresa? Você perderá o acesso aos dados dela até ser convidado de novo.'))return;
+  try{
+    await deleteDoc(doc(fdb,'empresas',eid,'membros',uid));
+    delete minhasEmpresas[eid];
+    await setDoc(doc(fdb,'usuarios',uid),{empresaId:null,minhasEmpresas:{[eid]:deleteField()}},{merge:true});
+    if(unsubData)unsubData();if(unsubMembros)unsubMembros();if(unsubFin)unsubFin();eid=null;closeModal();
+    mostrarOnboarding('Você saiu da empresa. Crie uma nova ou entre com um convite.');
+  }catch(e){console.error(e);toast('Erro ao sair da empresa');}
+}
+async function esqueciSenha(){
+  const em=document.getElementById('gEmail').value.trim();
+  const err=document.getElementById('gateErr');
+  if(!em){err.textContent='Digite seu e-mail acima e toque de novo em "Esqueci a senha".';return;}
+  try{await sendPasswordResetEmail(auth,em);err.textContent='';toast('Enviamos um link de redefinição para '+esc(em));}
+  catch(e){err.textContent='Não foi possível enviar: '+(e.code==='auth/invalid-email'?'e-mail inválido.':e.code);}
+}
+function toggleMinhas(){filtroMinhas=!filtroMinhas;const b=document.getElementById('btnMinhas');if(b){b.textContent=filtroMinhas?'✓ Só minhas':'Só minhas';b.style.borderColor=filtroMinhas?'var(--ember)':'';b.style.color=filtroMinhas?'var(--ember)':'';}renderEquipe();}
+async function checkBackup(){
+  if(backupChecado||!eid||!dbFinLoaded||!pode('fin'))return;backupChecado=true;
+  const mes=hoje().slice(0,7);
+  if(db.ultimoBackup===mes)return;
+  try{
+    await setDoc(doc(fdb,'empresas',eid,'backups',mes),{dados:JSON.parse(JSON.stringify(db)),criado:Date.now()});
+    const d=new Date();d.setMonth(d.getMonth()-7);
+    const velho=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    deleteDoc(doc(fdb,'empresas',eid,'backups',velho)).catch(()=>{});
+    db.ultimoBackup=mes;cloudSave();
+  }catch(e){console.error(e);}
+}
+let authMode='login';
+function toggleAuth(){authMode=authMode==='login'?'signup':'login';document.getElementById('gBtn').textContent=authMode==='login'?'Entrar':'Criar conta';document.getElementById('swapLbl').textContent=authMode==='login'?'Criar agora':'Já tenho conta';document.getElementById('gateErr').textContent='';}
+async function doAuth(){const em=document.getElementById('gEmail').value,pw=document.getElementById('gPass').value,err=document.getElementById('gateErr');try{if(authMode==='signup')await createUserWithEmailAndPassword(auth,em,pw);else await signInWithEmailAndPassword(auth,em,pw);}catch(e){const m={'auth/invalid-email':'E-mail inválido.','auth/weak-password':'Senha curta (mín. 6).','auth/email-already-in-use':'E-mail já cadastrado — entre.','auth/invalid-credential':'E-mail ou senha incorretos.'};err.textContent=m[e.code]||'Erro: '+e.code;}}
+function doLogout(){if(auth)signOut(auth);}
+function subscribe(){
+  if(unsubData)unsubData();if(unsubFin)unsubFin();
+  rawOp=null;rawFin=null;dbFinLoaded=false;migrouFin=false;
+  unsubData=onSnapshot(doc(fdb,'empresas',eid),snap=>{
+    if(snap.exists()){const d=snap.data();empresaNome=d.nome||'';empresaDono=d.dono||'';rawOp=d.dados||{};}
+    else{rawOp={};}
+    rebuildDb();seedIfEmpty(false);
+    const bn=document.getElementById('brandName');if(bn)bn.textContent=(empresaNome||'Cinérea')+' · Gestão';
+    renderAll();flashSync(true);migrarFinSePreciso();checkBackup();
+  },err=>{console.error(err);eid=null;mostrarOnboarding('Você não tem mais acesso a esta empresa — crie outra ou peça um novo convite.');setDoc(doc(fdb,'usuarios',uid),{empresaId:null},{merge:true}).catch(()=>{});});
+  unsubFin=onSnapshot(doc(fdb,'empresas',eid,'fin','dados'),snap=>{
+    rawFin=snap.exists()?snap.data():{};dbFinLoaded=true;
+    if(rawOp!==null){rebuildDb();renderAll();}
+    migrarFinSePreciso();checkBackup();
+  },err=>{dbFinLoaded=false;}); // empregado: sem acesso ao financeiro — segue só com o operacional
+}
+function subscribeMembros(){
+  if(unsubMembros)unsubMembros();
+  unsubMembros=onSnapshot(collection(fdb,'empresas',eid,'membros'),qs=>{membros={};qs.forEach(d=>membros[d.id]=d.data());renderAll();},err=>console.error(err));
+}
+function cloudSave(){if(!uid||!eid)return;flashSync(false);clearTimeout(saveTimer);saveTimer=setTimeout(()=>{try{
+  let payloadOp,finToWrite=null;
+  if(dbFinLoaded&&pode('fin')){const s=splitDb();payloadOp=s.op;finToWrite=s.fin;}
+  else if(!pode('fin')){payloadOp=splitDb().op;} // empregado nunca grava campos financeiros
+  else{payloadOp=JSON.parse(JSON.stringify(db));} // fin ainda não carregou: mantém tudo no operacional (a migração divide depois)
+  const p=updateDoc(doc(fdb,'empresas',eid),{dados:payloadOp,atualizado:Date.now()});
+  if(finToWrite)setDoc(doc(fdb,'empresas',eid,'fin','dados'),finToWrite).catch(e=>console.error(e));
+  if(navigator.onLine){p.then(()=>flashSync(true)).catch(e=>console.error(e));}else{flashSync(true);}
+}catch(e){console.error(e);}},400);}
+function flashSync(ok){const el=document.getElementById('syncState');if(!ok){el.innerHTML='<span class="dot off"></span> salvando…';return;}el.innerHTML=navigator.onLine?'<span class="dot"></span> sincronizado':'<span class="dot off"></span> offline · salvo no aparelho';}
+
+const uidGen=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const brl=n=>'R$ '+(Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hoje=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+function toast(msg){const t=document.getElementById('toast');t.innerHTML=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2600);}
+function toastUndo(msg,snap){undoState=snap;const t=document.getElementById('toast');t.innerHTML=msg+' <button onclick="doUndo()" style="background:none;border:none;color:#e8a;text-decoration:underline;cursor:pointer;font-size:13px;margin-left:6px">Desfazer</button>';t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),7000);}
+function doUndo(){if(!undoState)return;db=undoState;undoState=null;cloudSave();renderAll();toast('Desfeito ✓');}
+
+function seedIfEmpty(force){
+  if(db.insumos&&db.insumos.length)return;
+  db.insumos=[
+    {id:uidGen(),nome:'Gesso alfa',unidade:'kg',estoque:5,minimo:2,custo:12},
+    {id:uidGen(),nome:'Silicone (estanho)',unidade:'kg',estoque:2,minimo:1,custo:110},
+    {id:uidGen(),nome:'Resina 3D',unidade:'kg',estoque:1,minimo:0.5,custo:173},
+    {id:uidGen(),nome:'Parafina 58-62°C',unidade:'kg',estoque:2,minimo:1,custo:32},
+    {id:uidGen(),nome:'Essência para velas',unidade:'kg',estoque:0.25,minimo:0.2,custo:160},
+    {id:uidGen(),nome:'Pavio',unidade:'un',estoque:50,minimo:20,custo:0.6},
+    {id:uidGen(),nome:'Embalagem',unidade:'un',estoque:15,minimo:10,custo:12},
+  ];
+  db.equip=[{id:uidGen(),nome:'Impressora 3D resina',tipo:'Equipamento',compra:'',custo:0,situacao:'Ativo'}];
+  db.moldes=[{id:uidGen(),nome:'Base vitrola',material:'gesso',usos:0,vida:40},{id:uidGen(),nome:'Estátua grega',material:'gesso',usos:0,vida:40}];
+  db.canais=[{id:uidGen(),nome:'Direto / Pix',taxa:0},{id:uidGen(),nome:'Feira',taxa:0},{id:uidGen(),nome:'Instagram',taxa:0},{id:uidGen(),nome:'Marketplace',taxa:12}];
+  cloudSave();
+}
+
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.getElementById('p-'+b.dataset.tab).classList.add('active');renderAll();});
+
+function insumoStatus(i){if(i.estoque<=i.minimo)return'low';if(i.estoque/(i.minimo||1)<1.5)return'warn';return'ok';}
+function moldeStatus(m){const r=m.usos/(m.vida||1);if(r>=1)return'low';if(r>=.8)return'warn';return'ok';}
+function rowActions(t,id,rep){return `<div class="row-actions">${rep?`<button class="icon-btn" title="Repetir" onclick="repetir('${t}','${id}')">⟳</button>`:''}<button class="icon-btn" onclick="openForm('${t}','${id}')">✎</button><button class="icon-btn" onclick="del('${t}','${id}')">🗑</button></div>`;}
+function repetir(type,id){const src=db[plural(type)].find(x=>x.id===id);if(!src)return;openForm(type);FORMS[type].fields.forEach(f=>{const el=document.getElementById('f_'+f.k);if(!el)return;if(f.t==='date'){el.value=f.k==='data'?hoje():'';}else if(src[f.k]!==undefined&&src[f.k]!==null)el.value=src[f.k];});}
+function toggleTimer(){const b=document.getElementById('timerBtn'),v=document.getElementById('timerView');if(!b)return;
+  if(timerT0){clearInterval(timerInt);timerInt=null;const min=(Date.now()-timerT0)/60000;timerT0=null;const f=document.getElementById('f_minutos');if(f)f.value=Math.max(1,Math.round(min));b.textContent='▶ Cronometrar uma peça';if(v)v.textContent='tempo registrado ✓';}
+  else{timerT0=Date.now();b.textContent='⏹ Parar e registrar';timerInt=setInterval(()=>{if(!v)return;const s=Math.floor((Date.now()-timerT0)/1000);v.textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');},1000);}}
+function calcCusto(p){let mat=0;(p.receita||[]).forEach(l=>{const ins=db.insumos.find(i=>i.id===l.insumo);if(ins)mat+=Number(ins.custo)*Number(l.qtd||0);});const mo=(Number(p.minutos||0)/60)*Number(p.custohora||25);let eq=0;if(p.equip){const e=db.equip.find(x=>x.id===p.equip);if(e&&Number(e.vidaHoras)>0)eq=(Number(p.minutos||0)/60)*(Number(e.custo||0)/Number(e.vidaHoras));}const sub=mat+mo+eq;const perda=sub*(Number(p.perda||8)/100);return{mat,mo,eq,sub,perda,total:sub+perda};}
+// lucro de um pedido: usa a taxa do canal (se houver) ou a taxa do produto
+function lucroPedido(p){const prod=db.produtos.find(x=>x.id===p.produto);if(!prod)return null;const q=Number(p.qtd||1);const custo=calcCusto(prod).total*q;const can=(db.canais||[]).find(c=>c.id===p.canal);const taxaPct=can?Number(can.taxa||0):Number(prod.taxa||0);return Number(p.valor||0)*(1-taxaPct/100)-custo-Number(p.frete||0);}
+function labelize(){document.querySelectorAll('.tablewrap table').forEach(t=>{const hs=[...t.querySelectorAll('thead th')].map(h=>h.textContent.trim());t.querySelectorAll('tbody tr').forEach(tr=>{[...tr.children].forEach((td,i)=>td.setAttribute('data-l',td.hasAttribute('colspan')?'':(hs[i]||'')));});});}
+function fillMeses(selId,rows,cur){const sel=document.getElementById(selId);if(!sel)return;const ms=[...new Set(rows.map(r=>(r.data||'').slice(0,7)).filter(Boolean))].sort().reverse();sel.innerHTML='<option value="">todos os meses</option>'+ms.map(m=>`<option ${m===cur?'selected':''}>${m}</option>`).join('');}
+
+function renderDash(){
+  const lowIns=db.insumos.filter(i=>insumoStatus(i)!=='ok');
+  const lowMold=db.moldes.filter(m=>moldeStatus(m)!=='ok');
+  const totalProd=db.producao.reduce((s,p)=>s+Number(p.qtd||0),0);
+  const receita=db.pedidos.filter(p=>p.situacao==='Pago'||p.situacao==='Entregue').reduce((s,p)=>s+Number(p.valor||0),0);
+  // ponto de equilíbrio: custos fixos ÷ margem média das peças
+  const margens=db.produtos.map(p=>{const c=calcCusto(p).total;const sug=c*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;return prat-taxa-c;}).filter(m=>m>0);
+  const mMed=margens.length?margens.reduce((a,b)=>a+b,0)/margens.length:0;
+  const fixosTot=(db.fixos||[]).reduce((s,f)=>s+Number(f.valor||0),0);
+  const pe=mMed>0&&fixosTot>0?Math.ceil(fixosTot/mMed):0;
+  // meta do mês corrente
+  const mesAtual=hoje().slice(0,7);
+  const recMes=db.pedidos.filter(p=>(p.situacao==='Pago'||p.situacao==='Entregue')&&(p.data||'').slice(0,7)===mesAtual).reduce((s,p)=>s+Number(p.valor||0),0);
+  const meta=Number(db.meta||0);
+  const pctMeta=meta>0?Math.min(100,Math.round(recMes/meta*100)):0;
+  // teto MEI: receita do ano vs limite anual
+  const ano=hoje().slice(0,4);
+  const recAno=db.pedidos.filter(p=>(p.situacao==='Pago'||p.situacao==='Entregue')&&(p.data||'').slice(0,4)===ano).reduce((s,p)=>s+Number(p.valor||0),0);
+  const teto=Number(db.meiTeto||81000);
+  const pctMei=Math.min(100,Math.round(recAno/teto*100));
+  const fin=pode('fin');
+  document.getElementById('dashStats').innerHTML=`
+    <div class="stat ${lowIns.length?'alert':''}"><div class="k">Insumos p/ repor</div><div class="v">${lowIns.length}</div><div class="s">de ${db.insumos.length}</div></div>
+    <div class="stat ${lowMold.length?'alert':''}"><div class="k">Moldes no limite</div><div class="v">${lowMold.length}</div><div class="s">de ${db.moldes.length}</div></div>
+    <div class="stat"><div class="k">Peças produzidas</div><div class="v">${totalProd}</div><div class="s">${db.producao.length} registros</div></div>`+(fin?`
+    <div class="stat"><div class="k">Receita</div><div class="v" style="font-size:22px">${brl(receita)}</div><div class="s">${db.pedidos.length} pedidos</div></div>
+    <div class="stat"><div class="k">Custos fixos / mês</div><div class="v" style="font-size:22px">${brl(fixosTot)}</div><div class="s">${(db.fixos||[]).length?(db.fixos.length+' lançamentos'):'cadastre no Orçamento'}</div></div>
+    <div class="stat"><div class="k">Ponto de equilíbrio</div><div class="v">${pe||'—'}</div><div class="s">${pe?'peças/mês para empatar':'precisa de custos fixos e produtos'}</div></div>
+    <div class="stat" style="cursor:pointer" onclick="setMeta()" title="Toque para definir a meta"><div class="k">Meta do mês</div><div class="v">${meta?pctMeta+'%':'—'}</div><div class="s">${meta?brl(recMes)+' de '+brl(meta):'toque para definir'}</div>${meta?`<div class="bar" style="margin-top:8px"><span class="${pctMeta>=100?'':'warn'}" style="width:${pctMeta}%"></span></div>`:''}</div>
+    <div class="stat ${pctMei>=80?'alert':''}" style="cursor:pointer" onclick="setMeiTeto()" title="Toque para ajustar o teto"><div class="k">Teto MEI (${ano})</div><div class="v">${pctMei}%</div><div class="s">${brl(recAno)} de ${brl(teto)}</div><div class="bar" style="margin-top:8px"><span class="${pctMei>=80?'low':pctMei>=50?'warn':''}" style="width:${pctMei}%"></span></div></div>
+    <div class="stat"><div class="k">A receber</div><div class="v" style="font-size:22px">${brl(db.pedidos.filter(p=>p.situacao==='Pendente').reduce((s,p)=>s+Number(p.valor||0),0))}</div><div class="s">${db.pedidos.filter(p=>p.situacao==='Pendente').length} pedido(s) pendente(s)</div></div>`:'');
+  renderPrazos();
+  let a=[];lowIns.forEach(i=>a.push(`Repor <b>${esc(i.nome)}</b> — restam ${i.estoque} ${esc(i.unidade)}`));lowMold.forEach(m=>a.push(`Molde <b>${esc(m.nome)}</b> — ${m.usos}/${m.vida}`));
+  document.getElementById('dashAlerts').innerHTML=a.length?('<b>Atenção:</b><br>'+a.join('<br>')):'Tudo em ordem.';
+  renderCharts();
+}
+function mkChart(id,cfg){if(charts[id])charts[id].destroy();const el=document.getElementById(id);if(el)charts[id]=new Chart(el,cfg);}
+function renderCharts(){
+  if(typeof Chart==='undefined')return;
+  // cores lidas das variáveis CSS para respeitar tema e cor de destaque
+  const css=getComputedStyle(document.documentElement);
+  const cv=(n,fb)=>((css.getPropertyValue(n)||'').trim()||fb);
+  const C={char:cv('--char','#1C1A17'),ember:cv('--ember','#B5462A'),smoke:cv('--smoke','#6E6862'),line:cv('--line','#D8D2C8'),ok:'#3F7D5B',warn:'#C08A2E'};
+  const F={font:{family:'Inter'}};const grid={color:C.line};const tick={color:C.smoke,font:{family:'Inter',size:11}};
+  const prods=db.produtos.map(p=>{const c=calcCusto(p).total;const sug=c*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const marg=prat-taxa-c;const h=Number(p.minutos||0)/60;return{nome:p.nome,c,m:prat?Math.round(marg/prat*100):0,lph:h>0?marg/h:0};});
+  mkChart('chCusto',{type:'bar',data:{labels:prods.map(p=>p.nome),datasets:[{data:prods.map(p=>p.c.toFixed(2)),backgroundColor:C.ember,borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
+  mkChart('chMargem',{type:'bar',data:{labels:prods.map(p=>p.nome),datasets:[{data:prods.map(p=>p.m),backgroundColor:prods.map(p=>p.m>50?C.ok:p.m>30?C.warn:C.ember),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
+  const byDay={};db.producao.forEach(p=>{const d=p.data||'?';byDay[d]=(byDay[d]||0)+Number(p.qtd||0);});const days=Object.keys(byDay).sort();
+  mkChart('chProd',{type:'line',data:{labels:days,datasets:[{data:days.map(d=>byDay[d]),borderColor:C.char,backgroundColor:'rgba(181,70,42,.1)',fill:true,tension:.3,pointBackgroundColor:C.ember}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
+  const sit={};db.pedidos.forEach(p=>{const s=p.situacao||'Pendente';sit[s]=(sit[s]||0)+Number(p.valor||0);});
+  mkChart('chRec',{type:'doughnut',data:{labels:Object.keys(sit),datasets:[{data:Object.values(sit),backgroundColor:[C.warn,C.ok,C.char,C.ember]}]},options:{plugins:{legend:{position:'bottom',labels:{...F,color:C.smoke,boxWidth:12}}}}});
+  // mês a mês: receita (pedidos pagos/entregues) e lucro (só dos pedidos ligados a produto)
+  const byMes={};db.pedidos.forEach(p=>{if(p.situacao!=='Pago'&&p.situacao!=='Entregue')return;const m=(p.data||'').slice(0,7);if(!m)return;byMes[m]=byMes[m]||{rec:0,luc:0};byMes[m].rec+=Number(p.valor||0);const l=lucroPedido(p);if(l!==null)byMes[m].luc+=l;});
+  const meses=Object.keys(byMes).sort();
+  mkChart('chMes',{type:'bar',data:{labels:meses,datasets:[{label:'Receita',data:meses.map(m=>byMes[m].rec.toFixed(2)),backgroundColor:C.char,borderRadius:4},{label:'Lucro',data:meses.map(m=>byMes[m].luc.toFixed(2)),backgroundColor:C.ok,borderRadius:4}]},options:{plugins:{legend:{position:'bottom',labels:{color:C.smoke,boxWidth:12,font:{family:'Inter',size:11}}}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
+  mkChart('chLph',{type:'bar',data:{labels:prods.map(p=>p.nome),datasets:[{data:prods.map(p=>p.lph.toFixed(2)),backgroundColor:prods.map(p=>p.lph>40?C.ok:p.lph>20?C.warn:C.ember),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
+}
+function renderEquip(){document.getElementById('tbEquip').innerHTML=db.equip.length?db.equip.map(e=>`<tr><td>${esc(e.nome)}</td><td>${esc(e.tipo)||'—'}</td><td>${esc(e.compra)||'—'}</td><td class="money">${brl(e.custo)}</td><td><span class="pill ok">${esc(e.situacao||'Ativo')}</span></td><td>${rowActions('equip',e.id)}</td></tr>`).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum equipamento.</div></td></tr>`;}
+function renderMoldes(){document.getElementById('tbMoldes').innerHTML=db.moldes.length?db.moldes.map(m=>{const st=moldeStatus(m);const pct=Math.min(100,Math.round(m.usos/(m.vida||1)*100));const l=st==='low'?'Trocar':st==='warn'?'Quase no fim':'Bom';return `<tr><td>${esc(m.nome)}</td><td>${esc(m.material)}</td><td>${m.usos} / ${m.vida}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div></td><td><span class="pill ${st}">${l}</span></td><td>${rowActions('molde',m.id)}</td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum molde.</div></td></tr>`;}
+function renderInsumos(){document.getElementById('tbInsumos').innerHTML=db.insumos.length?db.insumos.map(i=>{const st=insumoStatus(i);const l=st==='low'?'Repor':st==='warn'?'Baixo':'OK';const pct=Math.min(100,Math.round(i.estoque/((i.minimo||1)*2)*100));return `<tr><td>${esc(i.nome)}</td><td>${i.estoque} ${esc(i.unidade)}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div><div style="font-size:11px;color:var(--warm);margin-top:3px">mín. ${i.minimo}</div></td><td class="money">${brl(i.custo)}/${esc(i.unidade)}</td><td><span class="pill ${st}">${l}</span></td><td>${rowActions('insumo',i.id)}</td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum insumo.</div></td></tr>`;}
+function renderProdutos(){document.getElementById('tbProdutos').innerHTML=db.produtos.length?db.produtos.map(p=>{const c=calcCusto(p);const sug=c.total*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const margem=prat-taxa-c.total;const mpct=prat?Math.round(margem/prat*100):0;const h=Number(p.minutos||0)/60;const lph=h>0?margem/h:0;return `<tr><td>${esc(p.nome)}${p.publico?' <span title="no catálogo" style="color:var(--warm);font-size:11px">◈</span>':''}</td><td class="money">${brl(c.total)}</td><td class="money" style="color:var(--smoke)">${brl(sug)}</td><td class="money">${brl(prat)}</td><td><span class="pill ${mpct>50?'ok':mpct>30?'warn':'low'}">${mpct}%</span></td><td class="money">${h>0?brl(lph):'—'}</td><td>${Number(p.pronto||0)}</td><td>${rowActions('produto',p.id)}</td></tr>`;}).join(''):`<tr><td colspan=8><div class="empty-t">Nenhum produto.</div></td></tr>`;}
+function renderProducao(){
+  fillMeses('mesPro',db.producao,fP.m);
+  const rows=[...db.producao].reverse().filter(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const txt=((prod?prod.nome:'')+' '+(p.variacao||'')+' '+(p.lote||'')).toLowerCase();return(!fP.q||txt.includes(fP.q.toLowerCase()))&&(!fP.m||(p.data||'').slice(0,7)===fP.m);});
+  document.getElementById('tbProducao').innerHTML=rows.length?rows.map(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const mold=db.moldes.find(x=>x.id===p.molde);const nome=prod?esc(prod.nome)+(p.variacao?' · '+esc(p.variacao):''):'—';return `<tr><td>${esc(p.data)||'—'}</td><td>${nome}</td><td>${esc(p.qtd)}</td><td>${p.minutos?esc(p.minutos)+' min':'—'}</td><td>${mold?esc(mold.nome):'—'}</td><td style="color:var(--warm);font-size:12px">${esc(p.lote)||'—'}</td><td>${rowActions('producao',p.id,1)}</td></tr>`;}).join(''):`<tr><td colspan=7><div class="empty-t">${db.producao.length?'Nada encontrado com esse filtro.':'Nenhuma produção.'}</div></td></tr>`;
+  labelize();
+}
+function renderPedidos(){
+  const sc={'Pendente':'warn','Pago':'ok','Entregue':'ok','Cancelado':'low'};const hj=hoje();
+  fillMeses('mesPed',db.pedidos,fV.m);
+  const rows=[...db.pedidos].reverse().filter(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);const txt=((cli?cli.nome:p.cliente||'')+' '+(prod?prod.nome:'')+' '+(p.item||'')+' '+(p.variacao||'')).toLowerCase();return(!fV.q||txt.includes(fV.q.toLowerCase()))&&(!fV.m||(p.data||'').slice(0,7)===fV.m);});
+  document.getElementById('tbPedidos').innerHTML=rows.length?rows.map(p=>{
+    const prod=db.produtos.find(x=>x.id===p.produto);const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);
+    const q=Number(p.qtd||1);const can=(db.canais||[]).find(c=>c.id===p.canal);
+    const nome=(prod?esc(prod.nome)+(q>1?' ×'+q:'')+(p.variacao?' · '+esc(p.variacao):''):esc(p.item)||'—')+(can?`<div style="font-size:11px;color:var(--warm)">via ${esc(can.nome)}</div>`:'');
+    const l=lucroPedido(p);
+    const lucro=l===null||p.situacao==='Cancelado'?'—':`<span class="money" style="color:${l>=0?'var(--ok)':'var(--ember)'}">${brl(l)}</span>`;
+    const aberto=p.situacao!=='Entregue'&&p.situacao!=='Cancelado';
+    const prazo=p.prazo?(aberto&&p.prazo<hj?`<span class="pill low">${esc(p.prazo)}</span>`:esc(p.prazo)):'—';
+    return `<tr><td>${esc(p.data)||'—'}</td><td>${cli?esc(cli.nome):esc(p.cliente)||'—'}</td><td>${nome}</td><td>${prazo}</td><td class="money">${brl(p.valor)}</td><td>${lucro}</td><td><span class="pill ${sc[p.situacao]||'warn'}">${esc(p.situacao||'Pendente')}</span></td><td>${rowActions('pedido',p.id,1)}</td></tr>`;
+  }).join(''):`<tr><td colspan=8><div class="empty-t">${db.pedidos.length?'Nada encontrado com esse filtro.':'Nenhum pedido.'}</div></td></tr>`;
+  labelize();
+}
+function renderClientes(){const rows=db.clientes||[];document.getElementById('tbClientes').innerHTML=rows.length?rows.map(c=>{const peds=db.pedidos.filter(p=>p.clienteId===c.id&&p.situacao!=='Cancelado');const tot=peds.reduce((s,p)=>s+Number(p.valor||0),0);const dg=String(c.whats||'').replace(/\D/g,'');const wa=dg.length>=10?`<a href="https://wa.me/${dg.length>=12?dg:'55'+dg}" target="_blank" rel="noopener" style="color:var(--ember)">${esc(c.whats)}</a>`:(esc(c.whats)||'—');return `<tr><td>${esc(c.nome)}${c.obs?`<div style="font-size:11px;color:var(--warm)">${esc(c.obs)}</div>`:''}</td><td>${wa}</td><td>${peds.length}</td><td class="money">${brl(tot)}</td><td>${rowActions('cliente',c.id)}</td></tr>`;}).join(''):`<tr><td colspan=5><div class="empty-t">Nenhum cliente cadastrado.</div></td></tr>`;}
+function renderCanais(){const rows=db.canais||[];document.getElementById('tbCanais').innerHTML=rows.length?rows.map(c=>`<tr><td>${esc(c.nome)}</td><td>${Number(c.taxa||0)}%</td><td>${rowActions('canal',c.id)}</td></tr>`).join(''):`<tr><td colspan=3><div class="empty-t">Nenhum canal — ex.: Feira 0%, Marketplace 12%.</div></td></tr>`;}
+function renderEquipe(){
+  const box=document.getElementById('membrosBox');if(!box)return;
+  const ger=pode('gerir');
+  document.getElementById('equipeDesc').textContent=(empresaNome?empresaNome+' — ':'')+'você é '+PAPEL_LABEL[meuPapel()]+(ger?' · toque no papel de alguém para trocá-lo':'');
+  box.innerHTML=Object.entries(membros).map(([id,m])=>{
+    const papel=id===empresaDono?'dono':(m.papel||'empregado');
+    const badge=`<span class="papel ${papel}" ${ger&&id!==empresaDono?`style="cursor:pointer" title="Trocar papel" onclick="mudarPapel('${id}')"`:''}>${PAPEL_LABEL[papel]}</span>`;
+    return `<div class="membro-chip">${esc(m.nome||'membro')} ${badge}${id===uid?' <button class="icon-btn" title="Editar meu nome" onclick="renomearMe()">✎</button>':(ger&&id!==empresaDono?` <button class="icon-btn" title="Remover" onclick="removerMembro('${id}')">✕</button>`:'')}</div>`;
+  }).join('')||'<span style="color:var(--smoke);font-size:13px">Carregando membros…</span>';
+  const minhasAbertas=(db.tarefas||[]).filter(t=>t.resp===uid&&(t.status||'aberta')!=='feita').length;
+  const tabBtn=document.querySelector('[data-tab="equipe"]');
+  if(tabBtn)tabBtn.textContent='Equipe'+(minhasAbertas?' ('+minhasAbertas+')':'');
+  const cols=['aberta','fazendo','feita'];const hj=hoje();
+  cols.forEach((st,i)=>{
+    const cards=(db.tarefas||[]).filter(t=>((t.status||'aberta')===st)&&(!filtroMinhas||t.resp===uid));
+    document.getElementById('kbN'+i).textContent=cards.length?'· '+cards.length:'';
+    document.getElementById('kb'+i).innerHTML=cards.map(t=>{
+      const resp=membros[t.resp]?esc(membros[t.resp].nome):'';
+      const atrasada=t.prazo&&st!=='feita'&&t.prazo<hj;
+      return `<div class="kb-card ${st==='feita'?'done':''}" draggable="true" ondragstart="dragTarefa(event,'${t.id}')"><div class="t">${esc(t.titulo)}</div>${t.desc?`<div class="m">${esc(t.desc)}</div>`:''}<div class="m ${atrasada?'late':''}">${resp?'👤 '+resp:''}${t.prazo?(resp?' · ':'')+(atrasada?'⚠ ':'')+esc(t.prazo):''}${(t.coments||[]).length?` · 💬 ${t.coments.length}`:''}</div><div class="acts">${i>0?`<button class="icon-btn" title="Voltar" onclick="moveTarefa('${t.id}',-1)">◀</button>`:''}${i<2?`<button class="icon-btn" title="Avançar" onclick="moveTarefa('${t.id}',1)">▶</button>`:''}<button class="icon-btn" onclick="openForm('tarefa','${t.id}')">✎</button><button class="icon-btn" onclick="del('tarefa','${t.id}')">🗑</button></div></div>`;
+    }).join('')||'<div style="color:var(--warm);font-size:12px;font-style:italic">vazio</div>';
+  });
+}
+function moveTarefa(id,dir){const t=(db.tarefas||[]).find(x=>x.id===id);if(!t)return;const ordem=['aberta','fazendo','feita'];const i=Math.max(0,Math.min(2,ordem.indexOf(t.status||'aberta')+dir));t.status=ordem[i];logAtv('moveu a tarefa "'+t.titulo+'" para '+ordem[i]);cloudSave();renderEquipe();}
+function dragTarefa(ev,id){ev.dataTransfer.setData('text/plain',id);}
+function dropTarefa(ev,i){ev.preventDefault();const id=ev.dataTransfer.getData('text/plain');const t=(db.tarefas||[]).find(x=>x.id===id);if(!t)return;const st=['aberta','fazendo','feita'][i];if(t.status===st)return;t.status=st;logAtv('moveu a tarefa "'+t.titulo+'" para '+st);cloudSave();renderEquipe();}
+// ---------- atividade (quem fez o quê) ----------
+function logAtv(txt){db.atividade=db.atividade||[];db.atividade.unshift({t:Date.now(),u:uid,x:String(txt).slice(0,140)});db.atividade=db.atividade.slice(0,60);}
+function tempoRel(t){const s=(Date.now()-t)/1000;if(s<60)return'agora';if(s<3600)return Math.floor(s/60)+' min';if(s<86400)return Math.floor(s/3600)+' h';return Math.floor(s/86400)+' d';}
+function renderAtividade(){const box=document.getElementById('atvBox');if(!box)return;const rows=(db.atividade||[]).slice(0,20);box.innerHTML=rows.length?rows.map(a=>`<div class="prazo-item"><span><b>${esc((membros[a.u]||{}).nome||'alguém')}</b> ${esc(a.x)}</span><b style="color:var(--warm);font-weight:400">${tempoRel(a.t)}</b></div>`).join(''):'<div class="empty-t" style="padding:20px">Nenhuma atividade ainda.</div>';}
+function addComent(id){const t=(db.tarefas||[]).find(x=>x.id===id);const inp=document.getElementById('comentTxt');if(!t||!inp||!inp.value.trim())return;t.coments=t.coments||[];t.coments.push({u:uid,t:Date.now(),x:inp.value.trim()});inp.value='';logAtv('comentou na tarefa "'+t.titulo+'"');cloudSave();
+  const list=document.getElementById('comentList');if(list)list.innerHTML=t.coments.map(c=>`<div class="prazo-item"><span><b>${esc((membros[c.u]||{}).nome||'membro')}:</b> ${esc(c.x)}</span><b style="color:var(--warm);font-weight:400">${tempoRel(c.t)}</b></div>`).join('');}
+// ---------- calendário de entregas ----------
+function renderCal(){const box=document.getElementById('dashCal');if(!box)return;const hj=hoje();const Y=Number(hj.slice(0,4)),M=Number(hj.slice(5,7));
+  const nd=new Date(Y,M,0).getDate();const first=new Date(Y,M-1,1).getDay();
+  const ent={};db.pedidos.forEach(p=>{if(!p.prazo||p.situacao==='Entregue'||p.situacao==='Cancelado')return;if(p.prazo.slice(0,7)!==hj.slice(0,7))return;const d=Number(p.prazo.slice(8,10));ent[d]=(ent[d]||0)+1;});
+  if(!Object.keys(ent).length){box.innerHTML='';return;}
+  const hjD=Number(hj.slice(8,10));
+  let cells='';for(let i=0;i<first;i++)cells+='<div></div>';
+  for(let d=1;d<=nd;d++){const n=ent[d]||0;cells+=`<div class="cal-d ${n?'has':''} ${n&&d<hjD?'late':''} ${d===hjD?'hoje':''}">${d}${n?`<span>${n} entrega${n>1?'s':''}</span>`:''}</div>`;}
+  box.innerHTML=`<div class="chartcard"><h3>Calendário de entregas — ${hj.slice(0,7)}</h3><div class="cal-grid">${['D','S','T','Q','Q','S','S'].map(x=>`<div class="cal-h">${x}</div>`).join('')}${cells}</div></div>`;}
+function renderCompras(){
+  const low=db.insumos.filter(i=>insumoStatus(i)!=='ok');
+  const box=document.getElementById('shopList');
+  if(!low.length){box.innerHTML='<div class="empty-t" style="border:1px solid var(--line);border-radius:10px">Nada para comprar — estoque saudável.</div>';return;}
+  box.innerHTML=low.map(i=>{const alvo=(i.minimo||0)*2;const comprar=Math.max(0,(alvo-i.estoque));const custo=comprar*Number(i.custo||0);return `<div class="shop-item"><div class="si-l"><div class="n">${esc(i.nome)}</div><div class="s">tem ${i.estoque} ${esc(i.unidade)} · mínimo ${i.minimo}</div></div><div class="si-r"><div class="si-q"><div class="q">+${comprar.toFixed(comprar%1?2:0)} ${esc(i.unidade)}</div><div class="c">≈ ${brl(custo)}</div></div><button class="btn2" onclick="buyDone('${i.id}',${comprar})">✓ Comprei</button></div></div>`;}).join('');
+}
+function renderComprasHist(){const rows=[...(db.compras||[])].reverse();document.getElementById('tbCompras').innerHTML=rows.length?rows.map(c=>{const ins=db.insumos.find(i=>i.id===c.insumo);const q=Number(c.qtd||0),v=Number(c.valor||0);return `<tr><td>${esc(c.data)||'—'}</td><td>${ins?esc(ins.nome):'—'}</td><td>${q} ${ins?esc(ins.unidade):''}</td><td class="money">${brl(v)}</td><td class="money" style="color:var(--smoke)">${q&&v?brl(v/q):'—'}</td><td>${esc(c.fornecedor)||'—'}</td><td>${rowActions('compra',c.id)}</td></tr>`;}).join(''):`<tr><td colspan=7><div class="empty-t">Nenhuma compra registrada.</div></td></tr>`;}
+function renderFixos(){const rows=db.fixos||[];const tot=rows.reduce((s,f)=>s+Number(f.valor||0),0);document.getElementById('tbFixos').innerHTML=rows.length?rows.map(f=>`<tr><td>${esc(f.nome)}</td><td class="money">${brl(f.valor)}</td><td>${rowActions('fixo',f.id)}</td></tr>`).join('')+`<tr><td style="font-weight:600">Total</td><td class="money" style="color:var(--ember)">${brl(tot)}</td><td></td></tr>`:`<tr><td colspan=3><div class="empty-t">Nenhum custo fixo — cadastre aluguel, energia, assinaturas…</div></td></tr>`;}
+function setMeta(){const cur=Number(db.meta||0);const q=prompt('Meta de receita do mês (R$). Vazio ou 0 remove a meta:',cur||'');if(q===null)return;const n=Number(String(q).trim().replace(',','.'));if(!isFinite(n)||n<0){toast('Valor inválido');return;}db.meta=n;cloudSave();renderAll();toast(n?'Meta definida: '+brl(n)+'/mês':'Meta removida');}
+function setMeiTeto(){const cur=Number(db.meiTeto||81000);const q=prompt('Teto anual de faturamento (R$). O padrão do MEI é 81000:',cur);if(q===null)return;const n=Number(String(q).trim().replace(',','.'));if(!isFinite(n)||n<=0){toast('Valor inválido');return;}db.meiTeto=n;cloudSave();renderAll();toast('Teto anual: '+brl(n));}
+function renderPrazos(){
+  const box=document.getElementById('dashPrazos');const hj=hoje();
+  const d7=new Date();d7.setDate(d7.getDate()+7);
+  const em7=d7.getFullYear()+'-'+String(d7.getMonth()+1).padStart(2,'0')+'-'+String(d7.getDate()).padStart(2,'0');
+  const abertos=db.pedidos.filter(p=>p.prazo&&p.situacao!=='Entregue'&&p.situacao!=='Cancelado');
+  const atras=abertos.filter(p=>p.prazo<hj).sort((a,b)=>a.prazo<b.prazo?-1:1);
+  const prox=abertos.filter(p=>p.prazo>=hj&&p.prazo<=em7).sort((a,b)=>a.prazo<b.prazo?-1:1);
+  const li=(p,late)=>{const prod=db.produtos.find(x=>x.id===p.produto);const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);const nome=cli?cli.nome:(p.cliente||'—');return `<div class="prazo-item ${late?'late':''}"><span>${late?'⚠ ':''}${esc(nome)} — ${prod?esc(prod.nome):esc(p.item||'pedido')}${Number(p.qtd||1)>1?' ×'+p.qtd:''}</span><b>${esc(p.prazo)}</b></div>`;};
+  // plano de produção: encomendas abertas menos peças prontas
+  const porProd={};db.pedidos.filter(p=>p.situacao!=='Entregue'&&p.situacao!=='Cancelado'&&p.produto).forEach(p=>{porProd[p.produto]=(porProd[p.produto]||0)+Number(p.qtd||1);});
+  const plano=Object.entries(porProd).map(([pid,q])=>{const prod=db.produtos.find(x=>x.id===pid);if(!prod)return null;const falta=q-Number(prod.pronto||0);return falta>0?{nome:prod.nome,falta}:null;}).filter(Boolean);
+  let html='';
+  if(atras.length||prox.length)html+=`<div class="chartcard"><h3>Encomendas com prazo${atras.length?` · <span style="color:var(--ember)">${atras.length} atrasada${atras.length>1?'s':''}</span>`:''}</h3>${atras.map(p=>li(p,1)).join('')}${prox.map(p=>li(p,0)).join('')}</div>`;
+  if(plano.length)html+=`<div class="chartcard" style="margin-top:14px"><h3>Plano de produção — para cobrir as encomendas abertas</h3>${plano.map(x=>`<div class="prazo-item"><span>Produzir <b>${x.falta} × ${esc(x.nome)}</b></span></div>`).join('')}</div>`;
+  box.innerHTML=html;
+  renderCal();
+}
+function exportDRE(){
+  if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}
+  const mes=prompt('Fechamento de qual mês? (AAAA-MM)',hoje().slice(0,7));
+  if(!mes||!/^\d{4}-\d{2}$/.test(mes.trim())){if(mes!==null)toast('Use o formato AAAA-MM');return;}
+  const m=mes.trim();
+  const peds=db.pedidos.filter(p=>(p.situacao==='Pago'||p.situacao==='Entregue')&&(p.data||'').slice(0,7)===m);
+  let receita=0,taxas=0,frete=0,custoPecas=0;
+  peds.forEach(p=>{receita+=Number(p.valor||0);const can=(db.canais||[]).find(c=>c.id===p.canal);const prod=db.produtos.find(x=>x.id===p.produto);const tp=can?Number(can.taxa||0):(prod?Number(prod.taxa||0):0);taxas+=Number(p.valor||0)*tp/100;frete+=Number(p.frete||0);if(prod)custoPecas+=calcCusto(prod).total*Number(p.qtd||1);});
+  const fixos=(db.fixos||[]).reduce((s,f)=>s+Number(f.valor||0),0);
+  const liq=receita-taxas-frete-custoPecas-fixos;
+  const win=window.open('','_blank');
+  const ln=(l,v,neg)=>`<tr><td>${l}</td><td style="text-align:right;${neg?'color:#B5462A':''}">${neg?'− ':''}${brl(v)}</td></tr>`;
+  win.document.write(`<html><head><title>Fechamento ${m} — ${esc(empresaNome||'Cinérea')}</title><style>body{font-family:Georgia,serif;color:#1C1A17;padding:40px;max-width:560px;margin:auto}h1{font-size:26px}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:15px}td{padding:9px 4px;border-bottom:1px solid #ddd}.tot td{border-top:2px solid #1C1A17;border-bottom:none;font-size:19px;font-weight:bold;${liq>=0?'':'color:#B5462A'}}</style></head><body>
+  <h1>Fechamento — ${m}</h1><p>${esc(empresaNome||'Cinérea')} · ${peds.length} venda(s) no mês</p>
+  <table>${ln('Receita (pedidos pagos/entregues)',receita)}${ln('Taxas de canal',taxas,1)}${ln('Frete / embalagem',frete,1)}${ln('Custo das peças vendidas',custoPecas,1)}${ln('Custos fixos do mês',fixos,1)}<tr class="tot"><td>Lucro líquido</td><td style="text-align:right">${brl(liq)}</td></tr></table>
+  <p style="margin-top:36px;color:#999;font-size:11px">Gerado pelo sistema de gestão — ${new Date().toLocaleDateString('pt-BR')}</p>
+  </body></html>`);
+  win.document.close();setTimeout(()=>win.print(),400);
+}
+function renderChecks(){document.querySelectorAll('.checklist input').forEach(c=>{c.checked=!!(db.checks&&db.checks[c.dataset.c]);});}
+function saveCheck(){db.checks=db.checks||{};document.querySelectorAll('.checklist input').forEach(c=>db.checks[c.dataset.c]=c.checked);cloudSave();}
+window.saveCheck=saveCheck;
+function renderAll(){if(!uid)return;aplicarPapel();renderDash();renderEquip();renderMoldes();renderInsumos();renderProdutos();renderProducao();renderPedidos();renderClientes();renderCanais();renderCompras();renderComprasHist();renderCotacoes();renderFixos();renderEquipe();renderAtividade();renderChecks();labelize();}
+
+// formulários (igual antes + baixa de estoque)
+let currentForm={type:null,id:null,recipe:[]};
+const FORMS={
+  equip:{title:'Equipamento',fields:[{k:'nome',l:'Nome',t:'text'},{k:'tipo',l:'Tipo',t:'text'},{k:'compra',l:'Data de compra',t:'date'},{k:'custo',l:'Custo (R$)',t:'number'},{k:'vidaHoras',l:'Vida útil estimada (horas)',t:'number',hint:'Usada para ratear a depreciação no orçamento'},{k:'situacao',l:'Situação',t:'select',opts:['Ativo','Em manutenção','Inativo']}]},
+  molde:{title:'Molde',fields:[{k:'nome',l:'Nome',t:'text'},{k:'material',l:'Material',t:'select',opts:['gesso','cera']},{k:'usos',l:'Usos já feitos',t:'number'},{k:'vida',l:'Vida útil (peças)',t:'number',hint:'Gesso ≈40, cera ≈120'}]},
+  insumo:{title:'Insumo',fields:[{k:'nome',l:'Nome',t:'text'},{k:'unidade',l:'Unidade',t:'select',opts:['kg','g','L','ml','un']},{k:'estoque',l:'Estoque atual',t:'number'},{k:'minimo',l:'Estoque mínimo',t:'number'},{k:'custo',l:'Custo por unidade (R$)',t:'number'}]},
+  producao:{title:'Produção',fields:[{k:'data',l:'Data',t:'date'},{k:'produto',l:'Produto',t:'selectProd'},{k:'qtd',l:'Quantidade',t:'number',def:1},{k:'minutos',l:'Tempo por peça (min)',t:'number',hint:'Sua maior linha de custo'},{k:'variacao',l:'Variação / fragrância',t:'text',hint:'Opcional — ex.: lavanda'},{k:'molde',l:'Molde usado',t:'selectMolde'}]},
+  pedido:{title:'Pedido',fields:[{k:'data',l:'Data',t:'date'},{k:'clienteId',l:'Cliente',t:'selectCliente'},{k:'produto',l:'Produto',t:'selectProd',hint:'Ligue ao produto para ver o lucro e baixar o estoque pronto'},{k:'qtd',l:'Quantidade',t:'number',def:1},{k:'variacao',l:'Variação / fragrância',t:'text'},{k:'item',l:'Descrição livre',t:'text',hint:'Use se não for um produto cadastrado'},{k:'canal',l:'Canal de venda',t:'selectCanal',hint:'Define a taxa usada no lucro'},{k:'prazo',l:'Entregar até',t:'date',def:'',hint:'Opcional — aparece no Painel'},{k:'valor',l:'Valor (R$)',t:'number',hint:'Vazio = preço praticado × quantidade'},{k:'frete',l:'Frete/embalagem (R$)',t:'number',def:'',hint:'Custo de envio — desconta do lucro'},{k:'situacao',l:'Situação',t:'select',opts:['Pendente','Pago','Entregue','Cancelado']}]},
+  cliente:{title:'Cliente',fields:[{k:'nome',l:'Nome',t:'text'},{k:'whats',l:'WhatsApp',t:'text',hint:'Só números com DDD — vira link para conversar'},{k:'obs',l:'Observações',t:'text',hint:'Preferências, endereço…'}]},
+  canal:{title:'Canal de venda',fields:[{k:'nome',l:'Nome',t:'text'},{k:'taxa',l:'Taxa (%)',t:'number',def:0,hint:'Ex.: marketplace 12, Pix 0'}]},
+  tarefa:{title:'Tarefa',fields:[{k:'titulo',l:'Tarefa',t:'text'},{k:'desc',l:'Detalhes',t:'text',hint:'Opcional'},{k:'resp',l:'Responsável',t:'selectMembro'},{k:'prazo',l:'Prazo',t:'date',def:''},{k:'status',l:'Situação',t:'select',opts:['aberta','fazendo','feita']}]},
+  compra:{title:'Compra',fields:[{k:'data',l:'Data',t:'date'},{k:'insumo',l:'Insumo',t:'selectIns'},{k:'qtd',l:'Quantidade comprada',t:'number'},{k:'valor',l:'Valor total pago (R$)',t:'number',hint:'Recalcula o custo médio do insumo. Vazio = só dá entrada no estoque'},{k:'fornecedor',l:'Fornecedor',t:'text',hint:'Opcional'}]},
+  fixo:{title:'Custo fixo',fields:[{k:'nome',l:'Nome',t:'text'},{k:'valor',l:'Valor mensal (R$)',t:'number'}]},
+};
+function plural(t){return{equip:'equip',molde:'moldes',insumo:'insumos',produto:'produtos',producao:'producao',pedido:'pedidos',compra:'compras',fixo:'fixos',cliente:'clientes',canal:'canais',tarefa:'tarefas',cotacao:'cotacoes'}[t];}
+const NOMES_TIPO={equip:'equipamento',molde:'molde',insumo:'insumo',produto:'produto',producao:'produção',pedido:'pedido',compra:'compra',fixo:'custo fixo',cliente:'cliente',canal:'canal',tarefa:'tarefa',cotacao:'cotação'};
+function val(id){const el=document.getElementById(id);return el?el.value:'';}
+function openForm(type,id){
+  currentForm={type,id:id||null,recipe:[]};window.currentForm=currentForm;const isP=type==='produto';
+  document.getElementById('modalTitle').textContent=(id?'Editar ':'Novo ')+(isP?'produto':FORMS[type].title.toLowerCase());
+  const body=document.getElementById('modalBody');const ex=id?db[plural(type)].find(x=>x.id===id):{};
+  if(isP){currentForm.recipe=ex.receita?JSON.parse(JSON.stringify(ex.receita)):[];
+    body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">— nenhum —</option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto (URL)</label><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="cole um link de imagem"><div class="hint">Aparece no catálogo público</div></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="field"><label>Receita — insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
+    renderRecipe();
+  } else {
+    body.innerHTML=FORMS[type].fields.map(f=>{let inp;const cur=ex[f.k]!==undefined?ex[f.k]:(id?'':(f.def!==undefined?f.def:(f.t==='date'?hoje():'')));if(f.t==='select')inp=`<select id="f_${f.k}">${f.opts.map(o=>`<option ${ex[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;else if(f.t==='selectProd')inp=`<select id="f_${f.k}"><option value="">—</option>${db.produtos.map(p=>`<option value="${p.id}" ${ex[f.k]===p.id?'selected':''}>${esc(p.nome)}</option>`).join('')}</select>`;else if(f.t==='selectMolde')inp=`<select id="f_${f.k}"><option value="">— nenhum —</option>${db.moldes.map(m=>`<option value="${m.id}" ${ex[f.k]===m.id?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>`;else if(f.t==='selectIns')inp=`<select id="f_${f.k}"><option value="">—</option>${db.insumos.map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectCliente')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickCliente(this)"><option value="">—</option>${(db.clientes||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}<option value="__new">➕ Novo cliente…</option></select>`;else if(f.t==='selectCanal')inp=`<select id="f_${f.k}"><option value="">— taxa do produto —</option>${(db.canais||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)} (${Number(c.taxa||0)}%)</option>`).join('')}</select>`;else if(f.t==='selectMembro')inp=`<select id="f_${f.k}"><option value="">—</option>${Object.entries(membros).map(([id,m])=>`<option value="${id}" ${ex[f.k]===id?'selected':''}>${esc(m.nome||'membro')}</option>`).join('')}</select>`;else inp=`<input id="f_${f.k}" type="${f.t}" value="${esc(cur)}">`;return `<div class="field"><label>${f.l}</label>${inp}${f.hint?`<div class="hint">${f.hint}</div>`:''}</div>`;}).join('');
+  }
+  if(type==='producao'){const mf=document.getElementById('f_minutos');if(mf){const w=document.createElement('div');w.style.marginTop='6px';w.innerHTML='<button type="button" class="btn2" id="timerBtn" onclick="toggleTimer()">▶ Cronometrar uma peça</button> <span id="timerView" style="font-size:12px;color:var(--warm)"></span>';mf.parentElement.appendChild(w);}}
+  if(type==='tarefa'&&id){const t=db.tarefas.find(x=>x.id===id);if(t){const box=document.createElement('div');box.className='field';box.innerHTML='<label>Comentários</label><div id="comentList">'+((t.coments||[]).map(c=>`<div class="prazo-item"><span><b>${esc((membros[c.u]||{}).nome||'membro')}:</b> ${esc(c.x)}</span><b style="color:var(--warm);font-weight:400">${tempoRel(c.t)}</b></div>`).join('')||'<div class="hint">nenhum comentário ainda</div>')+'</div><div style="display:flex;gap:8px;margin-top:8px"><input id="comentTxt" placeholder="escreva um comentário…" style="flex:1"><button type="button" class="btn2" onclick="addComent(\''+id+'\')">Enviar</button></div>';document.getElementById('modalBody').appendChild(box);}}
+  document.getElementById('overlay').classList.add('open');
+}
+function addRecipeLine(){currentForm.recipe.push({insumo:'',qtd:''});renderRecipe();}
+function rmRecipeLine(i){currentForm.recipe.splice(i,1);renderRecipe();}
+window.currentForm=currentForm;
+function renderRecipe(){const box=document.getElementById('recipeLines');if(!box)return;box.innerHTML=currentForm.recipe.map((l,i)=>`<div class="recipe-line"><select onchange="currentForm.recipe[${i}].insumo=this.value;updateCost()"><option value="">insumo…</option>${db.insumos.map(ins=>`<option value="${ins.id}" ${l.insumo===ins.id?'selected':''}>${esc(ins.nome)}</option>`).join('')}</select><input type="number" step="0.001" placeholder="qtd" value="${esc(l.qtd)}" oninput="currentForm.recipe[${i}].qtd=this.value;updateCost()"><span style="font-size:11px;color:var(--warm)">${esc((db.insumos.find(x=>x.id===l.insumo)||{}).unidade||'')}</span><button class="icon-btn" onclick="rmRecipeLine(${i})">×</button></div>`).join('');updateCost();}
+function updateCost(){const s=document.getElementById('costSummary');if(!s)return;const p={receita:currentForm.recipe,minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),equip:val('f_equip')};const c=calcCusto(p);const mk=Number(val('f_markup')||3);const sug=c.total*mk;const pin=val('f_preco');const prat=pin?Number(pin):sug;const taxa=prat*Number(val('f_taxa')||0)/100;const margem=prat-taxa-c.total;const mpct=prat?Math.round(margem/prat*100):0;s.innerHTML=`<div class="cl"><span>Material</span><span>${brl(c.mat)}</span></div><div class="cl"><span>Mão de obra</span><span>${brl(c.mo)}</span></div><div class="cl"><span>Equipamento</span><span>${brl(c.eq)}</span></div><div class="cl"><span>Perda</span><span>${brl(c.perda)}</span></div><div class="cl total"><span>Custo</span><span>${brl(c.total)}</span></div><div class="cl" style="margin-top:8px"><span>Sugerido (${mk}×)</span><span>${brl(sug)}</span></div><div class="cl"><span>Margem</span><span class="ember">${brl(margem)} · ${mpct}%</span></div>`;}
+// ---------- efeitos de produção e pedido (aplicar/reverter) ----------
+function gerarLote(data){const d=data||hoje();const n=db.producao.filter(p=>p.data===d).length+1;return 'L'+d.replace(/-/g,'')+'-'+n;}
+function applyProducao(o){
+  const q=Number(o.qtd||0);
+  if(o.molde){const m=db.moldes.find(x=>x.id===o.molde);if(m){m.usos=Number(m.usos||0)+q;o.usosMolde=q;}}
+  const prod=db.produtos.find(x=>x.id===o.produto);
+  if(!prod)return;
+  prod.pronto=Number(prod.pronto||0)+q;
+  if(prod.receita){const baixas=[],msg=[];
+    prod.receita.forEach(l=>{const ins=db.insumos.find(i=>i.id===l.insumo);if(ins){const usado=Number(l.qtd||0)*q;const real=Math.min(Number(ins.estoque||0),usado);ins.estoque=Number(ins.estoque||0)-real;baixas.push({insumo:ins.id,qtd:real});msg.push(`${esc(ins.nome)} −${usado.toFixed(usado%1?2:0)}${esc(ins.unidade)}`);}});
+    o.baixas=baixas; // guarda o que foi baixado, para poder reverter depois
+    if(msg.length)setTimeout(()=>toast('Estoque baixado: <b>'+msg.join(' · ')+'</b>'),200);
+  }
+}
+function revertProducao(o){
+  const q=Number(o.qtd||0);
+  if(o.molde){const m=db.moldes.find(x=>x.id===o.molde);if(m)m.usos=Math.max(0,Number(m.usos||0)-Number(o.usosMolde!==undefined?o.usosMolde:q));}
+  const prod=db.produtos.find(x=>x.id===o.produto);
+  if(prod)prod.pronto=Math.max(0,Number(prod.pronto||0)-q);
+  let baixas=o.baixas;
+  if(!baixas&&prod&&prod.receita)baixas=prod.receita.map(l=>({insumo:l.insumo,qtd:Number(l.qtd||0)*q})); // registros antigos, sem snapshot
+  (baixas||[]).forEach(b=>{const ins=db.insumos.find(i=>i.id===b.insumo);if(ins)ins.estoque=Number(ins.estoque||0)+Number(b.qtd||0);});
+}
+function applyPedido(o){
+  if(o.situacao!=='Entregue'||!o.produto)return;
+  const prod=db.produtos.find(x=>x.id===o.produto);if(!prod)return;
+  const q=Number(o.qtd||1);const real=Math.min(Number(prod.pronto||0),q);
+  prod.pronto=Number(prod.pronto||0)-real;o.baixaPronto=real;o.baixado=true;
+}
+function revertPedido(o){
+  if(!o.baixado)return;
+  const prod=db.produtos.find(x=>x.id===o.produto);
+  if(prod)prod.pronto=Number(prod.pronto||0)+Number(o.baixaPronto||0);
+  o.baixado=false;o.baixaPronto=0;
+}
+function applyCompra(o){
+  const ins=db.insumos.find(i=>i.id===o.insumo);if(!ins)return;
+  const q=Number(o.qtd||0),v=Number(o.valor||0);
+  o.estoqueAntes=Number(ins.estoque||0);o.custoAntes=Number(ins.custo||0); // snapshot p/ reverter
+  ins.estoque=o.estoqueAntes+q;
+  if(v>0&&(o.estoqueAntes+q)>0){
+    ins.custo=Math.round(((o.estoqueAntes*o.custoAntes)+v)/(o.estoqueAntes+q)*100)/100;
+    setTimeout(()=>toast(`Custo médio de <b>${esc(ins.nome)}</b> atualizado: ${brl(ins.custo)}/${esc(ins.unidade)}`),200);
+  }
+}
+function revertCompra(o){
+  const ins=db.insumos.find(i=>i.id===o.insumo);if(!ins)return;
+  ins.estoque=Math.max(0,Number(ins.estoque||0)-Number(o.qtd||0));
+  if(o.custoAntes!==undefined)ins.custo=o.custoAntes;
+}
+function saveForm(){
+  const type=currentForm.type,id=currentForm.id;let obj={};
+  if(type==='perfil'){salvarPerfil();return;}
+  if(type==='cotacaoView'){closeModal();return;}
+  if(type==='produto'){obj={nome:val('f_nome'),receita:currentForm.recipe.filter(l=>l.insumo&&l.qtd),minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),markup:val('f_markup'),preco:val('f_preco'),taxa:val('f_taxa'),equip:val('f_equip'),pronto:Number(val('f_pronto')||0),foto:val('f_foto'),publico:!!(document.getElementById('f_publico')||{}).checked};if(!obj.nome){alert('Dê um nome.');return;}}
+  else{FORMS[type].fields.forEach(f=>obj[f.k]=val('f_'+f.k));if(!obj[FORMS[type].fields[0].k]){alert('Preencha o primeiro campo.');return;}}
+  const list=plural(type);
+  if(type==='producao'){
+    if(id){const i=db[list].findIndex(x=>x.id===id);const old=db[list][i];revertProducao(old);obj={...old,...obj};delete obj.baixas;delete obj.usosMolde;applyProducao(obj);db[list][i]=obj;}
+    else{obj.id=uidGen();obj.por=uid;obj.lote=gerarLote(obj.data);applyProducao(obj);db[list].push(obj);}
+  } else if(type==='pedido'){
+    if(!obj.qtd)obj.qtd=1;
+    if(obj.clienteId==='__new')obj.clienteId='';
+    if(!obj.valor&&obj.produto){const pr=db.produtos.find(x=>x.id===obj.produto);if(pr){const c=calcCusto(pr).total;obj.valor=Math.round((Number(pr.preco)||c*Number(pr.markup||3))*Number(obj.qtd||1)*100)/100;}}
+    if(id){const i=db[list].findIndex(x=>x.id===id);const old=db[list][i];revertPedido(old);obj={...old,...obj};delete obj.baixaPronto;obj.baixado=false;applyPedido(obj);db[list][i]=obj;}
+    else{obj.id=uidGen();obj.por=uid;applyPedido(obj);db[list].push(obj);}
+  } else if(type==='compra'){
+    if(!obj.insumo){alert('Escolha o insumo.');return;}
+    if(!Number(obj.qtd)){alert('Informe a quantidade.');return;}
+    if(id){const i=db[list].findIndex(x=>x.id===id);const old=db[list][i];revertCompra(old);obj={...old,...obj};delete obj.estoqueAntes;delete obj.custoAntes;applyCompra(obj);db[list][i]=obj;}
+    else{obj.id=uidGen();obj.por=uid;applyCompra(obj);db[list].push(obj);}
+  } else {
+    if(id){const i=db[list].findIndex(x=>x.id===id);db[list][i]={...db[list][i],...obj};}
+    else{obj.id=uidGen();obj.por=uid;db[list].push(obj);}
+  }
+  // registro de atividade (sem valores — visível a todos os papéis)
+  if(type==='producao'&&!id){const pr=db.produtos.find(x=>x.id===obj.produto);logAtv('registrou produção de '+(obj.qtd||'?')+' × '+(pr?pr.nome:'peça'));}
+  else logAtv((id?'editou ':'criou ')+(NOMES_TIPO[type]||type)+(obj.nome?' "'+obj.nome+'"':obj.titulo?' "'+obj.titulo+'"':''));
+  cloudSave();closeModal();renderAll();
+}
+function del(type,id){
+  const snap=JSON.parse(JSON.stringify(db)); // p/ desfazer
+  const list=plural(type);const o=db[list].find(x=>x.id===id);
+  if(type==='producao'&&o)revertProducao(o);
+  if(type==='pedido'&&o)revertPedido(o);
+  if(type==='compra'&&o)revertCompra(o);
+  db[list]=db[list].filter(x=>x.id!==id);
+  logAtv('excluiu '+(NOMES_TIPO[type]||type)+(o&&(o.nome||o.titulo)?' "'+(o.nome||o.titulo)+'"':''));
+  cloudSave();renderAll();
+  toastUndo({producao:'Produção excluída — estoque e molde restaurados.',compra:'Compra excluída — estoque e custo revertidos.'}[type]||'Excluído.',snap);
+}
+function quickCliente(sel){const nome=prompt('Nome do cliente:');if(!nome){sel.value='';return;}const whats=prompt('WhatsApp (opcional, só números com DDD):')||'';const c={id:uidGen(),nome,whats,obs:''};db.clientes=db.clientes||[];db.clientes.push(c);cloudSave();const o=document.createElement('option');o.value=c.id;o.textContent=nome;sel.insertBefore(o,sel.querySelector('option[value="__new"]'));sel.value=c.id;toast('Cliente <b>'+esc(nome)+'</b> cadastrado');}
+async function publicarCatalogo(){
+  if(!pode('fin')){toast('Sem permissão');return;}
+  const itens=db.produtos.filter(p=>p.publico).map(p=>{const c=calcCusto(p).total;const preco=Number(p.preco)||c*Number(p.markup||3);return{nome:p.nome,preco:Math.round(preco*100)/100,foto:p.foto||''};});
+  if(!itens.length){toast('Marque "mostrar no catálogo" em algum produto primeiro');return;}
+  const whats=prompt('WhatsApp para encomendas no catálogo (só números com DDD, vazio = sem botão):',db.catWhats||'');
+  if(whats===null)return;
+  db.catWhats=whats.trim();cloudSave();
+  try{
+    await setDoc(doc(fdb,'catalogo',eid),{itens,nome:empresaNome||'Cinérea',whats:db.catWhats,atualizado:Date.now()});
+    const url=location.origin+location.pathname.replace(/index\.html$/,'')+'catalogo.html?u='+eid;
+    if(navigator.clipboard)navigator.clipboard.writeText(url).catch(()=>{});
+    toast('Catálogo publicado — link copiado! '+itens.length+' peça(s)');
+  }catch(e){console.error(e);toast('Erro ao publicar: atualize as regras do Firestore (docs/firestore.rules)');}
+}
+function closeModal(){if(timerInt){clearInterval(timerInt);timerInt=null;}timerT0=null;document.getElementById('overlay').classList.remove('open');}
+document.getElementById('overlay').onclick=e=>{if(e.target.id==='overlay')closeModal();};
+
+// ---------- exportações ----------
+function dl(name,content,mime){const b=new Blob([content],{type:mime});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();}
+function exportCSV(){
+  if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}
+  let out='';
+  const sec=(t,head,rows)=>{out+=t+'\n'+head.join(';')+'\n'+rows.map(r=>r.join(';')).join('\n')+'\n\n';};
+  sec('INSUMOS',['Nome','Estoque','Unidade','Mínimo','Custo'],db.insumos.map(i=>[i.nome,i.estoque,i.unidade,i.minimo,i.custo]));
+  sec('MOLDES',['Nome','Material','Usos','Vida'],db.moldes.map(m=>[m.nome,m.material,m.usos,m.vida]));
+  sec('PRODUTOS',['Nome','Custo','Preço praticado','Prontas'],db.produtos.map(p=>{const c=calcCusto(p).total;return [p.nome,c.toFixed(2),p.preco||'',p.pronto||0];}));
+  sec('PRODUÇÃO',['Data','Produto','Variação','Qtd','Min/peça','Lote'],db.producao.map(p=>{const pr=db.produtos.find(x=>x.id===p.produto);return [p.data,pr?pr.nome:'',p.variacao||'',p.qtd,p.minutos,p.lote||''];}));
+  sec('PEDIDOS',['Data','Cliente','Item','Qtd','Canal','Prazo','Valor','Lucro','Situação'],db.pedidos.map(p=>{const pr=db.produtos.find(x=>x.id===p.produto);const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);const can=(db.canais||[]).find(c=>c.id===p.canal);const l=lucroPedido(p);return [p.data,cli?cli.nome:(p.cliente||''),pr?pr.nome+(p.variacao?' - '+p.variacao:''):(p.item||''),p.qtd||1,can?can.nome:'',p.prazo||'',p.valor,l===null?'':l.toFixed(2),p.situacao];}));
+  sec('COMPRAS',['Data','Insumo','Qtd','Valor pago','Fornecedor'],(db.compras||[]).map(c=>{const i=db.insumos.find(x=>x.id===c.insumo);return [c.data,i?i.nome:'',c.qtd,c.valor,c.fornecedor||''];}));
+  sec('CUSTOS FIXOS',['Nome','Valor mensal'],(db.fixos||[]).map(f=>[f.nome,f.valor]));
+  sec('CLIENTES',['Nome','WhatsApp','Observações'],(db.clientes||[]).map(c=>[c.nome,c.whats||'',c.obs||'']));
+  sec('CANAIS',['Nome','Taxa %'],(db.canais||[]).map(c=>[c.nome,c.taxa||0]));
+  sec('TAREFAS',['Tarefa','Responsável','Prazo','Situação'],(db.tarefas||[]).map(t=>[t.titulo,membros[t.resp]?membros[t.resp].nome:'',t.prazo||'',t.status||'aberta']));
+  dl('cinerea-dados-'+new Date().toISOString().slice(0,10)+'.csv','\ufeff'+out,'text/csv');
+  toast('Planilha exportada');
+}
+function buyDone(id,sug){openForm('compra');const s=document.getElementById('f_insumo');if(s)s.value=id;const q=document.getElementById('f_qtd');if(q)q.value=sug;const v=document.getElementById('f_valor');if(v)v.focus();}
+// ---------- sourcing: cotação em Excel com marcações ocultas ----------
+function gerarCotacao(){
+  if(typeof XLSX==='undefined'){toast('Preciso de internet para carregar o gerador de planilhas');return;}
+  const low=db.insumos.filter(i=>insumoStatus(i)!=='ok');
+  if(!low.length){toast('Nada na lista de compras para cotar');return;}
+  const id=uidGen().toUpperCase();
+  const itens=low.map(i=>({insumo:i.id,qtd:Math.round(Math.max(0,(i.minimo||0)*2-i.estoque)*100)/100}));
+  const aoa=[
+    ['COTAÇÃO DE PREÇOS — '+(empresaNome||'Cinérea'),'','','','','','','CINEREA-RFQ:'+id],
+    ['Preencha as colunas D, E e F e devolva este arquivo. Não altere as demais colunas.','','','','','','',''],
+    ['Item','Unidade','Quantidade','Preço unitário (R$)','Prazo de entrega (dias)','Observações','','']
+  ];
+  itens.forEach(it=>{const ins=db.insumos.find(x=>x.id===it.insumo);aoa.push([ins.nome,ins.unidade,it.qtd,'','','','',ins.id]);});
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:30},{wch:10},{wch:12},{wch:18},{wch:20},{wch:30},{hidden:true},{hidden:true}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Cotação');
+  XLSX.writeFile(wb,'cotacao-'+id+'.xlsx');
+  db.cotacoes=db.cotacoes||[];db.cotacoes.push({id,data:hoje(),itens,respostas:[],por:uid});
+  logAtv('gerou a cotação '+id+' com '+itens.length+' itens');
+  cloudSave();renderCotacoes();
+  toast('Planilha <b>cotacao-'+id+'.xlsx</b> baixada — envie ao fornecedor');
+}
+function importarCotacao(){
+  if(typeof XLSX==='undefined'){toast('Preciso de internet para ler planilhas');return;}
+  const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xls';
+  inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();
+    r.onload=()=>{try{
+      const wb=XLSX.read(r.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true});
+      const marker=String((rows[0]||[])[7]||'');
+      if(!marker.startsWith('CINEREA-RFQ:')){toast('Esta planilha não é uma cotação gerada pelo app');return;}
+      const cotId=marker.slice(12);
+      const cot=(db.cotacoes||[]).find(c=>c.id===cotId);
+      if(!cot){toast('Cotação '+esc(cotId)+' não encontrada — foi excluída?');return;}
+      const precos={};let n=0;
+      rows.slice(3).forEach(row=>{const insId=row[7];if(!insId)return;const preco=Number(String(row[3]??'').replace(',','.'));if(!isFinite(preco)||preco<=0)return;precos[insId]={preco,prazo:row[4]!==undefined&&row[4]!==''?String(row[4]):'',obs:row[5]!==undefined?String(row[5]):''};n++;});
+      if(!n){toast('Nenhum preço preenchido na coluna D');return;}
+      const fornecedor=prompt('Nome do fornecedor desta resposta:','');if(fornecedor===null)return;
+      cot.respostas=cot.respostas||[];
+      cot.respostas.push({fornecedor:fornecedor.trim()||('Fornecedor '+(cot.respostas.length+1)),data:hoje(),precos,por:uid});
+      logAtv('importou resposta de cotação de '+(fornecedor.trim()||'fornecedor'));
+      cloudSave();renderCotacoes();
+      toast(n+' preço(s) importado(s) de <b>'+esc(fornecedor.trim()||'fornecedor')+'</b>');
+    }catch(e){console.error(e);toast('Não consegui ler esta planilha');}};
+    r.readAsArrayBuffer(f);};
+  inp.click();
+}
+function renderCotacoes(){const tb=document.getElementById('tbCotacoes');if(!tb)return;const rows=[...(db.cotacoes||[])].reverse();
+  tb.innerHTML=rows.length?rows.map(c=>`<tr><td style="font-family:monospace">${esc(c.id)}</td><td>${esc(c.data)}</td><td>${c.itens.length}</td><td>${(c.respostas||[]).length?`<span class="pill ok">${c.respostas.length} resposta(s)</span>`:'<span class="pill warn">aguardando</span>'}</td><td><div class="row-actions">${(c.respostas||[]).length?`<button class="icon-btn" title="Comparar preços" onclick="verCotacao('${c.id}')">⇄</button>`:''}<button class="icon-btn" onclick="del('cotacao','${c.id}')">🗑</button></div></td></tr>`).join(''):`<tr><td colspan=5><div class="empty-t">Nenhuma cotação — gere uma a partir da lista de compras.</div></td></tr>`;}
+function verCotacao(id){
+  const c=(db.cotacoes||[]).find(x=>x.id===id);if(!c)return;
+  currentForm={type:'cotacaoView',id:null,recipe:[]};window.currentForm=currentForm;
+  document.getElementById('modalTitle').textContent='Cotação '+c.id+' — comparação';
+  const forn=c.respostas||[];
+  const totais=forn.map(f=>c.itens.reduce((s,it)=>{const p=f.precos[it.insumo];return s+(p?p.preco*it.qtd:Infinity);},0));
+  const minTotal=Math.min(...totais);
+  let html='<div class="tablewrap"><table><thead><tr><th>Item</th><th>Qtd</th>'+forn.map(f=>'<th>'+esc(f.fornecedor)+'</th>').join('')+'</tr></thead><tbody>';
+  c.itens.forEach(it=>{const ins=db.insumos.find(x=>x.id===it.insumo);const ps=forn.map(f=>f.precos[it.insumo]?f.precos[it.insumo].preco:null);const valid=ps.filter(p=>p!==null);const min=valid.length?Math.min(...valid):null;
+    html+='<tr><td>'+esc(ins?ins.nome:'?')+'</td><td>'+it.qtd+'</td>'+ps.map(p=>'<td>'+(p===null?'—':(p===min?`<span class="pill ok">${brl(p)}</span>`:brl(p)))+'</td>').join('')+'</tr>';});
+  html+='<tr><td style="font-weight:600">Total do pedido</td><td></td>'+totais.map(t=>'<td class="money" style="'+(t===minTotal&&isFinite(t)?'color:var(--ok);font-weight:600':'')+'">'+(isFinite(t)?brl(t):'—')+'</td>').join('')+'</tr>';
+  html+='</tbody></table></div><div class="hint" style="margin-top:10px">Verde = melhor preço. Prazos e observações ficam guardados na resposta. Ao comprar, registre com o ✓ Comprei — o custo médio se atualiza sozinho.</div>';
+  document.getElementById('modalBody').innerHTML=html;
+  document.getElementById('overlay').classList.add('open');
+}
+function exportJSON(){if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}dl('cinerea-backup-'+hoje()+'.json',JSON.stringify(db,null,2),'application/json');toast('Backup salvo — guarde este arquivo');}
+function importJSON(){
+  if(!pode('gerir')){toast('Só dono e admin restauram backups');return;}const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||typeof d!=='object'||!Array.isArray(d.insumos))throw 0;if(!confirm('Substituir TODOS os dados atuais pelos do arquivo de backup?'))return;db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],meta:0,checks:{},...d};cloudSave();renderAll();toast('Dados restaurados do backup');}catch(e){toast('Arquivo inválido — use um backup gerado pelo app');}};r.readAsText(f);};inp.click();}
+function exportCompras(){
+  const low=db.insumos.filter(i=>insumoStatus(i)!=='ok');
+  if(!low.length){toast('Nada para comprar');return;}
+  const txt='LISTA DE COMPRAS · Cinérea\n'+new Date().toLocaleDateString('pt-BR')+'\n\n'+low.map(i=>{const comprar=Math.max(0,(i.minimo*2-i.estoque));return `• ${i.nome}: comprar ${comprar.toFixed(comprar%1?2:0)} ${i.unidade} (tem ${i.estoque})`;}).join('\n');
+  navigator.clipboard?.writeText(txt).then(()=>toast('Lista copiada — cole no WhatsApp'),()=>dl('lista-compras.txt',txt,'text/plain'));
+}
+function exportPDF(){
+  if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}
+  const receita=db.pedidos.filter(p=>p.situacao==='Pago'||p.situacao==='Entregue').reduce((s,p)=>s+Number(p.valor||0),0);
+  const win=window.open('','_blank');
+  const row=(a)=>'<tr>'+a.map(x=>`<td>${x}</td>`).join('')+'</tr>';
+  win.document.write(`<html><head><title>Cinérea — Relatório</title><style>body{font-family:Georgia,serif;color:#1C1A17;padding:40px;max-width:800px;margin:auto}h1{font-size:32px}h2{border-bottom:2px solid #B5462A;padding-bottom:6px;margin-top:32px;font-size:20px}table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}td,th{border:1px solid #ccc;padding:7px 10px;text-align:left}th{background:#eee}.big{font-size:22px;color:#B5462A}</style></head><body>
+  <h1>Cinérea — Relatório</h1><p>${new Date().toLocaleDateString('pt-BR')}</p>
+  <p class="big">Receita registrada: ${brl(receita)} · Peças produzidas: ${db.producao.reduce((s,p)=>s+Number(p.qtd||0),0)}</p>
+  <h2>Produtos e custos</h2><table><tr><th>Produto</th><th>Custo</th><th>Preço</th><th>Margem</th><th>Prontas</th></tr>${db.produtos.map(p=>{const c=calcCusto(p).total;const sug=c*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const m=prat?Math.round((prat-taxa-c)/prat*100):0;return row([p.nome,brl(c),brl(prat),m+'%',p.pronto||0]);}).join('')}</table>
+  <h2>Insumos em estoque</h2><table><tr><th>Insumo</th><th>Estoque</th><th>Mínimo</th><th>Situação</th></tr>${db.insumos.map(i=>row([i.nome,i.estoque+' '+i.unidade,i.minimo,insumoStatus(i)==='low'?'REPOR':insumoStatus(i)==='warn'?'baixo':'ok'])).join('')}</table>
+  <h2>Moldes</h2><table><tr><th>Molde</th><th>Usos</th><th>Vida</th></tr>${db.moldes.map(m=>row([m.nome,m.usos,m.vida])).join('')}</table>
+  <p style="margin-top:40px;color:#999;font-size:11px">Gerado pelo sistema de gestão Cinérea</p>
+  </body></html>`);
+  win.document.close();setTimeout(()=>win.print(),400);
+}
+
+// ---------- PWA, aviso de atualização e indicador online/offline ----------
+window.addEventListener('online',()=>flashSync(true));
+window.addEventListener('offline',()=>flashSync(true));
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').then(reg=>{
+    reg.addEventListener('updatefound',()=>{
+      const nw=reg.installing;if(!nw)return;
+      nw.addEventListener('statechange',()=>{
+        if(nw.state==='installed'&&navigator.serviceWorker.controller){
+          window.__aplicarUpdate=()=>nw.postMessage({type:'SKIP_WAITING'});
+          const t=document.getElementById('toast');
+          t.innerHTML='Nova versão disponível <button onclick="window.__aplicarUpdate()" style="background:none;border:none;color:#e8a;text-decoration:underline;cursor:pointer;font-size:13px;margin-left:6px">Atualizar agora</button>';
+          t.classList.add('show');clearTimeout(toastTimer); // fica até o usuário decidir
+        }
+      });
+    });
+  }).catch(()=>{});
+  navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload());
+}

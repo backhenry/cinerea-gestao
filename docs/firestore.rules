@@ -16,6 +16,11 @@ service cloud.firestore {
       return ehDono(eid) || (ehMembro(eid)
         && get(/databases/$(database)/documents/empresas/$(eid)/membros/$(request.auth.uid)).data.get('papel','') == 'admin');
     }
+    function ehFin(eid) {
+      // dono, admin ou sócio — quem enxerga o financeiro
+      return ehDono(eid) || (ehMembro(eid)
+        && get(/databases/$(database)/documents/empresas/$(eid)/membros/$(request.auth.uid)).data.get('papel','') in ['admin','socio']);
+    }
 
     // Conta individual: ponteiro para a empresa + preferências + dados legados
     match /usuarios/{uid} {
@@ -55,9 +60,14 @@ service cloud.firestore {
           && (request.auth.uid == mUid || ehGestor(eid));
       }
 
-      // Backups mensais automáticos
+      // Financeiro: NEGADO no servidor para empregados
+      match /fin/{fdoc} {
+        allow read, write: if ehFin(eid);
+      }
+
+      // Backups mensais automáticos (contêm o financeiro)
       match /backups/{b} {
-        allow read, write: if ehMembro(eid);
+        allow read, write: if ehFin(eid);
       }
     }
 

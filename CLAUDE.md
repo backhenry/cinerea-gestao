@@ -79,9 +79,25 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
   no Painel, fechamento mensal DRE (exportDRE), backup automático mensal
   (checkBackup), aviso de atualização do PWA (SKIP_WAITING) e CI de sintaxe no deploy.
 
+- ARQUIVOS SEPARADOS: index.html (estrutura) + styles.css + app.js (módulo).
+- FINANCEIRO SEPARADO: doc empresas/{eid}/fin/dados guarda FIN_KEYS
+  (fixos, meta, meiTeto, ultimoBackup) e prodFin (preco/markup/taxa/custohora/
+  perda/equip por produto). rebuildDb() mescla em `db`; splitDb() divide no save
+  (cloudSave usa updateDoc p/ substituir `dados` inteiro). Migração automática
+  (migrarFinSePreciso) no primeiro login de quem tem acesso fin. Regras: ehFin =
+  dono/admin/sócio; empregado é NEGADO no servidor (fin e backups).
+- Equipe: atividade (db.atividade, logAtv, cap 60, sem valores), autoria (obj.por),
+  comentários em tarefas (t.coments), drag-and-drop no kanban, calendário de
+  entregas no Painel (renderCal), slider de markup no produto, múltiplas empresas
+  por conta (usuarios/{uid}.minhasEmpresas + troca no perfil).
+- SOURCING: db.cotacoes — gerarCotacao() cria .xlsx (SheetJS via CDN) da lista de
+  compras com colunas ocultas (H1 = 'CINEREA-RFQ:{id}', col H = id do insumo);
+  fornecedor preenche D/E/F; importarCotacao() lê o arquivo, casa pelo marcador e
+  guarda resposta por fornecedor; verCotacao() compara preços (melhor em verde).
+- TESTES: tests/rules.test.mjs roda no emulador (npm run test:rules; job
+  test-rules no CI). Local exige Java; no CI já funciona.
+
 ## Pendente / próximo
-- Separar index.html em arquivos (css/js) — adiado de propósito: refatorar junto
-  com a migração multi-usuário aumentaria o risco. Fazer numa mudança isolada.
 - Domínio próprio: passos no README (exige compra do domínio pelo dono).
 
 ## Ideias de próximos passos (do dono do projeto)
