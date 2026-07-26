@@ -1,0 +1,8 @@
+# Chaves do Firebase — nunca subir para o GitHub
+config.js
+
+# Sistema
+.DS_Store
+Thumbs.db
+node_modules/
+*.log

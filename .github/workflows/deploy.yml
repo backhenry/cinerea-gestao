@@ -1,0 +1,43 @@
+# Deploy automático no GitHub Pages.
+# O config.js (chaves do Firebase) NÃO fica no repositório: ele é gerado na hora
+# do deploy a partir do secret CINEREA_CONFIG_JS (Settings → Secrets → Actions),
+# cujo conteúdo deve ser o texto completo do seu config.js local.
+name: Deploy no GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gerar config.js a partir do secret
+        env:
+          CINEREA_CONFIG_JS: ${{ secrets.CINEREA_CONFIG_JS }}
+        run: |
+          if [ -z "$CINEREA_CONFIG_JS" ]; then
+            echo "::error::Secret CINEREA_CONFIG_JS não configurado. Cole nele o conteúdo do seu config.js local."
+            exit 1
+          fi
+          printf '%s' "$CINEREA_CONFIG_JS" > config.js
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,12 @@
+{
+  "name": "Cinérea · Gestão",
+  "short_name": "Cinérea",
+  "description": "Gestão do ateliê Cinérea — insumos, moldes, orçamento, produção e pedidos.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F2EFEA",
+  "theme_color": "#F2EFEA",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
