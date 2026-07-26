@@ -12,7 +12,14 @@ produção e pedidos, com sincronização em nuvem (Firebase) e login.
   com custo, preço sugerido e margem
 - **Produção** com tempo por peça, **variação/fragrância** e **lote automático**;
   soma ao estoque de **peças prontas**
-- **Pedidos** ligados aos produtos: **lucro por venda** e baixa de peças prontas ao entregar
+- **Pedidos** ligados aos produtos: **lucro por venda** (com a taxa do **canal de venda**),
+  **prazo de entrega** com alerta de atraso no painel, e baixa de peças prontas ao entregar
+- **Clientes** com WhatsApp clicável e histórico de compras
+- **Catálogo público** (`catalogo.html?u=...`): vitrine das peças marcadas como públicas,
+  com foto, preço e botão de encomenda pelo WhatsApp — link para a bio do Instagram
+- **Busca e filtro por mês** em produção e pedidos; **desfazer** ao excluir
+- **Lucro por hora de trabalho** por produto (tabela e gráfico) e **acompanhamento do teto MEI**
+- No celular, as tabelas viram **cartões** legíveis
 - **Painel** com gráficos, alertas e visão **mês a mês** (receita e lucro)
 - **Lista de compras** automática, com botão **✓ Comprei** que registra a compra
 - **Histórico de compras** com **custo médio ponderado**: pagou mais caro, o custo
