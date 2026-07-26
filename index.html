@@ -13,6 +13,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{--paper:#F2EFEA;--ash:#E7E3DC;--char:#1C1A17;--ember:#B5462A;--smoke:#6E6862;--line:#D8D2C8;--warm:#8A7E70;--ok:#3F7D5B;--warn:#C08A2E}
+  :root[data-tema="escuro"]{--paper:#201D19;--ash:#2A2621;--char:#EDE8E0;--smoke:#A39B90;--line:#3B362F;--warm:#8A8075}
+  :root[data-tema="escuro"] .brand svg path{stroke:#EDE8E0}
+  body{transition:background .25s,color .25s}
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:var(--paper);color:var(--char);font-family:'Inter',sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;padding-bottom:80px}
   h1,h2,h3,.serif{font-family:'Fraunces',serif;font-weight:400}
@@ -174,6 +177,7 @@
       <input type="password" id="gPass" placeholder="senha">
       <button class="btn" id="gBtn" onclick="doAuth()">Entrar</button>
       <button class="swap" onclick="toggleAuth()">Não tem conta? <b id="swapLbl">Criar agora</b></button>
+      <button class="swap" onclick="esqueciSenha()">Esqueci a senha</button>
     </div>
     <div id="gateEmpresa" style="display:none">
       <div class="gate-err" id="gateEmpErr"></div>
@@ -189,8 +193,8 @@
 
 <header>
   <div class="head-in">
-    <div class="brand"><svg class="sym" viewBox="0 0 150 150" fill="none"><path d="M108 46 C97 31,70 28,53 42 C36 56,36 94,53 108 C70 122,97 119,108 104" stroke="#1C1A17" stroke-width="9" fill="none" stroke-linecap="round"/><circle cx="112" cy="75" r="11" fill="#B5462A"/></svg>Cinérea · Gestão</div>
-    <div class="head-actions"><span class="synced" id="syncState"><span class="dot"></span> sincronizado</span><button class="mini" onclick="doLogout()">Sair</button></div>
+    <div class="brand"><svg class="sym" viewBox="0 0 150 150" fill="none"><path d="M108 46 C97 31,70 28,53 42 C36 56,36 94,53 108 C70 122,97 119,108 104" stroke="#1C1A17" stroke-width="9" fill="none" stroke-linecap="round"/><circle cx="112" cy="75" r="11" fill="#B5462A"/></svg><span id="brandName">Cinérea · Gestão</span></div>
+    <div class="head-actions"><span class="synced" id="syncState"><span class="dot"></span> sincronizado</span><button class="mini" onclick="openPerfil()">Perfil</button><button class="mini" onclick="doLogout()">Sair</button></div>
   </div>
 </header>
 
@@ -269,7 +273,7 @@
   </section>
 
   <section class="panel" id="p-equipe">
-    <div class="panel-head"><div><h2>Equipe</h2><div class="desc" id="equipeDesc">Membros e tarefas da empresa</div></div><div class="head-btns"><button class="btn2" onclick="gerarConvite()">Convidar</button><button class="btn" onclick="openForm('tarefa')">+ Tarefa</button></div></div>
+    <div class="panel-head"><div><h2>Equipe</h2><div class="desc" id="equipeDesc">Membros e tarefas da empresa</div></div><div class="head-btns"><button class="btn2" id="btnMinhas" onclick="toggleMinhas()">Só minhas</button><button class="btn2" onclick="gerarConvite()">Convidar</button><button class="btn" onclick="openForm('tarefa')">+ Tarefa</button></div></div>
     <div id="membrosBox" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px"></div>
     <div class="kanban">
       <div class="kb-col"><h3>A fazer <span class="kb-n" id="kbN0"></span></h3><div id="kb0"></div></div>
@@ -307,7 +311,7 @@
 <script src="config.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, verifyBeforeUpdateEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ============================================================
@@ -323,11 +327,24 @@ const isConfigured = firebaseConfig.apiKey !== "COLE_AQUI";
 let app,auth,fdb,uid=null,saveTimer=null;
 let eid=null,empresaNome='',empresaDono='',membros={},unsubData=null,unsubMembros=null,backupChecado=false;
 let db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],meta:0,checks:{}};
-let undoState=null,toastTimer=null,timerT0=null,timerInt=null;
+let undoState=null,toastTimer=null,timerT0=null,timerInt=null,filtroMinhas=false;
 const fP={q:'',m:''},fV={q:'',m:''};
+
+// ---------- preferências de interface (tema + cor de destaque) ----------
+const ACENTOS={'Brasa':'#B5462A','Verde':'#3F7D5B','Azul':'#33628C','Violeta':'#6D4E8C','Âmbar':'#C08A2E'};
+function aplicarPrefs(p){
+  p=p||{};window.__prefs=p;
+  const escuro=p.tema==='escuro'||(p.tema==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.tema=escuro?'escuro':'claro';
+  document.documentElement.style.setProperty('--ember',p.acento||'#B5462A');
+  const mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.content=escuro?'#201D19':'#F2EFEA';
+  if(uid&&typeof renderCharts==='function')try{renderCharts();}catch(e){}
+}
+try{aplicarPrefs(JSON.parse(localStorage.getItem('cinereaPrefs')||'{}'));}catch(e){}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if((window.__prefs||{}).tema==='auto')aplicarPrefs(window.__prefs);});
 let charts={};
 
-Object.assign(window,{doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,del,addRecipeLine,rmRecipeLine,updateCost,exportCSV,exportPDF,exportCompras,saveCheck,buyDone,exportJSON,importJSON,setMeta,setMeiTeto,quickCliente,publicarCatalogo,doUndo,renderProducao,renderPedidos,fP,fV,criarEmpresaUI,entrarEmpresaUI,gerarConvite,removerMembro,renomearMe,moveTarefa,repetir,toggleTimer,exportDRE});
+Object.assign(window,{doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,del,addRecipeLine,rmRecipeLine,updateCost,exportCSV,exportPDF,exportCompras,saveCheck,buyDone,exportJSON,importJSON,setMeta,setMeiTeto,quickCliente,publicarCatalogo,doUndo,renderProducao,renderPedidos,fP,fV,criarEmpresaUI,entrarEmpresaUI,gerarConvite,removerMembro,renomearMe,moveTarefa,repetir,toggleTimer,exportDRE,openPerfil,sairEmpresa,esqueciSenha,toggleMinhas});
 
 if(!isConfigured){document.getElementById('gateSetup').style.display='block';}
 else{
@@ -348,6 +365,7 @@ async function carregarConta(){
   try{
     const ps=await getDoc(doc(fdb,'usuarios',uid));
     const pdata=ps.exists()?ps.data():{};
+    if(pdata.prefs){aplicarPrefs(pdata.prefs);try{localStorage.setItem('cinereaPrefs',JSON.stringify(pdata.prefs));}catch(e){}}
     if(pdata.empresaId){eid=pdata.empresaId;iniciarEmpresa();}
     else if(pdata.dados&&pdata.dados.insumos){await criarEmpresa('Cinérea',pdata.dados);} // migração automática do modelo antigo
     else{mostrarOnboarding('');}
@@ -411,6 +429,69 @@ async function renomearMe(){
   if(!n)return;
   try{await setDoc(doc(fdb,'empresas',eid,'membros',uid),{nome:n.trim()},{merge:true});}catch(e){console.error(e);}
 }
+// ---------- perfil ----------
+function openPerfil(){
+  if(!uid)return;
+  currentForm={type:'perfil',id:null,recipe:[]};window.currentForm=currentForm;
+  document.getElementById('modalTitle').textContent='Meu perfil';
+  const m=membros[uid]||{};const p=window.__prefs||{};
+  document.getElementById('modalBody').innerHTML=`
+    <div class="field"><label>Meu nome (aparece no time)</label><input id="f_pnome" value="${esc(m.nome||'')}"></div>
+    <div class="field"><label>E-mail de login</label><input id="f_pemail" type="email" value="${esc((auth.currentUser&&auth.currentUser.email)||'')}"><div class="hint">Alterar pode pedir sua senha atual ou confirmação por link no novo e-mail</div></div>
+    <div class="field"><label>Nova senha</label><input id="f_psenha" type="password" placeholder="deixe vazio para manter a atual"></div>
+    ${uid===empresaDono?`<div class="field"><label>Nome da empresa</label><input id="f_pempresa" value="${esc(empresaNome)}"></div>`:''}
+    <div class="field-row">
+      <div class="field"><label>Tema</label><select id="f_ptema">${['claro','escuro','auto'].map(t=>`<option ${p.tema===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="field"><label>Cor de destaque</label><select id="f_pacento">${Object.entries(ACENTOS).map(([n,c])=>`<option value="${c}" ${(p.acento||'#B5462A')===c?'selected':''}>${n}</option>`).join('')}</select></div>
+    </div>
+    ${eid&&uid!==empresaDono?`<button class="btn2" style="color:var(--ember);border-color:var(--ember);width:100%" onclick="sairEmpresa()">Sair desta empresa</button>`:''}`;
+  document.getElementById('overlay').classList.add('open');
+}
+async function comReauth(cur,fn){
+  try{await fn();}
+  catch(e){
+    if(e.code==='auth/requires-recent-login'){
+      const pw=prompt('Por segurança, confirme sua senha atual:');if(!pw)throw e;
+      await reauthenticateWithCredential(cur,EmailAuthProvider.credential(cur.email,pw));
+      await fn();
+    }else throw e;
+  }
+}
+async function salvarPerfil(){
+  const nome=val('f_pnome').trim(),email=val('f_pemail').trim(),senha=val('f_psenha');
+  const prefs={tema:val('f_ptema')||'claro',acento:val('f_pacento')||'#B5462A'};
+  aplicarPrefs(prefs);try{localStorage.setItem('cinereaPrefs',JSON.stringify(prefs));}catch(e){}
+  setDoc(doc(fdb,'usuarios',uid),{prefs},{merge:true}).catch(()=>{});
+  if(nome&&eid&&nome!==(membros[uid]||{}).nome)setDoc(doc(fdb,'empresas',eid,'membros',uid),{nome},{merge:true}).catch(()=>{});
+  if(uid===empresaDono&&eid){const en=(val('f_pempresa')||'').trim();if(en&&en!==empresaNome)setDoc(doc(fdb,'empresas',eid),{nome:en},{merge:true}).catch(()=>{});}
+  const cur=auth.currentUser;
+  try{
+    if(email&&cur&&email!==cur.email){
+      try{await comReauth(cur,()=>updateEmail(cur,email));toast('E-mail alterado para '+esc(email));}
+      catch(e){if(e.code==='auth/operation-not-allowed'){await comReauth(cur,()=>verifyBeforeUpdateEmail(cur,email));toast('Enviamos um link de confirmação para '+esc(email)+' — o e-mail muda após confirmar');}else throw e;}
+    }
+    if(senha){if(senha.length<6){toast('Senha nova muito curta (mínimo 6)');return;}await comReauth(cur,()=>updatePassword(cur,senha));toast('Senha alterada ✓');}
+  }catch(e){console.error(e);const msgs={'auth/invalid-email':'E-mail inválido.','auth/email-already-in-use':'Este e-mail já está em uso.','auth/wrong-password':'Senha atual incorreta.','auth/invalid-credential':'Senha atual incorreta.'};toast(msgs[e.code]||'Erro ao atualizar a conta: '+e.code);return;}
+  closeModal();toast('Perfil salvo ✓');
+}
+async function sairEmpresa(){
+  if(uid===empresaDono){toast('O dono não pode sair da própria empresa');return;}
+  if(!confirm('Sair desta empresa? Você perderá o acesso aos dados dela até ser convidado de novo.'))return;
+  try{
+    await deleteDoc(doc(fdb,'empresas',eid,'membros',uid));
+    await setDoc(doc(fdb,'usuarios',uid),{empresaId:null},{merge:true});
+    if(unsubData)unsubData();if(unsubMembros)unsubMembros();eid=null;closeModal();
+    mostrarOnboarding('Você saiu da empresa. Crie uma nova ou entre com um convite.');
+  }catch(e){console.error(e);toast('Erro ao sair da empresa');}
+}
+async function esqueciSenha(){
+  const em=document.getElementById('gEmail').value.trim();
+  const err=document.getElementById('gateErr');
+  if(!em){err.textContent='Digite seu e-mail acima e toque de novo em "Esqueci a senha".';return;}
+  try{await sendPasswordResetEmail(auth,em);err.textContent='';toast('Enviamos um link de redefinição para '+esc(em));}
+  catch(e){err.textContent='Não foi possível enviar: '+(e.code==='auth/invalid-email'?'e-mail inválido.':e.code);}
+}
+function toggleMinhas(){filtroMinhas=!filtroMinhas;const b=document.getElementById('btnMinhas');if(b){b.textContent=filtroMinhas?'✓ Só minhas':'Só minhas';b.style.borderColor=filtroMinhas?'var(--ember)':'';b.style.color=filtroMinhas?'var(--ember)':'';}renderEquipe();}
 async function checkBackup(){
   if(backupChecado||!eid)return;backupChecado=true;
   const mes=hoje().slice(0,7);
@@ -432,6 +513,7 @@ function subscribe(){
   unsubData=onSnapshot(doc(fdb,'empresas',eid),snap=>{
     if(snap.exists()){const d=snap.data();empresaNome=d.nome||'';empresaDono=d.dono||'';db={...db,...(d.dados||{})};seedIfEmpty(false);}
     else{seedIfEmpty(true);}
+    const bn=document.getElementById('brandName');if(bn)bn.textContent=(empresaNome||'Cinérea')+' · Gestão';
     renderAll();flashSync(true);checkBackup();
   },err=>{console.error(err);eid=null;mostrarOnboarding('Você não tem mais acesso a esta empresa — crie outra ou peça um novo convite.');setDoc(doc(fdb,'usuarios',uid),{empresaId:null},{merge:true}).catch(()=>{});});
 }
@@ -520,19 +602,23 @@ function renderDash(){
 function mkChart(id,cfg){if(charts[id])charts[id].destroy();const el=document.getElementById(id);if(el)charts[id]=new Chart(el,cfg);}
 function renderCharts(){
   if(typeof Chart==='undefined')return;
-  const F={font:{family:'Inter'}};const grid={color:'#D8D2C8'};const tick={color:'#6E6862',font:{family:'Inter',size:11}};
+  // cores lidas das variáveis CSS para respeitar tema e cor de destaque
+  const css=getComputedStyle(document.documentElement);
+  const cv=(n,fb)=>((css.getPropertyValue(n)||'').trim()||fb);
+  const C={char:cv('--char','#1C1A17'),ember:cv('--ember','#B5462A'),smoke:cv('--smoke','#6E6862'),line:cv('--line','#D8D2C8'),ok:'#3F7D5B',warn:'#C08A2E'};
+  const F={font:{family:'Inter'}};const grid={color:C.line};const tick={color:C.smoke,font:{family:'Inter',size:11}};
   const prods=db.produtos.map(p=>{const c=calcCusto(p).total;const sug=c*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const marg=prat-taxa-c;const h=Number(p.minutos||0)/60;return{nome:p.nome,c,m:prat?Math.round(marg/prat*100):0,lph:h>0?marg/h:0};});
-  mkChart('chCusto',{type:'bar',data:{labels:prods.map(p=>p.nome),datasets:[{data:prods.map(p=>p.c.toFixed(2)),backgroundColor:'#B5462A',borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
-  mkChart('chMargem',{type:'bar',data:{labels:prods.map(p=>p.nome),datasets:[{data:prods.map(p=>p.m),backgroundColor:prods.map(p=>p.m>50?'#3F7D5B':p.m>30?'#C08A2E':'#B5462A'),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
+  mkChart('chCusto',{type:'bar',data:{labels:prods.map(p=>p.nome),datasets:[{data:prods.map(p=>p.c.toFixed(2)),backgroundColor:C.ember,borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
+  mkChart('chMargem',{type:'bar',data:{labels:prods.map(p=>p.nome),datasets:[{data:prods.map(p=>p.m),backgroundColor:prods.map(p=>p.m>50?C.ok:p.m>30?C.warn:C.ember),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
   const byDay={};db.producao.forEach(p=>{const d=p.data||'?';byDay[d]=(byDay[d]||0)+Number(p.qtd||0);});const days=Object.keys(byDay).sort();
-  mkChart('chProd',{type:'line',data:{labels:days,datasets:[{data:days.map(d=>byDay[d]),borderColor:'#1C1A17',backgroundColor:'rgba(181,70,42,.1)',fill:true,tension:.3,pointBackgroundColor:'#B5462A'}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
+  mkChart('chProd',{type:'line',data:{labels:days,datasets:[{data:days.map(d=>byDay[d]),borderColor:C.char,backgroundColor:'rgba(181,70,42,.1)',fill:true,tension:.3,pointBackgroundColor:C.ember}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
   const sit={};db.pedidos.forEach(p=>{const s=p.situacao||'Pendente';sit[s]=(sit[s]||0)+Number(p.valor||0);});
-  mkChart('chRec',{type:'doughnut',data:{labels:Object.keys(sit),datasets:[{data:Object.values(sit),backgroundColor:['#C08A2E','#3F7D5B','#1C1A17','#B5462A']}]},options:{plugins:{legend:{position:'bottom',labels:{...F,color:'#6E6862',boxWidth:12}}}}});
+  mkChart('chRec',{type:'doughnut',data:{labels:Object.keys(sit),datasets:[{data:Object.values(sit),backgroundColor:[C.warn,C.ok,C.char,C.ember]}]},options:{plugins:{legend:{position:'bottom',labels:{...F,color:C.smoke,boxWidth:12}}}}});
   // mês a mês: receita (pedidos pagos/entregues) e lucro (só dos pedidos ligados a produto)
   const byMes={};db.pedidos.forEach(p=>{if(p.situacao!=='Pago'&&p.situacao!=='Entregue')return;const m=(p.data||'').slice(0,7);if(!m)return;byMes[m]=byMes[m]||{rec:0,luc:0};byMes[m].rec+=Number(p.valor||0);const l=lucroPedido(p);if(l!==null)byMes[m].luc+=l;});
   const meses=Object.keys(byMes).sort();
-  mkChart('chMes',{type:'bar',data:{labels:meses,datasets:[{label:'Receita',data:meses.map(m=>byMes[m].rec.toFixed(2)),backgroundColor:'#1C1A17',borderRadius:4},{label:'Lucro',data:meses.map(m=>byMes[m].luc.toFixed(2)),backgroundColor:'#3F7D5B',borderRadius:4}]},options:{plugins:{legend:{position:'bottom',labels:{color:'#6E6862',boxWidth:12,font:{family:'Inter',size:11}}}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
-  mkChart('chLph',{type:'bar',data:{labels:prods.map(p=>p.nome),datasets:[{data:prods.map(p=>p.lph.toFixed(2)),backgroundColor:prods.map(p=>p.lph>40?'#3F7D5B':p.lph>20?'#C08A2E':'#B5462A'),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
+  mkChart('chMes',{type:'bar',data:{labels:meses,datasets:[{label:'Receita',data:meses.map(m=>byMes[m].rec.toFixed(2)),backgroundColor:C.char,borderRadius:4},{label:'Lucro',data:meses.map(m=>byMes[m].luc.toFixed(2)),backgroundColor:C.ok,borderRadius:4}]},options:{plugins:{legend:{position:'bottom',labels:{color:C.smoke,boxWidth:12,font:{family:'Inter',size:11}}}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
+  mkChart('chLph',{type:'bar',data:{labels:prods.map(p=>p.nome),datasets:[{data:prods.map(p=>p.lph.toFixed(2)),backgroundColor:prods.map(p=>p.lph>40?C.ok:p.lph>20?C.warn:C.ember),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
 }
 function renderEquip(){document.getElementById('tbEquip').innerHTML=db.equip.length?db.equip.map(e=>`<tr><td>${esc(e.nome)}</td><td>${esc(e.tipo)||'—'}</td><td>${esc(e.compra)||'—'}</td><td class="money">${brl(e.custo)}</td><td><span class="pill ok">${esc(e.situacao||'Ativo')}</span></td><td>${rowActions('equip',e.id)}</td></tr>`).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum equipamento.</div></td></tr>`;}
 function renderMoldes(){document.getElementById('tbMoldes').innerHTML=db.moldes.length?db.moldes.map(m=>{const st=moldeStatus(m);const pct=Math.min(100,Math.round(m.usos/(m.vida||1)*100));const l=st==='low'?'Trocar':st==='warn'?'Quase no fim':'Bom';return `<tr><td>${esc(m.nome)}</td><td>${esc(m.material)}</td><td>${m.usos} / ${m.vida}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div></td><td><span class="pill ${st}">${l}</span></td><td>${rowActions('molde',m.id)}</td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum molde.</div></td></tr>`;}
@@ -566,9 +652,12 @@ function renderEquipe(){
   const box=document.getElementById('membrosBox');if(!box)return;
   document.getElementById('equipeDesc').textContent=(empresaNome?empresaNome+' — ':'')+'membros e tarefas';
   box.innerHTML=Object.entries(membros).map(([id,m])=>`<div class="membro-chip">${esc(m.nome||'membro')}${id===empresaDono?' <span class="dono">dono</span>':''}${id===uid?' <button class="icon-btn" title="Editar meu nome" onclick="renomearMe()">✎</button>':(uid===empresaDono?` <button class="icon-btn" title="Remover" onclick="removerMembro('${id}')">✕</button>`:'')}</div>`).join('')||'<span style="color:var(--smoke);font-size:13px">Carregando membros…</span>';
+  const minhasAbertas=(db.tarefas||[]).filter(t=>t.resp===uid&&(t.status||'aberta')!=='feita').length;
+  const tabBtn=document.querySelector('[data-tab="equipe"]');
+  if(tabBtn)tabBtn.textContent='Equipe'+(minhasAbertas?' ('+minhasAbertas+')':'');
   const cols=['aberta','fazendo','feita'];const hj=hoje();
   cols.forEach((st,i)=>{
-    const cards=(db.tarefas||[]).filter(t=>((t.status||'aberta')===st));
+    const cards=(db.tarefas||[]).filter(t=>((t.status||'aberta')===st)&&(!filtroMinhas||t.resp===uid));
     document.getElementById('kbN'+i).textContent=cards.length?'· '+cards.length:'';
     document.getElementById('kb'+i).innerHTML=cards.map(t=>{
       const resp=membros[t.resp]?esc(membros[t.resp].nome):'';
@@ -713,6 +802,7 @@ function revertCompra(o){
 }
 function saveForm(){
   const type=currentForm.type,id=currentForm.id;let obj={};
+  if(type==='perfil'){salvarPerfil();return;}
   if(type==='produto'){obj={nome:val('f_nome'),receita:currentForm.recipe.filter(l=>l.insumo&&l.qtd),minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),markup:val('f_markup'),preco:val('f_preco'),taxa:val('f_taxa'),equip:val('f_equip'),pronto:Number(val('f_pronto')||0),foto:val('f_foto'),publico:!!(document.getElementById('f_publico')||{}).checked};if(!obj.nome){alert('Dê um nome.');return;}}
   else{FORMS[type].fields.forEach(f=>obj[f.k]=val('f_'+f.k));if(!obj[FORMS[type].fields[0].k]){alert('Preencha o primeiro campo.');return;}}
   const list=plural(type);

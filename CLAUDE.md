@@ -57,6 +57,12 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
 - Ícones PNG 192/512 gerados da marca (também `purpose: maskable`).
 - Equipe (aba nova): kanban de tarefas (`db.tarefas`, status aberta/fazendo/feita,
   responsável = uid de membro), convite por código, remover membro (só dono).
+- Perfil (openPerfil/salvarPerfil): nome no time, e-mail (updateEmail com reauth,
+  fallback verifyBeforeUpdateEmail), senha, nome da empresa (dono), tema
+  claro/escuro/auto e cor de destaque (prefs em usuarios/{uid}.prefs + localStorage;
+  tema via :root[data-tema], acento via --ember; gráficos leem cores das CSS vars).
+  "Esqueci a senha" no login; sair da empresa (não-dono); badge de tarefas minhas
+  na aba Equipe + filtro "Só minhas".
 - Cronômetro no form de produção (toggleTimer), botão ⟳ repetir em produção/pedidos,
   frete por pedido (entra no lucroPedido), cartão "A receber", plano de produção
   no Painel, fechamento mensal DRE (exportDRE), backup automático mensal
