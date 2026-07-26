@@ -26,6 +26,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Testar sintaxe dos scripts antes de publicar
+        run: |
+          awk '/<script type="module">/{f=1;next}/<\/script>/{f=0}f' index.html > /tmp/app.mjs
+          node --check /tmp/app.mjs
+          awk '/<script type="module">/{f=1;next}/<\/script>/{f=0}f' catalogo.html > /tmp/cat.mjs
+          node --check /tmp/cat.mjs
+          node --check sw.js
       - name: Gerar config.js a partir do secret
         env:
           CINEREA_CONFIG_JS: ${{ secrets.CINEREA_CONFIG_JS }}

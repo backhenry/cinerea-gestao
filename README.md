@@ -3,6 +3,11 @@
 Sistema de gestão do ateliê Cinérea — equipamentos, moldes, insumos, orçamento,
 produção e pedidos, com sincronização em nuvem (Firebase) e login.
 
+**Multi-usuário:** os dados pertencem a uma **empresa**, e várias contas podem
+entrar nela. O dono gera um **código de convite** (aba Equipe → Convidar) e cada
+pessoa cria a própria conta e entra com o código. A aba **Equipe** tem um kanban
+de tarefas (A fazer / Fazendo / Feito) com responsável e prazo.
+
 ## O que faz
 
 - **Insumos** com estoque, alerta de reposição e **baixa automática** ao registrar produção
@@ -55,6 +60,16 @@ Veja o guia completo em `docs/firebase-setup.md`. Resumo:
 - Criar **Firestore Database**
 - Publicar as **regras de segurança** (em `docs/firestore.rules`) — essenciais:
   garantem que cada usuário só acessa os próprios dados.
+
+## Domínio próprio (opcional)
+
+Para usar `www.suamarca.com.br` em vez de `*.github.io`:
+1. Compre o domínio (Registro.br, ~R$ 40/ano).
+2. No GitHub: Settings → Pages → Custom domain → digite o domínio (isso cria um
+   arquivo `CNAME` no repositório).
+3. No painel DNS do registrador, crie um registro `CNAME` de `www` apontando para
+   `backhenry.github.io` (e registros `A` do apex para os IPs do GitHub Pages).
+4. Marque **Enforce HTTPS** quando o certificado for emitido (alguns minutos).
 
 ## Publicar
 

@@ -24,6 +24,8 @@
   .card .in{padding:16px 18px}
   .card .n{font-family:'Fraunces',serif;font-size:19px}
   .card .p{color:var(--ember);font-family:'Fraunces',serif;font-size:17px;margin-top:4px}
+  .card .pd{display:inline-block;margin-top:10px;font-size:12.5px;color:var(--char);text-decoration:none;border:1px solid var(--line);border-radius:20px;padding:6px 14px}
+  .card .pd:hover{border-color:var(--ember);color:var(--ember)}
   .msg{text-align:center;color:var(--smoke);font-family:'Fraunces',serif;font-style:italic;padding:60px 20px;font-size:17px}
   .wa{position:fixed;bottom:22px;right:22px;background:var(--char);color:var(--paper);text-decoration:none;padding:14px 22px;border-radius:30px;font-size:14px;box-shadow:0 8px 30px rgba(28,26,23,.25)}
   .wa:hover{background:var(--ember)}
@@ -65,9 +67,14 @@ if(!u||!cfg||!cfg.apiKey||cfg.apiKey==='COLE_AQUI'){
     else{
       const d=snap.data();
       msg.style.display='none';
-      grid.innerHTML=d.itens.map(i=>`<div class="card"><div class="ph">${i.foto?`<img src="${esc(i.foto)}" alt="${esc(i.nome)}" loading="lazy" onerror="this.parentElement.innerHTML='${PLACEHOLDER.replace(/'/g,"\\'")}'">`:PLACEHOLDER}</div><div class="in"><div class="n">${esc(i.nome)}</div><div class="p">${brl(i.preco)}</div></div></div>`).join('');
+      if(d.nome)document.querySelector('header h1').textContent=d.nome;
       const dg=String(d.whats||'').replace(/\D/g,'');
-      if(dg.length>=10)document.body.insertAdjacentHTML('beforeend',`<a class="wa" href="https://wa.me/${dg.length>=12?dg:'55'+dg}?text=${encodeURIComponent('Olá! Vi o catálogo da Cinérea e quero encomendar 🕯️')}" target="_blank" rel="noopener">Encomendar pelo WhatsApp</a>`);
+      const waNum=dg.length>=10?(dg.length>=12?dg:'55'+dg):'';
+      grid.innerHTML=d.itens.map(i=>{
+        const cta=waNum?`<a class="pd" href="https://wa.me/${waNum}?text=${encodeURIComponent('Olá! Quero encomendar: '+i.nome+' ('+brl(i.preco)+')')}" target="_blank" rel="noopener">Encomendar →</a>`:'';
+        return `<div class="card"><div class="ph">${i.foto?`<img src="${esc(i.foto)}" alt="${esc(i.nome)}" loading="lazy" onerror="this.parentElement.innerHTML='${PLACEHOLDER.replace(/'/g,"\\'")}'">`:PLACEHOLDER}</div><div class="in"><div class="n">${esc(i.nome)}</div><div class="p">${brl(i.preco)}</div>${cta}</div></div>`;
+      }).join('');
+      if(waNum)document.body.insertAdjacentHTML('beforeend',`<a class="wa" href="https://wa.me/${waNum}?text=${encodeURIComponent('Olá! Vi o catálogo e quero encomendar 🕯️')}" target="_blank" rel="noopener">Encomendar pelo WhatsApp</a>`);
     }
   }catch(e){console.error(e);msg.textContent='Não foi possível carregar o catálogo agora.';}
 }
