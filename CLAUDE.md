@@ -94,8 +94,19 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
   compras com colunas ocultas (H1 = 'CINEREA-RFQ:{id}', col H = id do insumo);
   fornecedor preenche D/E/F; importarCotacao() lê o arquivo, casa pelo marcador e
   guarda resposta por fornecedor; verCotacao() compara preços (melhor em verde).
-- TESTES: tests/rules.test.mjs roda no emulador (npm run test:rules; job
-  test-rules no CI). Local exige Java; no CI já funciona.
+- TESTES: tests/rules.test.mjs + tests/flows.test.mjs rodam no emulador
+  (npm run test:rules; job test-rules no CI). Local exige Java; no CI já funciona.
+- SOURCING v2: gerarCotacao() abre seleção de itens/quantidades (cotacaoSel);
+  importar cria/liga fornecedor (db.fornecedores) automaticamente; 🛒 na
+  comparação pré-preenche a compra; 📈 no insumo mostra histórico de preços
+  (compras × cotações). Fornecedores têm CRUD próprio (selectFornecedor + quick-add).
+- Pedidos: pagamentos parciais (p.pagamentos, addPagamento; Pendente vira Pago ao
+  quitar; A receber desconta sinais). Plano de produção → botão "criar tarefa".
+- Arquivamento: arquivarAno() (gestor) move produção/pedidos concluídos/compras do
+  ano para empresas/{eid}/arquivo/{ano}; aviso no Painel quando dados >700 KB.
+- Diagnóstico: window.onerror/unhandledrejection → empresas/{eid}/diag/erros.
+- Notificações locais: pedirNotifs() no Perfil; checarNotifs() avisa tarefas novas
+  atribuídas a mim e entregas do dia (sem FCM — push real com servidor fica p/ depois).
 
 ## Pendente / próximo
 - Domínio próprio: passos no README (exige compra do domínio pelo dono).

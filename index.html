@@ -64,7 +64,7 @@
 <main>
   <section class="panel active" id="p-dashboard">
     <div class="panel-head"><div><h2>Painel</h2><div class="desc">Visão geral da Cinérea</div></div>
-      <div class="head-btns"><button class="btn2" onclick="exportDRE()">Fechamento</button><button class="btn2" onclick="exportCSV()">↓ Planilha</button><button class="btn2" onclick="exportPDF()">↓ PDF</button><button class="btn2" onclick="exportJSON()">↓ Backup</button><button class="btn2" onclick="importJSON()">↑ Restaurar</button></div></div>
+      <div class="head-btns"><button class="btn2" onclick="exportDRE()">Fechamento</button><button class="btn2" onclick="exportCSV()">↓ Planilha</button><button class="btn2" onclick="exportPDF()">↓ PDF</button><button class="btn2" onclick="exportJSON()">↓ Backup</button><button class="btn2" onclick="importJSON()">↑ Restaurar</button><button class="btn2" onclick="arquivarAno()">Arquivar ano</button></div></div>
     <div class="stats" id="dashStats"></div>
     <div class="chartgrid">
       <div class="chartcard"><h3>Custo por peça (R$)</h3><canvas id="chCusto"></canvas></div>
@@ -99,8 +99,10 @@
     <div id="shopList"></div>
     <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Histórico de compras</h2><div class="desc">Cada compra com valor recalcula o custo médio do insumo</div></div><button class="btn" onclick="openForm('compra')">+ Compra</button></div>
     <div class="tablewrap"><table><thead><tr><th>Data</th><th>Insumo</th><th>Qtd</th><th>Valor pago</th><th>R$/un</th><th>Fornecedor</th><th></th></tr></thead><tbody id="tbCompras"></tbody></table></div>
-    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Cotações com fornecedores</h2><div class="desc">Gere a planilha, o fornecedor preenche os preços, importe de volta e compare</div></div><div class="head-btns"><button class="btn2" onclick="importarCotacao()">↑ Importar resposta</button><button class="btn" onclick="gerarCotacao()">Gerar planilha de cotação</button></div></div>
+    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Cotações com fornecedores</h2><div class="desc">Escolha itens e quantidades, o fornecedor preenche os preços, importe e compare</div></div><div class="head-btns"><button class="btn2" onclick="importarCotacao()">↑ Importar resposta</button><button class="btn" onclick="gerarCotacao()">Nova cotação</button></div></div>
     <div class="tablewrap"><table><thead><tr><th>Cotação</th><th>Data</th><th>Itens</th><th>Respostas</th><th></th></tr></thead><tbody id="tbCotacoes"></tbody></table></div>
+    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Fornecedores</h2><div class="desc">Quem vende para você — respostas de cotação criam o cadastro sozinhas</div></div><button class="btn" onclick="openForm('fornecedor')">+ Fornecedor</button></div>
+    <div class="tablewrap"><table><thead><tr><th>Nome</th><th>WhatsApp</th><th>Compras</th><th>Total gasto</th><th></th></tr></thead><tbody id="tbFornecedores"></tbody></table></div>
   </section>
   <section class="panel" id="p-orcamento">
     <div class="panel-head"><div><h2>Orçamento</h2><div class="desc">Custo e preço de cada peça</div></div><div class="head-btns"><button class="btn2" onclick="publicarCatalogo()">Publicar catálogo</button><button class="btn" onclick="openForm('produto')">+ Produto</button></div></div>

@@ -69,6 +69,16 @@ service cloud.firestore {
       match /backups/{b} {
         allow read, write: if ehFin(eid);
       }
+
+      // Arquivo de anos anteriores (registros operacionais)
+      match /arquivo/{ano} {
+        allow read, write: if ehMembro(eid);
+      }
+
+      // Diagnóstico: erros de execução capturados pelo app
+      match /diag/{d} {
+        allow read, write: if ehMembro(eid);
+      }
     }
 
     // Convites: o código (id do doc) é o segredo; só gestor cria
