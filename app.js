@@ -40,8 +40,12 @@ function migrarFinSePreciso(){
   if(!temFinNoOp)return;
   migrouFin=true;cloudSave(); // db já está mesclado; o save divide e limpa o doc operacional
 }
-let undoState=null,toastTimer=null,timerT0=null,timerInt=null,filtroMinhas=false;
+let undoState=null,toastTimer=null,timerT0=null,timerInt=null,filtroMinhas=false,periodoDash=0;
 const fP={q:'',m:''},fV={q:'',m:''};
+function setPeriodoDash(v){periodoDash=Number(v)||0;renderAll();}
+// corte de período para as análises do Painel (AAAA-MM mínimo; '' = sem corte)
+function corteMes(){if(!periodoDash)return'';const d=new Date();d.setMonth(d.getMonth()-periodoDash+1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function pedidosPeriodo(){const c=corteMes();return db.pedidos.filter(p=>(p.situacao==='Pago'||p.situacao==='Entregue')&&(!c||(p.data||'').slice(0,7)>=c));}
 
 // ---------- preferências de interface (tema + cor de destaque) ----------
 const ACENTOS={'Brasa':'#B5462A','Verde':'#3F7D5B','Azul':'#33628C','Violeta':'#6D4E8C','Âmbar':'#C08A2E'};
@@ -57,7 +61,7 @@ try{aplicarPrefs(JSON.parse(localStorage.getItem('cinereaPrefs')||'{}'));}catch(
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if((window.__prefs||{}).tema==='auto')aplicarPrefs(window.__prefs);});
 let charts={};
 
-Object.assign(window,{doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,del,addRecipeLine,rmRecipeLine,updateCost,exportCSV,exportPDF,exportCompras,saveCheck,buyDone,exportJSON,importJSON,setMeta,setMeiTeto,quickCliente,publicarCatalogo,doUndo,renderProducao,renderPedidos,fP,fV,criarEmpresaUI,entrarEmpresaUI,gerarConvite,removerMembro,renomearMe,moveTarefa,repetir,toggleTimer,exportDRE,openPerfil,sairEmpresa,esqueciSenha,toggleMinhas,mudarPapel,dragTarefa,dropTarefa,addComent,gerarCotacao,importarCotacao,verCotacao,usarPrecoCotacao,verPrecos,criarTarefaProducao,addPagamento,arquivarAno,pedirNotifs,quickFornecedor,reciboPedido,cobrarPedido,duplicarProduto,verArquivo,abrirBusca,renderBusca,addContatoForn,rmContatoForn});
+Object.assign(window,{doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,del,addRecipeLine,rmRecipeLine,updateCost,exportCSV,exportPDF,exportCompras,saveCheck,buyDone,exportJSON,importJSON,setMeta,setMeiTeto,quickCliente,publicarCatalogo,doUndo,renderProducao,renderPedidos,fP,fV,criarEmpresaUI,entrarEmpresaUI,gerarConvite,removerMembro,renomearMe,moveTarefa,repetir,toggleTimer,exportDRE,openPerfil,sairEmpresa,esqueciSenha,toggleMinhas,mudarPapel,dragTarefa,dropTarefa,addComent,gerarCotacao,importarCotacao,verCotacao,usarPrecoCotacao,verPrecos,criarTarefaProducao,addPagamento,arquivarAno,pedirNotifs,quickFornecedor,reciboPedido,cobrarPedido,duplicarProduto,verArquivo,abrirBusca,renderBusca,addContatoForn,rmContatoForn,setPeriodoDash,enviarCotacaoWhats,imprimirCotacao});
 
 if(!isConfigured){document.getElementById('gateSetup').style.display='block';}
 else{
@@ -160,7 +164,8 @@ function pode(cap){const p=meuPapel();if(cap==='gerir')return p==='dono'||p==='a
 function aplicarPapel(){
   const fin=pode('fin'),ger=pode('gerir');
   const tabOrc=document.querySelector('[data-tab="orcamento"]');if(tabOrc)tabOrc.style.display=fin?'':'none';
-  ['chCusto','chMargem','chRec','chMes','chLph'].forEach(id=>{const el=document.getElementById(id);if(el){const card=el.closest('.chartcard');if(card)card.style.display=fin?'':'none';}});
+  ['chCusto','chMargem','chRec','chMes','chLph','chSemana','abcBox','topCliBox'].forEach(id=>{const el=document.getElementById(id);if(el){const card=el.closest('.chartcard');if(card)card.style.display=fin?'':'none';}});
+  const per=document.getElementById('perDash');if(per)per.style.display=fin?'':'none';
   document.querySelectorAll('#p-dashboard .head-btns .btn2').forEach(b=>b.style.display=fin?'':'none');
   const conv=document.querySelector('[onclick="gerarConvite()"]');if(conv)conv.style.display=ger?'':'none';
   const pt=document.querySelector('#p-pedidos table');if(pt)pt.classList.toggle('no-fin',!fin);
@@ -387,6 +392,15 @@ function renderDash(){
   // meta do mês corrente
   const mesAtual=hoje().slice(0,7);
   const recMes=db.pedidos.filter(p=>(p.situacao==='Pago'||p.situacao==='Entregue')&&(p.data||'').slice(0,7)===mesAtual).reduce((s,p)=>s+Number(p.valor||0),0);
+  // tendência vs mês anterior + projeção do ritmo atual
+  const dAnt=new Date();dAnt.setMonth(dAnt.getMonth()-1);
+  const mesAnt=dAnt.getFullYear()+'-'+String(dAnt.getMonth()+1).padStart(2,'0');
+  const recAnt=db.pedidos.filter(p=>(p.situacao==='Pago'||p.situacao==='Entregue')&&(p.data||'').slice(0,7)===mesAnt).reduce((s,p)=>s+Number(p.valor||0),0);
+  const trendRec=recAnt>0?Math.round((recMes/recAnt-1)*100):null;
+  const trendHtml=trendRec===null?'':` <span style="font-size:12px;color:${trendRec>=0?'var(--ok)':'var(--ember)'}">${trendRec>=0?'↑':'↓'}${Math.abs(trendRec)}%</span>`;
+  const diaHoje=Number(hoje().slice(8,10));
+  const diasMes=new Date(Number(hoje().slice(0,4)),Number(hoje().slice(5,7)),0).getDate();
+  const projMes=diaHoje>=3?recMes/diaHoje*diasMes:0;
   const meta=Number(db.meta||0);
   const pctMeta=meta>0?Math.min(100,Math.round(recMes/meta*100)):0;
   // teto MEI: receita do ano vs limite anual
@@ -399,7 +413,7 @@ function renderDash(){
     <div class="stat ${lowIns.length?'alert':''}"><div class="k">Insumos p/ repor</div><div class="v">${lowIns.length}</div><div class="s">de ${db.insumos.length}</div></div>
     <div class="stat ${lowMold.length?'alert':''}"><div class="k">Moldes no limite</div><div class="v">${lowMold.length}</div><div class="s">de ${db.moldes.length}</div></div>
     <div class="stat"><div class="k">Peças produzidas</div><div class="v">${totalProd}</div><div class="s">${db.producao.length} registros</div></div>`+(fin?`
-    <div class="stat"><div class="k">Receita</div><div class="v" style="font-size:22px">${brl(receita)}</div><div class="s">${db.pedidos.length} pedidos</div></div>
+    <div class="stat"><div class="k">Receita</div><div class="v" style="font-size:22px">${brl(receita)}</div><div class="s">mês: ${brl(recMes)}${trendHtml}${projMes>recMes?' · proj. '+brl(projMes):''}</div></div>
     <div class="stat"><div class="k">Custos fixos / mês</div><div class="v" style="font-size:22px">${brl(fixosTot)}</div><div class="s">${(db.fixos||[]).length?(db.fixos.length+' lançamentos'):'cadastre no Orçamento'}</div></div>
     <div class="stat"><div class="k">Ponto de equilíbrio</div><div class="v">${pe||'—'}</div><div class="s">${pe?'peças/mês para empatar':'precisa de custos fixos e produtos'}</div></div>
     <div class="stat" style="cursor:pointer" onclick="setMeta()" title="Toque para definir a meta"><div class="k">Meta do mês</div><div class="v">${meta?pctMeta+'%':'—'}</div><div class="s">${meta?brl(recMes)+' de '+brl(meta):'toque para definir'}</div>${meta?`<div class="bar" style="margin-top:8px"><span class="${pctMeta>=100?'':'warn'}" style="width:${pctMeta}%"></span></div>`:''}</div>
@@ -409,6 +423,13 @@ function renderDash(){
   let a=[];lowIns.forEach(i=>a.push(`Repor <b>${esc(i.nome)}</b> — restam ${i.estoque} ${esc(i.unidade)}`));lowMold.forEach(m=>a.push(`Molde <b>${esc(m.nome)}</b> — ${m.usos}/${m.vida}`));
   const tamKB=Math.round(JSON.stringify(db).length/1024);
   if(tamKB>700)a.push(`⚠ Os dados estão com <b>${tamKB} KB</b> (limite ~1000). Use o botão <b>Arquivar ano</b> para mover registros antigos.`);
+  // alerta de inflação: última compra bem acima do custo médio anterior
+  db.insumos.forEach(i=>{
+    const comprasIns=(db.compras||[]).filter(c=>c.insumo===i.id&&Number(c.qtd)>0&&Number(c.valor)>0).sort((x,y)=>(x.data||'')<(y.data||'')?-1:1);
+    const ult=comprasIns[comprasIns.length-1];if(!ult||!Number(ult.custoAntes))return;
+    const unit=Number(ult.valor)/Number(ult.qtd);const varPct=Math.round((unit/Number(ult.custoAntes)-1)*100);
+    if(varPct>=10)a.push(`📈 <b>${esc(i.nome)}</b> subiu <b>${varPct}%</b> na última compra (${brl(unit)}/${esc(i.unidade)}) — vale cotar de novo.`);
+  });
   document.getElementById('dashAlerts').innerHTML=a.length?('<b>Atenção:</b><br>'+a.join('<br>')):'Tudo em ordem.';
   renderCharts();
 }
@@ -423,19 +444,41 @@ function renderCharts(){
   const prods=db.produtos.map(p=>{const c=calcCusto(p).total;const sug=c*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const marg=prat-taxa-c;const h=Number(p.minutos||0)/60;return{nome:p.nome,c,m:prat?Math.round(marg/prat*100):0,lph:h>0?marg/h:0};});
   mkChart('chCusto',{type:'bar',data:{labels:prods.map(p=>p.nome),datasets:[{data:prods.map(p=>p.c.toFixed(2)),backgroundColor:C.ember,borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
   mkChart('chMargem',{type:'bar',data:{labels:prods.map(p=>p.nome),datasets:[{data:prods.map(p=>p.m),backgroundColor:prods.map(p=>p.m>50?C.ok:p.m>30?C.warn:C.ember),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
-  const byDay={};db.producao.forEach(p=>{const d=p.data||'?';byDay[d]=(byDay[d]||0)+Number(p.qtd||0);});const days=Object.keys(byDay).sort();
+  const cM=corteMes();
+  const byDay={};db.producao.filter(p=>!cM||(p.data||'').slice(0,7)>=cM).forEach(p=>{const d=p.data||'?';byDay[d]=(byDay[d]||0)+Number(p.qtd||0);});const days=Object.keys(byDay).sort();
   mkChart('chProd',{type:'line',data:{labels:days,datasets:[{data:days.map(d=>byDay[d]),borderColor:C.char,backgroundColor:'rgba(181,70,42,.1)',fill:true,tension:.3,pointBackgroundColor:C.ember}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
   const sit={};db.pedidos.forEach(p=>{const s=p.situacao||'Pendente';sit[s]=(sit[s]||0)+Number(p.valor||0);});
   mkChart('chRec',{type:'doughnut',data:{labels:Object.keys(sit),datasets:[{data:Object.values(sit),backgroundColor:[C.warn,C.ok,C.char,C.ember]}]},options:{plugins:{legend:{position:'bottom',labels:{...F,color:C.smoke,boxWidth:12}}}}});
   // mês a mês: receita (pedidos pagos/entregues) e lucro (só dos pedidos ligados a produto)
-  const byMes={};db.pedidos.forEach(p=>{if(p.situacao!=='Pago'&&p.situacao!=='Entregue')return;const m=(p.data||'').slice(0,7);if(!m)return;byMes[m]=byMes[m]||{rec:0,luc:0};byMes[m].rec+=Number(p.valor||0);const l=lucroPedido(p);if(l!==null)byMes[m].luc+=l;});
+  const byMes={};db.pedidos.forEach(p=>{if(p.situacao!=='Pago'&&p.situacao!=='Entregue')return;const m=(p.data||'').slice(0,7);if(!m||(cM&&m<cM))return;byMes[m]=byMes[m]||{rec:0,luc:0};byMes[m].rec+=Number(p.valor||0);const l=lucroPedido(p);if(l!==null)byMes[m].luc+=l;});
   const meses=Object.keys(byMes).sort();
   mkChart('chMes',{type:'bar',data:{labels:meses,datasets:[{label:'Receita',data:meses.map(m=>byMes[m].rec.toFixed(2)),backgroundColor:C.char,borderRadius:4},{label:'Lucro',data:meses.map(m=>byMes[m].luc.toFixed(2)),backgroundColor:C.ok,borderRadius:4}]},options:{plugins:{legend:{position:'bottom',labels:{color:C.smoke,boxWidth:12,font:{family:'Inter',size:11}}}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
   mkChart('chLph',{type:'bar',data:{labels:prods.map(p=>p.nome),datasets:[{data:prods.map(p=>p.lph.toFixed(2)),backgroundColor:prods.map(p=>p.lph>40?C.ok:p.lph>20?C.warn:C.ember),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
+  // receita por dia da semana (período selecionado)
+  const dias=['dom','seg','ter','qua','qui','sex','sáb'];const porDia=[0,0,0,0,0,0,0];
+  pedidosPeriodo().forEach(p=>{if(!p.data)return;const d=new Date(p.data+'T12:00:00');porDia[d.getDay()]+=Number(p.valor||0);});
+  mkChart('chSemana',{type:'bar',data:{labels:dias,datasets:[{data:porDia.map(v=>v.toFixed(2)),backgroundColor:porDia.map((v,i)=>v===Math.max(...porDia)&&v>0?C.ember:C.line),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
+  // curva ABC de produtos e top clientes
+  const recProd={};pedidosPeriodo().forEach(p=>{if(!p.produto)return;recProd[p.produto]=(recProd[p.produto]||0)+Number(p.valor||0);});
+  const abc=Object.entries(recProd).map(([pid,v])=>({nome:(db.produtos.find(x=>x.id===pid)||{}).nome||'—',v})).sort((a,b)=>b.v-a.v);
+  const totAbc=abc.reduce((s,x)=>s+x.v,0);let acum=0;
+  const abcBox=document.getElementById('abcBox');
+  if(abcBox)abcBox.innerHTML=abc.length?abc.slice(0,8).map(x=>{acum+=x.v;const pct=totAbc?acum/totAbc*100:0;const cl=pct<=80?'A':pct<=95?'B':'C';return `<div class="prazo-item"><span><span class="pill ${cl==='A'?'ok':cl==='B'?'warn':'low'}">${cl}</span> ${esc(x.nome)}</span><b>${brl(x.v)} · ${totAbc?Math.round(x.v/totAbc*100):0}%</b></div>`;}).join(''):'<div class="empty-t" style="padding:16px">Sem vendas no período.</div>';
+  const recCli={};pedidosPeriodo().forEach(p=>{const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);const k=cli?cli.nome:(p.cliente||'');if(!k)return;recCli[k]=(recCli[k]||0)+Number(p.valor||0);});
+  const topCli=Object.entries(recCli).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const cliBox=document.getElementById('topCliBox');
+  if(cliBox)cliBox.innerHTML=topCli.length?topCli.map(([n,v],i)=>`<div class="prazo-item"><span>${i+1}º <b>${esc(n)}</b></span><b>${brl(v)}</b></div>`).join(''):'<div class="empty-t" style="padding:16px">Sem clientes no período.</div>';
 }
 function renderEquip(){document.getElementById('tbEquip').innerHTML=db.equip.length?db.equip.map(e=>`<tr><td>${esc(e.nome)}</td><td>${esc(e.tipo)||'—'}</td><td>${esc(e.compra)||'—'}</td><td class="money">${brl(e.custo)}</td><td><span class="pill ok">${esc(e.situacao||'Ativo')}</span></td><td>${rowActions('equip',e.id)}</td></tr>`).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum equipamento.</div></td></tr>`;}
 function renderMoldes(){document.getElementById('tbMoldes').innerHTML=db.moldes.length?db.moldes.map(m=>{const st=moldeStatus(m);const pct=Math.min(100,Math.round(m.usos/(m.vida||1)*100));const l=st==='low'?'Trocar':st==='warn'?'Quase no fim':'Bom';return `<tr><td>${esc(m.nome)}</td><td>${esc(m.material)}</td><td>${m.usos} / ${m.vida}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div></td><td><span class="pill ${st}">${l}</span></td><td>${rowActions('molde',m.id)}</td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum molde.</div></td></tr>`;}
-function renderInsumos(){document.getElementById('tbInsumos').innerHTML=db.insumos.length?db.insumos.map(i=>{const st=insumoStatus(i);const l=st==='low'?'Repor':st==='warn'?'Baixo':'OK';const pct=Math.min(100,Math.round(i.estoque/((i.minimo||1)*2)*100));return `<tr><td>${esc(i.nome)}</td><td>${i.estoque} ${esc(i.unidade)}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div><div style="font-size:11px;color:var(--warm);margin-top:3px">mín. ${i.minimo}</div></td><td class="money">${brl(i.custo)}/${esc(i.unidade)}</td><td><span class="pill ${st}">${l}</span></td><td><div class="row-actions"><button class="icon-btn" title="Histórico de preços" onclick="verPrecos('${i.id}')">📈</button><button class="icon-btn" onclick="openForm('insumo','${i.id}')">✎</button><button class="icon-btn" onclick="del('insumo','${i.id}')">🗑</button></div></td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum insumo.</div></td></tr>`;}
+function diasEstoque(i){
+  const corte=new Date();corte.setDate(corte.getDate()-90);
+  const cISO=corte.getFullYear()+'-'+String(corte.getMonth()+1).padStart(2,'0')+'-'+String(corte.getDate()).padStart(2,'0');
+  let cons=0;db.producao.filter(p=>(p.data||'')>=cISO).forEach(p=>(p.baixas||[]).forEach(b=>{if(b.insumo===i.id)cons+=Number(b.qtd||0);}));
+  if(cons<=0)return null;
+  return Math.round(Number(i.estoque||0)/(cons/90));
+}
+function renderInsumos(){document.getElementById('tbInsumos').innerHTML=db.insumos.length?db.insumos.map(i=>{const st=insumoStatus(i);const l=st==='low'?'Repor':st==='warn'?'Baixo':'OK';const pct=Math.min(100,Math.round(i.estoque/((i.minimo||1)*2)*100));const dias=diasEstoque(i);return `<tr><td>${esc(i.nome)}</td><td>${i.estoque} ${esc(i.unidade)}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div><div style="font-size:11px;color:var(--warm);margin-top:3px">mín. ${i.minimo}${dias!==null&&dias<365?` · acaba em ~<b style="color:${dias<15?'var(--ember)':'inherit'}">${dias}d</b>`:''}</div></td><td class="money">${brl(i.custo)}/${esc(i.unidade)}</td><td><span class="pill ${st}">${l}</span></td><td><div class="row-actions"><button class="icon-btn" title="Histórico de preços" onclick="verPrecos('${i.id}')">📈</button><button class="icon-btn" onclick="openForm('insumo','${i.id}')">✎</button><button class="icon-btn" onclick="del('insumo','${i.id}')">🗑</button></div></td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum insumo.</div></td></tr>`;}
 function renderProdutos(){document.getElementById('tbProdutos').innerHTML=db.produtos.length?db.produtos.map(p=>{const c=calcCusto(p);const sug=c.total*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const margem=prat-taxa-c.total;const mpct=prat?Math.round(margem/prat*100):0;const h=Number(p.minutos||0)/60;const lph=h>0?margem/h:0;return `<tr><td>${esc(p.nome)}${p.publico?' <span title="no catálogo" style="color:var(--warm);font-size:11px">◈</span>':''}</td><td class="money">${brl(c.total)}</td><td class="money" style="color:var(--smoke)">${brl(sug)}</td><td class="money">${brl(prat)}</td><td><span class="pill ${mpct>50?'ok':mpct>30?'warn':'low'}">${mpct}%</span></td><td class="money">${h>0?brl(lph):'—'}</td><td>${Number(p.pronto||0)}</td><td><div class="row-actions"><button class="icon-btn" title="Duplicar" onclick="duplicarProduto('${p.id}')">⧉</button><button class="icon-btn" onclick="openForm('produto','${p.id}')">✎</button><button class="icon-btn" onclick="del('produto','${p.id}')">🗑</button></div></td></tr>`;}).join(''):`<tr><td colspan=8><div class="empty-t">Nenhum produto.</div></td></tr>`;}
 function renderProducao(){
   fillMeses('mesPro',db.producao,fP.m);
@@ -458,6 +501,12 @@ function renderPedidos(){
     const acts=`<div class="row-actions"><button class="icon-btn" title="Recibo" onclick="reciboPedido('${p.id}')">🧾</button>${aberto&&cli?`<button class="icon-btn" title="Cobrar no WhatsApp" onclick="cobrarPedido('${p.id}')">💬</button>`:''}<button class="icon-btn" title="Repetir" onclick="repetir('pedido','${p.id}')">⟳</button><button class="icon-btn" onclick="openForm('pedido','${p.id}')">✎</button><button class="icon-btn" onclick="del('pedido','${p.id}')">🗑</button></div>`;
     return `<tr><td>${esc(p.data)||'—'}</td><td>${cli?esc(cli.nome):esc(p.cliente)||'—'}</td><td>${nome}</td><td>${prazo}</td><td class="money">${brl(p.valor)}</td><td>${lucro}</td><td><span class="pill ${sc[p.situacao]||'warn'}">${esc(p.situacao||'Pendente')}</span></td><td>${acts}</td></tr>`;
   }).join(''):`<tr><td colspan=8><div class="empty-t">${db.pedidos.length?'Nada encontrado com esse filtro.':'Nenhum pedido.'}</div></td></tr>`;
+  // totais do filtro atual (respeita a busca/mês selecionados)
+  if(rows.length){
+    const somaV=rows.reduce((s,p)=>s+Number(p.valor||0),0);
+    const somaL=rows.reduce((s,p)=>{const l=lucroPedido(p);return l===null||p.situacao==='Cancelado'?s:s+l;},0);
+    document.getElementById('tbPedidos').innerHTML+=`<tr><td style="font-weight:600">Totais</td><td></td><td style="color:var(--warm);font-size:12px">${rows.length} pedido(s)</td><td></td><td class="money" style="font-weight:600">${brl(somaV)}</td><td class="money" style="font-weight:600;color:var(--ok)">${brl(somaL)}</td><td></td><td></td></tr>`;
+  }
   labelize();
 }
 function renderClientes(){const rows=db.clientes||[];document.getElementById('tbClientes').innerHTML=rows.length?rows.map(c=>{const peds=db.pedidos.filter(p=>p.clienteId===c.id&&p.situacao!=='Cancelado');const tot=peds.reduce((s,p)=>s+Number(p.valor||0),0);const dg=String(c.whats||'').replace(/\D/g,'');const wa=dg.length>=10?`<a href="https://wa.me/${dg.length>=12?dg:'55'+dg}" target="_blank" rel="noopener" style="color:var(--ember)">${esc(c.whats)}</a>`:(esc(c.whats)||'—');return `<tr><td>${esc(c.nome)}${c.obs?`<div style="font-size:11px;color:var(--warm)">${esc(c.obs)}</div>`:''}</td><td>${wa}</td><td>${peds.length}</td><td class="money">${brl(tot)}</td><td>${rowActions('cliente',c.id)}</td></tr>`;}).join(''):`<tr><td colspan=5><div class="empty-t">Nenhum cliente cadastrado.</div></td></tr>`;}
@@ -653,16 +702,24 @@ function exportDRE(){
   const mes=prompt('Fechamento de qual mês? (AAAA-MM)',hoje().slice(0,7));
   if(!mes||!/^\d{4}-\d{2}$/.test(mes.trim())){if(mes!==null)toast('Use o formato AAAA-MM');return;}
   const m=mes.trim();
-  const peds=db.pedidos.filter(p=>(p.situacao==='Pago'||p.situacao==='Entregue')&&(p.data||'').slice(0,7)===m);
-  let receita=0,taxas=0,frete=0,custoPecas=0;
-  peds.forEach(p=>{receita+=Number(p.valor||0);const can=(db.canais||[]).find(c=>c.id===p.canal);const prod=db.produtos.find(x=>x.id===p.produto);const tp=can?Number(can.taxa||0):(prod?Number(prod.taxa||0):0);taxas+=Number(p.valor||0)*tp/100;frete+=Number(p.frete||0);if(prod)custoPecas+=calcCusto(prod).total*Number(p.qtd||1);});
-  const fixos=(db.fixos||[]).reduce((s,f)=>s+Number(f.valor||0),0);
-  const liq=receita-taxas-frete-custoPecas-fixos;
+  const calcMes=mm=>{
+    const peds=db.pedidos.filter(p=>(p.situacao==='Pago'||p.situacao==='Entregue')&&(p.data||'').slice(0,7)===mm);
+    let receita=0,taxas=0,frete=0,custoPecas=0;
+    peds.forEach(p=>{receita+=Number(p.valor||0);const can=(db.canais||[]).find(c=>c.id===p.canal);const prod=db.produtos.find(x=>x.id===p.produto);const tp=can?Number(can.taxa||0):(prod?Number(prod.taxa||0):0);taxas+=Number(p.valor||0)*tp/100;frete+=Number(p.frete||0);if(prod)custoPecas+=calcCusto(prod).total*Number(p.qtd||1);});
+    const fixos=(db.fixos||[]).reduce((s,f)=>s+Number(f.valor||0),0);
+    return{n:peds.length,receita,taxas,frete,custoPecas,fixos,liq:receita-taxas-frete-custoPecas-fixos};
+  };
+  const dAnt=new Date(Number(m.slice(0,4)),Number(m.slice(5,7))-2,1);
+  const mAnt=dAnt.getFullYear()+'-'+String(dAnt.getMonth()+1).padStart(2,'0');
+  const A=calcMes(m),B=calcMes(mAnt);
+  const dLiq=B.liq!==0?Math.round((A.liq/B.liq-1)*100):null;
   const win=window.open('','_blank');
-  const ln=(l,v,neg)=>`<tr><td>${l}</td><td style="text-align:right;${neg?'color:#B5462A':''}">${neg?'− ':''}${brl(v)}</td></tr>`;
-  win.document.write(`<html><head><title>Fechamento ${m} — ${esc(empresaNome||'Cinérea')}</title><style>body{font-family:Georgia,serif;color:#1C1A17;padding:40px;max-width:560px;margin:auto}h1{font-size:26px}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:15px}td{padding:9px 4px;border-bottom:1px solid #ddd}.tot td{border-top:2px solid #1C1A17;border-bottom:none;font-size:19px;font-weight:bold;${liq>=0?'':'color:#B5462A'}}</style></head><body>
-  <h1>Fechamento — ${m}</h1><p>${esc(empresaNome||'Cinérea')} · ${peds.length} venda(s) no mês</p>
-  <table>${ln('Receita (pedidos pagos/entregues)',receita)}${ln('Taxas de canal',taxas,1)}${ln('Frete / embalagem',frete,1)}${ln('Custo das peças vendidas',custoPecas,1)}${ln('Custos fixos do mês',fixos,1)}<tr class="tot"><td>Lucro líquido</td><td style="text-align:right">${brl(liq)}</td></tr></table>
+  const ln=(l,v,vb,neg)=>`<tr><td>${l}</td><td style="text-align:right;${neg?'color:#B5462A':''}">${neg?'− ':''}${brl(v)}</td><td style="text-align:right;color:#8A7E70">${brl(vb)}</td></tr>`;
+  win.document.write(`<html><head><title>Fechamento ${m} — ${esc(empresaNome||'Cinérea')}</title><style>body{font-family:Georgia,serif;color:#1C1A17;padding:40px;max-width:620px;margin:auto}h1{font-size:26px}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:15px}td,th{padding:9px 4px;border-bottom:1px solid #ddd}th{font-size:11px;text-transform:uppercase;color:#8A7E70;text-align:right}th:first-child{text-align:left}.tot td{border-top:2px solid #1C1A17;border-bottom:none;font-size:19px;font-weight:bold;${A.liq>=0?'':'color:#B5462A'}}</style></head><body>
+  <h1>Fechamento — ${m}</h1><p>${esc(empresaNome||'Cinérea')} · ${A.n} venda(s)${dLiq!==null?` · lucro ${dLiq>=0?'↑':'↓'}${Math.abs(dLiq)}% vs ${mAnt}`:''}</p>
+  <table><tr><th>Linha</th><th>${m}</th><th>${mAnt}</th></tr>
+  ${ln('Receita (pedidos pagos/entregues)',A.receita,B.receita)}${ln('Taxas de canal',A.taxas,B.taxas,1)}${ln('Frete / embalagem',A.frete,B.frete,1)}${ln('Custo das peças vendidas',A.custoPecas,B.custoPecas,1)}${ln('Custos fixos do mês',A.fixos,B.fixos,1)}
+  <tr class="tot"><td>Lucro líquido</td><td style="text-align:right">${brl(A.liq)}</td><td style="text-align:right;font-size:14px;color:#8A7E70">${brl(B.liq)}</td></tr></table>
   <p style="margin-top:36px;color:#999;font-size:11px">Gerado pelo sistema de gestão — ${new Date().toLocaleDateString('pt-BR')}</p>
   </body></html>`);
   win.document.close();setTimeout(()=>win.print(),400);
@@ -768,7 +825,9 @@ function saveForm(){
   if(type==='cotacaoSel'){
     const itens=[];document.querySelectorAll('[data-cot]').forEach(ch=>{if(!ch.checked)return;const iid=ch.getAttribute('data-cot');const q=Number((document.getElementById('cotq_'+iid)||{}).value||0);if(q>0)itens.push({insumo:iid,qtd:Math.round(q*100)/100});});
     if(!itens.length){alert('Marque ao menos um item e informe a quantidade.');return;}
-    gerarCotacaoXlsx(itens);closeModal();return;
+    const alvos=[];document.querySelectorAll('[data-alvo]').forEach(ch=>{if(ch.checked)alvos.push(ch.getAttribute('data-alvo'));});
+    gerarCotacaoXlsx(itens,{validade:val('cotValidade')||'',cond:val('cotCond')||'',alvos});
+    closeModal();return;
   }
   if(type==='produto'){obj={nome:val('f_nome'),receita:currentForm.recipe.filter(l=>l.insumo&&l.qtd),minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),markup:val('f_markup'),preco:val('f_preco'),taxa:val('f_taxa'),equip:val('f_equip'),pronto:Number(val('f_pronto')||0),foto:val('f_foto'),publico:!!(document.getElementById('f_publico')||{}).checked};if(!obj.nome){alert('Dê um nome.');return;}}
   else{FORMS[type].fields.forEach(f=>obj[f.k]=val('f_'+f.k));if(type==='fornecedor')obj.contatos=(currentForm.contatos||[]).filter(c=>c.nome&&c.nome.trim());if(!obj[FORMS[type].fields[0].k]){alert('Preencha o primeiro campo.');return;}}
@@ -813,6 +872,15 @@ function renderContatosForn(){const box=document.getElementById('contatosLines')
 function addContatoForn(){currentForm.contatos=currentForm.contatos||[];currentForm.contatos.push({nome:'',cargo:'',whats:''});renderContatosForn();}
 function rmContatoForn(i){currentForm.contatos.splice(i,1);renderContatosForn();}
 function quickFornecedor(sel){const nome=prompt('Nome do fornecedor:');if(!nome){sel.value='';return;}const whats=prompt('WhatsApp (opcional):')||'';const f={id:uidGen(),nome:nome.trim(),whats,obs:''};db.fornecedores=db.fornecedores||[];db.fornecedores.push(f);cloudSave();const o=document.createElement('option');o.value=f.id;o.textContent=f.nome;sel.insertBefore(o,sel.querySelector('option[value="__new"]'));sel.value=f.id;toast('Fornecedor <b>'+esc(f.nome)+'</b> cadastrado');}
+function scoreFornecedor(fid){
+  let resp=0,wins=0,itensTot=0;const prazos=[];
+  (db.cotacoes||[]).forEach(c=>{const r=(c.respostas||[]).find(x=>x.fornecedorId===fid);if(!r)return;resp++;
+    c.itens.forEach(it=>{const meu=r.precos[it.insumo];if(!meu)return;itensTot++;
+      const todos=(c.respostas||[]).map(x=>x.precos[it.insumo]?x.precos[it.insumo].preco:null).filter(p=>p!==null);
+      if(meu.preco===Math.min(...todos))wins++;
+      const pz=Number(meu.prazo);if(isFinite(pz)&&pz>0)prazos.push(pz);});});
+  return{resp,winPct:itensTot?Math.round(wins/itensTot*100):null,prazoMed:prazos.length?Math.round(prazos.reduce((a,b)=>a+b,0)/prazos.length):null};
+}
 function renderFornecedores(){const tb=document.getElementById('tbFornecedores');if(!tb)return;const rows=db.fornecedores||[];
   const rc={'Baixo':'ok','Médio':'warn','Alto':'low'};
   tb.innerHTML=rows.length?rows.map(f=>{
@@ -822,7 +890,9 @@ function renderFornecedores(){const tb=document.getElementById('tbFornecedores')
     const wa=dg.length>=10?`<a href="https://wa.me/${dg.length>=12?dg:'55'+dg}" target="_blank" rel="noopener" style="color:var(--ember)">${esc(f.whats)}</a>`:(esc(f.whats)||'—');
     const cont=(f.contatos||[]);
     const contHtml=cont.length?`<div style="font-size:11px;color:var(--warm)">👤 ${esc(cont[0].nome)}${cont[0].cargo?' ('+esc(cont[0].cargo)+')':''}${cont.length>1?' +'+(cont.length-1):''}</div>`:'';
-    return `<tr><td>${esc(f.nome)}${contHtml}${f.endereco?`<div style="font-size:11px;color:var(--warm)">📍 ${esc(f.endereco)}</div>`:''}${f.obs?`<div style="font-size:11px;color:var(--warm)">${esc(f.obs)}</div>`:''}</td><td>${esc(f.categoria)||'—'}</td><td>${f.risco?`<span class="pill ${rc[f.risco]||'warn'}">${esc(f.risco)}</span>`:'—'}</td><td>${wa}</td><td>${compras.length}</td><td class="money">${brl(tot)}</td><td>${rowActions('fornecedor',f.id)}</td></tr>`;
+    const sc=scoreFornecedor(f.id);
+    const scHtml=sc.resp?`<div style="font-size:11px;color:var(--warm)">📊 ${sc.resp} cotação(ões)${sc.winPct!==null?' · melhor preço em '+sc.winPct+'%':''}${sc.prazoMed!==null?' · prazo ~'+sc.prazoMed+'d':''}</div>`:'';
+    return `<tr><td>${esc(f.nome)}${contHtml}${scHtml}${f.endereco?`<div style="font-size:11px;color:var(--warm)">📍 ${esc(f.endereco)}</div>`:''}${f.obs?`<div style="font-size:11px;color:var(--warm)">${esc(f.obs)}</div>`:''}</td><td>${esc(f.categoria)||'—'}</td><td>${f.risco?`<span class="pill ${rc[f.risco]||'warn'}">${esc(f.risco)}</span>`:'—'}</td><td>${wa}</td><td>${compras.length}</td><td class="money">${brl(tot)}</td><td>${rowActions('fornecedor',f.id)}</td></tr>`;
   }).join(''):`<tr><td colspan=7><div class="empty-t">Nenhum fornecedor — importe uma cotação ou cadastre.</div></td></tr>`;}
 function quickCliente(sel){const nome=prompt('Nome do cliente:');if(!nome){sel.value='';return;}const whats=prompt('WhatsApp (opcional, só números com DDD):')||'';const c={id:uidGen(),nome,whats,obs:''};db.clientes=db.clientes||[];db.clientes.push(c);cloudSave();const o=document.createElement('option');o.value=c.id;o.textContent=nome;sel.insertBefore(o,sel.querySelector('option[value="__new"]'));sel.value=c.id;toast('Cliente <b>'+esc(nome)+'</b> cadastrado');}
 async function publicarCatalogo(){
@@ -869,11 +939,14 @@ function gerarCotacao(){ // abre a seleção de itens e quantidades
   currentForm={type:'cotacaoSel',id:null,recipe:[]};window.currentForm=currentForm;
   document.getElementById('modalTitle').textContent='Nova cotação — escolha itens e quantidades';
   const low=new Set(db.insumos.filter(i=>insumoStatus(i)!=='ok').map(i=>i.id));
-  document.getElementById('modalBody').innerHTML='<div class="hint-box" style="margin-bottom:14px">Itens da lista de compras já vêm marcados com a quantidade sugerida — ajuste como quiser.</div>'+db.insumos.map(i=>{const sug=Math.round(Math.max(0,(i.minimo||0)*2-i.estoque)*100)/100;return `<div class="recipe-line" style="grid-template-columns:24px 1fr 110px 40px"><input type="checkbox" data-cot="${i.id}" ${low.has(i.id)?'checked':''} style="width:auto"><span>${esc(i.nome)}<div style="font-size:11px;color:var(--warm)">tem ${i.estoque} ${esc(i.unidade)} · mín. ${i.minimo}</div></span><input type="number" step="0.01" min="0" id="cotq_${i.id}" value="${low.has(i.id)?(sug||1):''}" placeholder="qtd"><span style="font-size:11px;color:var(--warm)">${esc(i.unidade)}</span></div>`;}).join('');
+  document.getElementById('modalBody').innerHTML='<div class="hint-box" style="margin-bottom:14px">Itens da lista de compras já vêm marcados com a quantidade sugerida — ajuste como quiser.</div>'+db.insumos.map(i=>{const sug=Math.round(Math.max(0,(i.minimo||0)*2-i.estoque)*100)/100;return `<div class="recipe-line" style="grid-template-columns:24px 1fr 110px 40px"><input type="checkbox" data-cot="${i.id}" ${low.has(i.id)?'checked':''} style="width:auto"><span>${esc(i.nome)}<div style="font-size:11px;color:var(--warm)">tem ${i.estoque} ${esc(i.unidade)} · mín. ${i.minimo}</div></span><input type="number" step="0.01" min="0" id="cotq_${i.id}" value="${low.has(i.id)?(sug||1):''}" placeholder="qtd"><span style="font-size:11px;color:var(--warm)">${esc(i.unidade)}</span></div>`;}).join('')
+    +`<div class="field-row" style="margin-top:16px"><div class="field"><label>Responder até</label><input id="cotValidade" type="date"><div class="hint">Cotações vencidas ficam marcadas</div></div><div class="field"><label>Condições de pagamento</label><input id="cotCond" placeholder="ex.: Pix à vista, 28 dias…"><div class="hint">Vai escrita na planilha</div></div></div>`
+    +((db.fornecedores||[]).length?`<div class="field"><label>Enviar para quais fornecedores?</label>${db.fornecedores.map(f=>`<label style="display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13px;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" data-alvo="${f.id}" style="width:auto"> ${esc(f.nome)}${f.categoria?` <span style="color:var(--warm);font-size:11px">· ${esc(f.categoria)}</span>`:''}</label>`).join('')}</div>`:'');
   document.getElementById('overlay').classList.add('open');
 }
 async function logoB64(){try{const r=await fetch('icon-192.png');if(!r.ok)return null;const b=await r.arrayBuffer();let s='';new Uint8Array(b).forEach(x=>s+=String.fromCharCode(x));return btoa(s);}catch(e){return null;}}
-async function gerarCotacaoXlsx(itens){
+async function gerarCotacaoXlsx(itens,extras){
+  extras=extras||{};
   const id=uidGen().toUpperCase();
   const C={paper:'FFF2EFEA',ash:'FFE7E3DC',char:'FF1C1A17',ember:'FFB5462A',smoke:'FF6E6862',line:'FFD8D2C8',warm:'FF8A7E70',edit:'FFFBF3E0'};
   const wb=new ExcelJS.Workbook();
@@ -890,7 +963,9 @@ async function gerarCotacaoXlsx(itens){
   ws.getCell('H1').value='CINEREA-RFQ:'+id; // marcação oculta que liga a resposta a esta cotação
   ws.mergeCells('A3:F3');
   const s3=ws.getCell('A3');
-  s3.value='Preencha apenas as células destacadas — Preço, Prazo e Observações — e devolva este arquivo. O restante está protegido.';
+  s3.value='Preencha apenas as células destacadas — Preço, Prazo e Observações — e devolva este arquivo. O restante está protegido.'
+    +(extras.validade?'  ·  Responder até '+extras.validade.split('-').reverse().join('/')+'.':'')
+    +(extras.cond?'  ·  Condições: '+extras.cond+'.':'');
   s3.font={italic:true,size:10,color:{argb:C.smoke}};
   // cabeçalho da tabela
   const head=['Item','Unidade','Quantidade','Preço unitário (R$)','Prazo de entrega (dias)','Observações'];
@@ -921,7 +996,7 @@ async function gerarCotacaoXlsx(itens){
   const buf=await wb.xlsx.writeBuffer();
   const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='cotacao-'+id+'.xlsx';a.click();
-  db.cotacoes=db.cotacoes||[];db.cotacoes.push({id,data:hoje(),itens,respostas:[],por:uid});
+  db.cotacoes=db.cotacoes||[];db.cotacoes.push({id,data:hoje(),itens,respostas:[],por:uid,validade:extras.validade||'',cond:extras.cond||'',alvos:extras.alvos||[]});
   logAtv('gerou a cotação '+id+' com '+itens.length+' itens');
   cloudSave();renderCotacoes();
   toast('Planilha <b>cotacao-'+id+'.xlsx</b> baixada — bloqueada, só as células de preço/prazo/observações editáveis');
@@ -957,8 +1032,40 @@ function importarCotacao(){
     r.readAsArrayBuffer(f);};
   inp.click();
 }
-function renderCotacoes(){const tb=document.getElementById('tbCotacoes');if(!tb)return;const rows=[...(db.cotacoes||[])].reverse();
-  tb.innerHTML=rows.length?rows.map(c=>`<tr><td style="font-family:monospace">${esc(c.id)}</td><td>${esc(c.data)}</td><td>${c.itens.length}</td><td>${(c.respostas||[]).length?`<span class="pill ok">${c.respostas.length} resposta(s)</span>`:'<span class="pill warn">aguardando</span>'}</td><td><div class="row-actions">${(c.respostas||[]).length?`<button class="icon-btn" title="Comparar preços" onclick="verCotacao('${c.id}')">⇄</button>`:''}<button class="icon-btn" onclick="del('cotacao','${c.id}')">🗑</button></div></td></tr>`).join(''):`<tr><td colspan=5><div class="empty-t">Nenhuma cotação — gere uma a partir da lista de compras.</div></td></tr>`;}
+function renderCotacoes(){const tb=document.getElementById('tbCotacoes');if(!tb)return;const rows=[...(db.cotacoes||[])].reverse();const hj=hoje();
+  tb.innerHTML=rows.length?rows.map(c=>{
+    const nResp=(c.respostas||[]).length,nAlvo=(c.alvos||[]).length;
+    const vencida=c.validade&&c.validade<hj&&(!nResp||(nAlvo&&nResp<nAlvo));
+    let st;
+    if(vencida)st='<span class="pill low">vencida'+(nResp?` · ${nResp}${nAlvo?'/'+nAlvo:''}`:'')+'</span>';
+    else if(nAlvo&&nResp>=nAlvo)st=`<span class="pill ok">completa ${nResp}/${nAlvo}</span>`;
+    else if(nResp)st=`<span class="pill ${nAlvo?'warn':'ok'}">${nResp}${nAlvo?'/'+nAlvo:''} resposta(s)</span>`;
+    else st='<span class="pill warn">aguardando'+(c.validade?' · até '+esc(c.validade.slice(5)):'')+'</span>';
+    const alvosNomes=(c.alvos||[]).map(a=>{const f=(db.fornecedores||[]).find(x=>x.id===a);return f?f.nome:'';}).filter(Boolean);
+    const pendComWhats=(c.alvos||[]).map(a=>(db.fornecedores||[]).find(x=>x.id===a)).filter(f=>f&&String(f.whats||'').replace(/\D/g,'').length>=10&&!(c.respostas||[]).some(r=>r.fornecedorId===f.id));
+    return `<tr><td style="font-family:monospace">${esc(c.id)}${alvosNomes.length?`<div style="font-size:11px;color:var(--warm)">→ ${esc(alvosNomes.join(', '))}</div>`:''}${c.cond?`<div style="font-size:11px;color:var(--warm)">${esc(c.cond)}</div>`:''}</td><td>${esc(c.data)}</td><td>${c.itens.length}</td><td>${st}</td><td><div class="row-actions">${pendComWhats.length?`<button class="icon-btn" title="Enviar/cobrar no WhatsApp" onclick="enviarCotacaoWhats('${c.id}')">💬</button>`:''}${nResp?`<button class="icon-btn" title="Comparar preços" onclick="verCotacao('${c.id}')">⇄</button>`:''}<button class="icon-btn" onclick="del('cotacao','${c.id}')">🗑</button></div></td></tr>`;
+  }).join(''):`<tr><td colspan=5><div class="empty-t">Nenhuma cotação — gere uma a partir da lista de compras.</div></td></tr>`;
+  // gasto com compras por mês
+  if(typeof Chart!=='undefined'&&document.getElementById('chCompras')){
+    const byMes={};(db.compras||[]).forEach(c=>{const m=(c.data||'').slice(0,7);if(m)byMes[m]=(byMes[m]||0)+Number(c.valor||0);});
+    const meses=Object.keys(byMes).sort();
+    const css=getComputedStyle(document.documentElement);const cv=(n,fb)=>((css.getPropertyValue(n)||'').trim()||fb);
+    mkChart('chCompras',{type:'bar',data:{labels:meses,datasets:[{data:meses.map(m=>byMes[m].toFixed(2)),backgroundColor:cv('--warm','#8A7E70'),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{ticks:{color:cv('--smoke','#6E6862')}},x:{grid:{display:false},ticks:{color:cv('--smoke','#6E6862')}}}}});
+  }
+}
+function enviarCotacaoWhats(cotId){
+  const c=(db.cotacoes||[]).find(x=>x.id===cotId);if(!c)return;
+  let pend=(c.alvos||[]).map(a=>(db.fornecedores||[]).find(x=>x.id===a)).filter(f=>f&&String(f.whats||'').replace(/\D/g,'').length>=10&&!(c.respostas||[]).some(r=>r.fornecedorId===f.id));
+  if(!pend.length){toast('Nenhum fornecedor pendente com WhatsApp');return;}
+  c.enviados=c.enviados||[];
+  let fila=pend.filter(f=>!c.enviados.includes(f.id));
+  if(!fila.length){c.enviados=[];fila=pend;} // todos já receberam: recomeça (cobrança)
+  const f=fila[0];c.enviados.push(f.id);cloudSave();
+  const dg=String(f.whats).replace(/\D/g,'');
+  const msg=`Olá${(f.contatos||[])[0]?', '+f.contatos[0].nome.split(' ')[0]:''}! Aqui é da ${empresaNome||'Cinérea'}. Estou enviando nossa cotação ${c.id} (${c.itens.length} itens${c.validade?', responder até '+c.validade.split('-').reverse().join('/'):''}${c.cond?', condições: '+c.cond:''}). Vou anexar a planilha aqui — é só preencher as células destacadas e devolver o arquivo. Obrigado!`;
+  window.open('https://wa.me/'+(dg.length>=12?dg:'55'+dg)+'?text='+encodeURIComponent(msg),'_blank');
+  if(fila.length>1)toast('Aberto para <b>'+esc(f.nome)+'</b> — toque de novo para o próximo ('+(fila.length-1)+' na fila)');
+}
 function verCotacao(id){
   const c=(db.cotacoes||[]).find(x=>x.id===id);if(!c)return;
   currentForm={type:'cotacaoView',id:null,recipe:[]};window.currentForm=currentForm;
@@ -966,13 +1073,33 @@ function verCotacao(id){
   const forn=c.respostas||[];
   const totais=forn.map(f=>c.itens.reduce((s,it)=>{const p=f.precos[it.insumo];return s+(p?p.preco*it.qtd:Infinity);},0));
   const minTotal=Math.min(...totais);
-  let html='<div class="tablewrap"><table><thead><tr><th>Item</th><th>Qtd</th>'+forn.map(f=>'<th>'+esc(f.fornecedor)+'</th>').join('')+'</tr></thead><tbody>';
+  // cesta ótima: melhor preço de cada item, e custo atual como referência de savings
+  let cestaOtima=0,custoAtual=0,temAtual=false;
+  c.itens.forEach(it=>{const ins=db.insumos.find(x=>x.id===it.insumo);const ps=forn.map(f=>f.precos[it.insumo]?f.precos[it.insumo].preco:null).filter(p=>p!==null);if(ps.length)cestaOtima+=Math.min(...ps)*it.qtd;if(ins&&Number(ins.custo)>0){custoAtual+=Number(ins.custo)*it.qtd;temAtual=true;}});
+  let html=(c.validade||c.cond?`<div class="hint-box" style="margin-bottom:12px">${c.validade?'Responder até <b>'+esc(c.validade)+'</b>':''}${c.validade&&c.cond?' · ':''}${c.cond?'Condições: <b>'+esc(c.cond)+'</b>':''}</div>`:'');
+  html+='<div class="tablewrap"><table><thead><tr><th>Item</th><th>Qtd</th><th>Seu custo</th>'+forn.map(f=>'<th>'+esc(f.fornecedor)+'</th>').join('')+'</tr></thead><tbody>';
   c.itens.forEach(it=>{const ins=db.insumos.find(x=>x.id===it.insumo);const ps=forn.map(f=>f.precos[it.insumo]?f.precos[it.insumo].preco:null);const valid=ps.filter(p=>p!==null);const min=valid.length?Math.min(...valid):null;
-    html+='<tr><td>'+esc(ins?ins.nome:'?')+'</td><td>'+it.qtd+'</td>'+ps.map((p,fi)=>'<td>'+(p===null?'—':(p===min?`<span class="pill ok">${brl(p)}</span>`:brl(p))+` <button class="icon-btn" title="Registrar compra com este preço" onclick="usarPrecoCotacao('${c.id}',${fi},'${it.insumo}')">🛒</button>`)+'</td>').join('')+'</tr>';});
-  html+='<tr><td style="font-weight:600">Total do pedido</td><td></td>'+totais.map(t=>'<td class="money" style="'+(t===minTotal&&isFinite(t)?'color:var(--ok);font-weight:600':'')+'">'+(isFinite(t)?brl(t):'—')+'</td>').join('')+'</tr>';
-  html+='</tbody></table></div><div class="hint" style="margin-top:10px">Verde = melhor preço. Prazos e observações ficam guardados na resposta. Ao comprar, registre com o ✓ Comprei — o custo médio se atualiza sozinho.</div>';
+    const atual=ins&&Number(ins.custo)>0?Number(ins.custo):null;
+    const sav=atual&&min!==null?Math.round((1-min/atual)*100):null;
+    html+='<tr><td>'+esc(ins?ins.nome:'?')+'</td><td>'+it.qtd+'</td><td style="color:var(--smoke)">'+(atual?brl(atual)+(sav!==null?` <span style="font-size:11px;color:${sav>=0?'var(--ok)':'var(--ember)'}">(${sav>=0?'−':'+'}${Math.abs(sav)}%)</span>`:''):'—')+'</td>'+ps.map((p,fi)=>'<td>'+(p===null?'—':(p===min?`<span class="pill ok">${brl(p)}</span>`:brl(p))+` <button class="icon-btn" title="Registrar compra com este preço" onclick="usarPrecoCotacao('${c.id}',${fi},'${it.insumo}')">🛒</button>`)+'</td>').join('')+'</tr>';});
+  html+='<tr><td style="font-weight:600">Total do pedido</td><td></td><td style="color:var(--smoke)">'+(temAtual?brl(custoAtual):'—')+'</td>'+totais.map(t=>'<td class="money" style="'+(t===minTotal&&isFinite(t)?'color:var(--ok);font-weight:600':'')+'">'+(isFinite(t)?brl(t):'—')+'</td>').join('')+'</tr>';
+  html+=`<tr><td style="font-weight:600;color:var(--ember)">Cesta ótima (melhor de cada)</td><td></td><td colspan="${forn.length+1}" class="money" style="color:var(--ember);font-weight:600">${brl(cestaOtima)}${temAtual&&custoAtual>0?` <span style="font-size:12px">· economia de ${brl(Math.max(0,custoAtual-cestaOtima))} vs seu custo atual</span>`:''}</td></tr>`;
+  html+='</tbody></table></div><div class="hint" style="margin-top:10px">Verde = melhor preço · "Seu custo" = custo médio atual do insumo · 🛒 registra a compra já preenchida.</div>';
+  html+=`<button class="btn2" style="width:100%;margin-top:12px" onclick="imprimirCotacao('${c.id}')">🖨 Imprimir / salvar comparação em PDF</button>`;
   document.getElementById('modalBody').innerHTML=html;
   document.getElementById('overlay').classList.add('open');
+}
+function imprimirCotacao(id){
+  const c=(db.cotacoes||[]).find(x=>x.id===id);if(!c)return;
+  const forn=c.respostas||[];
+  const row=a=>'<tr>'+a.map(x=>`<td>${x}</td>`).join('')+'</tr>';
+  const win=window.open('','_blank');
+  win.document.write(`<html><head><title>Cotação ${c.id} — ${esc(empresaNome||'Cinérea')}</title><style>body{font-family:Georgia,serif;color:#1C1A17;padding:40px;max-width:800px;margin:auto}h1{font-size:24px;font-weight:400}table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}td,th{border:1px solid #ccc;padding:7px 10px;text-align:left}th{background:#E7E3DC}.b{color:#3F7D5B;font-weight:bold}</style></head><body>
+  <h1>${esc(empresaNome||'Cinérea')} — Cotação ${c.id}</h1><p>${esc(c.data)}${c.validade?' · válida até '+esc(c.validade):''}${c.cond?' · '+esc(c.cond):''}</p>
+  <table><tr><th>Item</th><th>Qtd</th>${forn.map(f=>'<th>'+esc(f.fornecedor)+'</th>').join('')}</tr>
+  ${c.itens.map(it=>{const ins=db.insumos.find(x=>x.id===it.insumo);const ps=forn.map(f=>f.precos[it.insumo]?f.precos[it.insumo].preco:null);const valid=ps.filter(p=>p!==null);const min=valid.length?Math.min(...valid):null;return row([esc(ins?ins.nome:'?'),it.qtd,...ps.map(p=>p===null?'—':(p===min?`<span class="b">${brl(p)}</span>`:brl(p)))]);}).join('')}
+  </table><p style="margin-top:30px;color:#999;font-size:11px">Gerado pelo sistema de gestão — ${new Date().toLocaleDateString('pt-BR')}</p></body></html>`);
+  win.document.close();setTimeout(()=>win.print(),400);
 }
 function usarPrecoCotacao(cotId,fi,insId){
   const c=(db.cotacoes||[]).find(x=>x.id===cotId);if(!c)return;

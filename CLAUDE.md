@@ -116,6 +116,17 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
   (empresa, responsável, WhatsApp=catWhats, e-mail, endereço=db.endereco definido
   no Perfil). Layout: marcador em H1, header linha 4, itens da linha 5, ids na
   col H oculta — o importador continua compatível.
+- SOURCING v3: cotação com validade, condições de pagamento e fornecedores-alvo
+  (status parcial/completa/vencida; 💬 envia/cobra via WhatsApp com fila em
+  c.enviados); comparação com coluna "Seu custo" + savings %, linha Cesta ótima,
+  🖨 impressão; scoreFornecedor() (respostas, % melhor preço, prazo médio) no
+  cadastro; gráfico de gasto de compras por mês (chCompras).
+- ANÁLISES: seletor de período no Painel (periodoDash/corteMes, afeta chProd,
+  chMes, chSemana, ABC, top clientes); tendência mês vs anterior e projeção no
+  cartão Receita; curva ABC de produtos; top 5 clientes; receita por dia da
+  semana; diasEstoque() (consumo 90d via baixas) na tabela de insumos; alerta de
+  inflação de insumo (última compra vs custoAntes +10%); totais do filtro em
+  Pedidos; DRE comparativa (mês vs anterior).
 - Acabamento: recibo imprimível (🧾) e cobrança via WhatsApp (💬) no pedido,
   duplicar produto (⧉), Ver arquivo (consulta/baixa anos arquivados),
   produção do mês por membro (Equipe), busca global (🔍 no topo, atalho "/",
