@@ -8,6 +8,14 @@ App de gestão de um ateliê de velas e objetos de gesso (marca Cinérea). Um ú
 em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN.
 
 ## Arquitetura
+- `core.js` — NÚCLEO PURO (sem DOM/Firestore): calcCusto, precoProduto, lucroPedido,
+  saldoPedido, custoMedio, baixasProducao, diasEstoque, pontoEquilibrio,
+  scoreFornecedor, cestaOtima, curvaABC, fechamentoMes, validar() e RAMOS/sementeRamo.
+  É o que `tests/core.test.mjs` cobre (31 testes, `npm test`, sem emulador).
+  `app.js` importa e injeta `db` via wrappers; calcCusto é memoizado (limparMemo()
+  em rebuildDb/cloudSave).
+- Renderização por aba: RENDER_ABA + abaAtiva() — só a aba visível é redesenhada.
+  Paginação de 50 em 50 (PAG/maisLinhas/linhaMais) em produção, pedidos e compras.
 - `index.html` — todo o app (estilos no `<style>`, lógica num `<script type="module">`)
 - `config.js` — chaves do Firebase, carregado antes do módulo. FICA FORA DO GIT.
 - MULTI-USUÁRIO: dados ficam em `empresas/{eid}`, campo `dados`, estrutura
@@ -131,6 +139,20 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
   duplicar produto (⧉), Ver arquivo (consulta/baixa anos arquivados),
   produção do mês por membro (Equipe), busca global (🔍 no topo, atalho "/",
   abre o registro direto), Guia reescrito para o app atual.
+
+## Consolidação (jul/2026)
+- Onboarding pergunta o RAMO (velas/confeitaria/costura/marcenaria/vazio) e semeia
+  conforme — antes toda empresa nova nascia com insumos e moldes da Cinérea.
+  Rótulos por ramo (db.rotulos + rot()/aplicarRotulos): "Moldes" vira "Formas"
+  ou "Gabaritos". seedIfEmpty agora só garante os canais de venda.
+- Nome real da empresa gravado em usuarios/{uid}.minhasEmpresas no primeiro
+  snapshot (quem entrava por convite via o placeholder "Empresa").
+- Validação de entrada centralizada em Core.validar() (quantidade ≤ 0, valores
+  negativos, taxa fora de 0-100, data fora de 2000-2100); erros via toast.
+- Acessibilidade: role=tablist/aria-selected nas abas, aria-modal + foco que entra,
+  circula (trap de Tab) e volta ao fechar, toast com aria-live, :focus-visible,
+  alvos de 32px. Tema escuro recalibrado — texto secundário 7,4:1 (WCAG AA).
+- Aba Compras dividida em sub-abas (lista/histórico/cotações/fornecedores).
 
 ## Pendente / próximo
 - Domínio próprio: passos no README (exige compra do domínio pelo dono).

@@ -89,10 +89,30 @@ Com GitHub Pages ou Netlify. Lembre: `config.js` fica fora do Git, então no
 ambiente publicado você adiciona as chaves conforme o serviço (ou, para um site
 pessoal de uso próprio, sobe um `config.js` só naquele ambiente).
 
+## Testes
+
+```bash
+npm test
+```
+
+Roda os 31 testes da lógica de cálculo (`core.js`) — custo, margem, lucro por
+pedido, custo médio, ponto de equilíbrio, curva ABC, fechamento e validações.
+Não precisa de emulador nem de internet.
+
+Para os testes das regras de segurança do Firestore (precisam de Java):
+
+```bash
+npm run test:rules
+```
+
 ## Estrutura
 
 ```
-index.html            o app inteiro
+index.html            estrutura da página
+styles.css            estilos
+app.js                interface, dados e sincronização
+core.js               cálculo puro (custo, lucro, validações) — testado
+tests/                testes de cálculo e das regras de segurança
 sw.js                 service worker (funcionamento offline)
 manifest.webmanifest  manifesto PWA (instalar no celular)
 icon.svg              ícone do app

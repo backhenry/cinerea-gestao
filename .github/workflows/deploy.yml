@@ -28,7 +28,10 @@ jobs:
         with:
           node-version: 20
       - run: npm install --no-audit --no-fund
-      - run: npx firebase emulators:exec --only firestore "node --test tests/"
+      # lógica de cálculo (core.js): roda sem emulador
+      - run: node --test tests/core.test.mjs
+      # regras de segurança: precisam do emulador do Firestore
+      - run: npx firebase emulators:exec --only firestore "node --test tests/rules.test.mjs tests/flows.test.mjs"
 
   deploy:
     runs-on: ubuntu-latest
@@ -40,6 +43,7 @@ jobs:
       - name: Testar sintaxe dos scripts antes de publicar
         run: |
           node --check app.js
+          node --check core.js
           awk '/<script type="module">/{f=1;next}/<\/script>/{f=0}f' catalogo.html > /tmp/cat.mjs
           node --check /tmp/cat.mjs
           node --check sw.js

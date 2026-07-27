@@ -33,6 +33,13 @@
     <div id="gateEmpresa" style="display:none">
       <div class="gate-err" id="gateEmpErr"></div>
       <input type="text" id="gEmpNome" placeholder="nome da sua empresa (ex.: Cinérea)">
+      <select id="gEmpRamo" style="width:100%;padding:13px 15px;border:1px solid var(--line);border-radius:9px;background:var(--paper);margin-bottom:12px">
+        <option value="vazio">Começar do zero (sem exemplos)</option>
+        <option value="velas">Velas e objetos de gesso</option>
+        <option value="confeitaria">Confeitaria e alimentos</option>
+        <option value="costura">Costura e artesanato têxtil</option>
+        <option value="marcenaria">Marcenaria e decoração</option>
+      </select>
       <button class="btn" onclick="criarEmpresaUI()">Criar empresa</button>
       <div style="font-family:'Fraunces';font-style:italic;color:var(--smoke);margin:14px 0">ou</div>
       <input type="text" id="gEmpCod" placeholder="código de convite" style="text-transform:uppercase">
@@ -49,8 +56,8 @@
   </div>
 </header>
 
-<nav class="tabs" id="tabs">
-  <button class="active" data-tab="dashboard">Painel</button>
+<nav class="tabs" id="tabs" role="tablist" aria-label="Seções do sistema">
+  <button class="active" role="tab" aria-selected="true" data-tab="dashboard">Painel</button>
   <button data-tab="equip">Equipamentos</button>
   <button data-tab="moldes">Moldes</button>
   <button data-tab="insumos">Insumos</button>
@@ -98,16 +105,34 @@
     <div class="tablewrap"><table><thead><tr><th>Insumo</th><th>Estoque</th><th>Nível</th><th>Custo unit.</th><th>Situação</th><th></th></tr></thead><tbody id="tbInsumos"></tbody></table></div>
   </section>
   <section class="panel" id="p-compras">
-    <div class="panel-head"><div><h2>Lista de compras</h2><div class="desc">O que está baixo, gerado automático</div></div><button class="btn2" onclick="exportCompras()">↓ Copiar lista</button></div>
-    <div class="hint-box">Reúne tudo que está no mínimo ou abaixo. A quantidade sugerida repõe até o dobro do mínimo — ajuste ao seu fornecedor. Quando comprar, toque em <b>✓ Comprei</b> para registrar a compra e dar entrada no estoque.</div>
-    <div id="shopList"></div>
-    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Histórico de compras</h2><div class="desc">Cada compra com valor recalcula o custo médio do insumo</div></div><button class="btn" onclick="openForm('compra')">+ Compra</button></div>
-    <div class="tablewrap"><table><thead><tr><th>Data</th><th>Insumo</th><th>Qtd</th><th>Valor pago</th><th>R$/un</th><th>Fornecedor</th><th></th></tr></thead><tbody id="tbCompras"></tbody></table></div>
-    <div class="chartcard" style="margin-top:32px"><h3>Gasto com compras por mês (R$)</h3><canvas id="chCompras"></canvas></div>
-    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Cotações com fornecedores</h2><div class="desc">Escolha itens e quantidades, o fornecedor preenche os preços, importe e compare</div></div><div class="head-btns"><button class="btn2" onclick="importarCotacao()">↑ Importar resposta</button><button class="btn" onclick="gerarCotacao()">Nova cotação</button></div></div>
-    <div class="tablewrap"><table><thead><tr><th>Cotação</th><th>Data</th><th>Itens</th><th>Respostas</th><th></th></tr></thead><tbody id="tbCotacoes"></tbody></table></div>
-    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Fornecedores</h2><div class="desc">Quem vende para você — respostas de cotação criam o cadastro sozinhas</div></div><button class="btn" onclick="openForm('fornecedor')">+ Fornecedor</button></div>
-    <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Risco</th><th>WhatsApp</th><th>Compras</th><th>Total gasto</th><th></th></tr></thead><tbody id="tbFornecedores"></tbody></table></div>
+    <nav class="subtabs" role="tablist" aria-label="Seções de compras">
+      <button class="active" role="tab" aria-selected="true" data-sub="lista" onclick="subAba('lista')">Lista de compras</button>
+      <button role="tab" aria-selected="false" data-sub="hist" onclick="subAba('hist')">Histórico</button>
+      <button role="tab" aria-selected="false" data-sub="cot" onclick="subAba('cot')">Cotações</button>
+      <button role="tab" aria-selected="false" data-sub="forn" onclick="subAba('forn')">Fornecedores</button>
+    </nav>
+
+    <div class="subpanel active" id="s-lista">
+      <div class="panel-head"><div><h2>Lista de compras</h2><div class="desc">O que está baixo, gerado automático</div></div><button class="btn2" onclick="exportCompras()">↓ Copiar lista</button></div>
+      <div class="hint-box">Reúne tudo que está no mínimo ou abaixo. A quantidade sugerida repõe até o dobro do mínimo — ajuste ao seu fornecedor. Quando comprar, toque em <b>✓ Comprei</b> para registrar a compra e dar entrada no estoque.</div>
+      <div id="shopList"></div>
+    </div>
+
+    <div class="subpanel" id="s-hist">
+      <div class="panel-head"><div><h2>Histórico de compras</h2><div class="desc">Cada compra com valor recalcula o custo médio do insumo</div></div><button class="btn" onclick="openForm('compra')">+ Compra</button></div>
+      <div class="tablewrap"><table><thead><tr><th>Data</th><th>Insumo</th><th>Qtd</th><th>Valor pago</th><th>R$/un</th><th>Fornecedor</th><th></th></tr></thead><tbody id="tbCompras"></tbody></table></div>
+      <div class="chartcard" style="margin-top:24px"><h3>Gasto com compras por mês (R$)</h3><canvas id="chCompras"></canvas></div>
+    </div>
+
+    <div class="subpanel" id="s-cot">
+      <div class="panel-head"><div><h2>Cotações com fornecedores</h2><div class="desc">Escolha itens e quantidades, o fornecedor preenche os preços, importe e compare</div></div><div class="head-btns"><button class="btn2" onclick="importarCotacao()">↑ Importar resposta</button><button class="btn" onclick="gerarCotacao()">Nova cotação</button></div></div>
+      <div class="tablewrap"><table><thead><tr><th>Cotação</th><th>Data</th><th>Itens</th><th>Respostas</th><th></th></tr></thead><tbody id="tbCotacoes"></tbody></table></div>
+    </div>
+
+    <div class="subpanel" id="s-forn">
+      <div class="panel-head"><div><h2>Fornecedores</h2><div class="desc">Quem vende para você — respostas de cotação criam o cadastro sozinhas</div></div><button class="btn" onclick="openForm('fornecedor')">+ Fornecedor</button></div>
+      <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Risco</th><th>WhatsApp</th><th>Compras</th><th>Total gasto</th><th></th></tr></thead><tbody id="tbFornecedores"></tbody></table></div>
+    </div>
   </section>
   <section class="panel" id="p-orcamento">
     <div class="panel-head"><div><h2>Orçamento</h2><div class="desc">Custo e preço de cada peça</div></div><div class="head-btns"><button class="btn2" onclick="publicarCatalogo()">Publicar catálogo</button><button class="btn" onclick="openForm('produto')">+ Produto</button></div></div>
@@ -167,12 +192,12 @@
   </section>
 </main>
 
-<div class="overlay" id="overlay"><div class="modal">
-  <div class="modal-head"><h3 id="modalTitle">Novo</h3><button onclick="closeModal()">×</button></div>
+<div class="overlay" id="overlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-head"><h3 id="modalTitle">Novo</h3><button onclick="closeModal()" aria-label="Fechar">×</button></div>
   <div class="modal-body" id="modalBody"></div>
   <div class="modal-foot"><button class="btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn" onclick="saveForm()">Salvar</button></div>
 </div></div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="config.js"></script>
 <script type="module" src="app.js"></script>

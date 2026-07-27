@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, verifyBeforeUpdateEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, setDoc, updateDoc, deleteDoc, deleteField, arrayUnion, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import * as Core from "./core.js";
 
 // ============================================================
 // COLE AQUI AS SUAS CHAVES DO FIREBASE (as mesmas do app anterior)
@@ -20,6 +21,7 @@ let db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras
 const FIN_KEYS=['fixos','meta','meiTeto','ultimoBackup'];
 const PROD_FIN=['preco','markup','taxa','custohora','perda','equip'];
 function rebuildDb(){
+  limparMemo();
   const base=JSON.parse(JSON.stringify(rawOp||{}));
   db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],meta:0,checks:{},...base};
   if(rawFin){
@@ -61,7 +63,7 @@ try{aplicarPrefs(JSON.parse(localStorage.getItem('cinereaPrefs')||'{}'));}catch(
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if((window.__prefs||{}).tema==='auto')aplicarPrefs(window.__prefs);});
 let charts={};
 
-Object.assign(window,{doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,del,addRecipeLine,rmRecipeLine,updateCost,exportCSV,exportPDF,exportCompras,saveCheck,buyDone,exportJSON,importJSON,setMeta,setMeiTeto,quickCliente,publicarCatalogo,doUndo,renderProducao,renderPedidos,fP,fV,criarEmpresaUI,entrarEmpresaUI,gerarConvite,removerMembro,renomearMe,moveTarefa,repetir,toggleTimer,exportDRE,openPerfil,sairEmpresa,esqueciSenha,toggleMinhas,mudarPapel,dragTarefa,dropTarefa,addComent,gerarCotacao,importarCotacao,verCotacao,usarPrecoCotacao,verPrecos,criarTarefaProducao,addPagamento,arquivarAno,pedirNotifs,quickFornecedor,reciboPedido,cobrarPedido,duplicarProduto,verArquivo,abrirBusca,renderBusca,addContatoForn,rmContatoForn,setPeriodoDash,enviarCotacaoWhats,imprimirCotacao});
+Object.assign(window,{doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,del,addRecipeLine,rmRecipeLine,updateCost,exportCSV,exportPDF,exportCompras,saveCheck,buyDone,exportJSON,importJSON,setMeta,setMeiTeto,quickCliente,publicarCatalogo,doUndo,renderProducao,renderPedidos,fP,fV,criarEmpresaUI,entrarEmpresaUI,gerarConvite,removerMembro,renomearMe,moveTarefa,repetir,toggleTimer,exportDRE,openPerfil,sairEmpresa,esqueciSenha,toggleMinhas,mudarPapel,dragTarefa,dropTarefa,addComent,gerarCotacao,importarCotacao,verCotacao,usarPrecoCotacao,verPrecos,criarTarefaProducao,addPagamento,arquivarAno,pedirNotifs,quickFornecedor,reciboPedido,cobrarPedido,duplicarProduto,verArquivo,abrirBusca,renderBusca,addContatoForn,rmContatoForn,setPeriodoDash,enviarCotacaoWhats,imprimirCotacao,subAba,maisLinhas});
 
 if(!isConfigured){document.getElementById('gateSetup').style.display='block';}
 else{
@@ -96,9 +98,15 @@ function mostrarOnboarding(msg){
   document.getElementById('gateEmpErr').textContent=msg||'';
 }
 function nomePadrao(){return ((auth.currentUser&&auth.currentUser.email)||'membro').split('@')[0];}
-async function criarEmpresa(nome,dadosLegado){
+async function criarEmpresa(nome,dadosLegado,ramo){
   const ref=doc(collection(fdb,'empresas'));
-  await setDoc(ref,{nome,dono:uid,dados:dadosLegado||{},atualizado:Date.now()});
+  let dados=dadosLegado||{};
+  if(!dadosLegado){ // empresa nova: semeia conforme o ramo escolhido (não mais dados fixos de velas)
+    const s=sementeRamo(ramo||'vazio',uidGen);
+    dados={insumos:s.insumos,moldes:s.moldes,rotulos:s.rotulos,ramo:ramo||'vazio',
+      canais:[{id:uidGen(),nome:'Direto / Pix',taxa:0},{id:uidGen(),nome:'Feira',taxa:0},{id:uidGen(),nome:'Instagram',taxa:0},{id:uidGen(),nome:'Marketplace',taxa:12}]};
+  }
+  await setDoc(ref,{nome,dono:uid,dados,atualizado:Date.now()});
   await setDoc(doc(fdb,'empresas',ref.id,'membros',uid),{nome:nomePadrao(),entrou:Date.now()});
   minhasEmpresas[ref.id]=nome;
   await setDoc(doc(fdb,'usuarios',uid),{empresaId:ref.id,minhasEmpresas:{[ref.id]:nome}},{merge:true});
@@ -107,7 +115,8 @@ async function criarEmpresa(nome,dadosLegado){
 async function criarEmpresaUI(){
   const nome=document.getElementById('gEmpNome').value.trim();
   if(!nome){document.getElementById('gateEmpErr').textContent='Dê um nome à empresa.';return;}
-  try{await criarEmpresa(nome,null);}catch(e){console.error(e);document.getElementById('gateEmpErr').textContent='Erro ao criar. Confira as regras do Firestore.';}
+  const ramo=(document.getElementById('gEmpRamo')||{}).value||'vazio';
+  try{await criarEmpresa(nome,null,ramo);}catch(e){console.error(e);document.getElementById('gateEmpErr').textContent='Erro ao criar. Confira as regras do Firestore.';}
 }
 async function entrarEmpresaUI(){
   const cod=document.getElementById('gEmpCod').value.trim().toUpperCase();
@@ -118,7 +127,7 @@ async function entrarEmpresaUI(){
     if(!cs.exists()){err.textContent='Código inválido ou expirado.';return;}
     const e2=cs.data().empresaId;
     await setDoc(doc(fdb,'empresas',e2,'membros',uid),{nome:nomePadrao(),codigo:cod,papel:cs.data().papel||'empregado',entrou:Date.now()});
-    minhasEmpresas[e2]='Empresa';
+    minhasEmpresas[e2]='Empresa'; // provisório: o nome real chega no primeiro snapshot
     await setDoc(doc(fdb,'usuarios',uid),{empresaId:e2,minhasEmpresas:{[e2]:'Empresa'}},{merge:true});
     eid=e2;iniciarEmpresa();
   }catch(e){console.error(e);err.textContent='Não foi possível entrar. Confira o código e as regras do Firestore.';}
@@ -316,6 +325,8 @@ function subscribe(){
     else{rawOp={};}
     rebuildDb();seedIfEmpty(false);
     const bn=document.getElementById('brandName');if(bn)bn.textContent=(empresaNome||'Cinérea')+' · Gestão';
+    // guarda o nome real da empresa no perfil (o convite entra com placeholder)
+    if(empresaNome&&minhasEmpresas[eid]!==empresaNome){minhasEmpresas[eid]=empresaNome;setDoc(doc(fdb,'usuarios',uid),{minhasEmpresas:{[eid]:empresaNome}},{merge:true}).catch(()=>{});}
     renderAll();flashSync(true);migrarFinSePreciso();checkBackup();checarNotifs();
   },err=>{console.error(err);eid=null;mostrarOnboarding('Você não tem mais acesso a esta empresa — crie outra ou peça um novo convite.');setDoc(doc(fdb,'usuarios',uid),{empresaId:null},{merge:true}).catch(()=>{});});
   unsubFin=onSnapshot(doc(fdb,'empresas',eid,'fin','dados'),snap=>{
@@ -328,7 +339,7 @@ function subscribeMembros(){
   if(unsubMembros)unsubMembros();
   unsubMembros=onSnapshot(collection(fdb,'empresas',eid,'membros'),qs=>{membros={};qs.forEach(d=>membros[d.id]=d.data());renderAll();},err=>console.error(err));
 }
-function cloudSave(){if(!uid||!eid)return;flashSync(false);clearTimeout(saveTimer);saveTimer=setTimeout(()=>{try{
+function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);clearTimeout(saveTimer);saveTimer=setTimeout(()=>{try{
   let payloadOp,finToWrite=null;
   if(dbFinLoaded&&pode('fin')){const s=splitDb();payloadOp=s.op;finToWrite=s.fin;}
   else if(!pode('fin')){payloadOp=splitDb().op;} // empregado nunca grava campos financeiros
@@ -339,43 +350,59 @@ function cloudSave(){if(!uid||!eid)return;flashSync(false);clearTimeout(saveTime
 }catch(e){console.error(e);}},400);}
 function flashSync(ok){const el=document.getElementById('syncState');if(!ok){el.innerHTML='<span class="dot off"></span> salvando…';return;}el.innerHTML=navigator.onLine?'<span class="dot"></span> sincronizado':'<span class="dot off"></span> offline · salvo no aparelho';}
 
-const uidGen=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-const brl=n=>'R$ '+(Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const hoje=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+// helpers e cálculo vêm de core.js (puro e coberto por testes)
+const {uidGen,brl,esc,num,insumoStatus,moldeStatus,validar,saldoPedido,custoMedio,curvaABC,cestaOtima,precoProduto,baixasProducao,pontoEquilibrio,RAMOS,sementeRamo}=Core;
+const hoje=()=>Core.hoje();
 function toast(msg){const t=document.getElementById('toast');t.innerHTML=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2600);}
 function toastUndo(msg,snap){undoState=snap;const t=document.getElementById('toast');t.innerHTML=msg+' <button onclick="doUndo()" style="background:none;border:none;color:#e8a;text-decoration:underline;cursor:pointer;font-size:13px;margin-left:6px">Desfazer</button>';t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),7000);}
 function doUndo(){if(!undoState)return;db=undoState;undoState=null;cloudSave();renderAll();toast('Desfeito ✓');}
 
-function seedIfEmpty(force){
-  if(db.insumos&&db.insumos.length)return;
-  db.insumos=[
-    {id:uidGen(),nome:'Gesso alfa',unidade:'kg',estoque:5,minimo:2,custo:12},
-    {id:uidGen(),nome:'Silicone (estanho)',unidade:'kg',estoque:2,minimo:1,custo:110},
-    {id:uidGen(),nome:'Resina 3D',unidade:'kg',estoque:1,minimo:0.5,custo:173},
-    {id:uidGen(),nome:'Parafina 58-62°C',unidade:'kg',estoque:2,minimo:1,custo:32},
-    {id:uidGen(),nome:'Essência para velas',unidade:'kg',estoque:0.25,minimo:0.2,custo:160},
-    {id:uidGen(),nome:'Pavio',unidade:'un',estoque:50,minimo:20,custo:0.6},
-    {id:uidGen(),nome:'Embalagem',unidade:'un',estoque:15,minimo:10,custo:12},
-  ];
-  db.equip=[{id:uidGen(),nome:'Impressora 3D resina',tipo:'Equipamento',compra:'',custo:0,situacao:'Ativo'}];
-  db.moldes=[{id:uidGen(),nome:'Base vitrola',material:'gesso',usos:0,vida:40},{id:uidGen(),nome:'Estátua grega',material:'gesso',usos:0,vida:40}];
+// A semente agora vem do ramo escolhido no onboarding (criarEmpresa).
+// Aqui só garantimos os canais de venda, que servem a qualquer negócio.
+function seedIfEmpty(){
+  if(db.canais&&db.canais.length)return;
   db.canais=[{id:uidGen(),nome:'Direto / Pix',taxa:0},{id:uidGen(),nome:'Feira',taxa:0},{id:uidGen(),nome:'Instagram',taxa:0},{id:uidGen(),nome:'Marketplace',taxa:12}];
   cloudSave();
 }
+// rótulos por ramo: "Moldes" vira "Formas" numa confeitaria, "Gabaritos" numa marcenaria
+function rot(chave,fallback){return (db.rotulos&&db.rotulos[chave])||fallback;}
+function aplicarRotulos(){
+  const t=document.querySelector('[data-tab="moldes"]');if(t)t.textContent=rot('moldes','Moldes');
+  const h=document.querySelector('#p-moldes h2');if(h)h.textContent=rot('moldes','Moldes');
+  document.querySelectorAll('[data-rot-molde]').forEach(el=>el.textContent=rot('molde','Molde'));
+}
 
-document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.getElementById('p-'+b.dataset.tab).classList.add('active');renderAll();});
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>{x.classList.remove('active');x.setAttribute('aria-selected','false');});b.classList.add('active');b.setAttribute('aria-selected','true');document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.getElementById('p-'+b.dataset.tab).classList.add('active');renderAll();});
+// paginação: tabelas longas renderizam por blocos (evita centenas de linhas no DOM)
+const PAG={producao:50,pedidos:50,compras:50};
+function maisLinhas(k){
+  PAG[k]=(PAG[k]||50)+50;
+  const f={producao:()=>renderProducao(),pedidos:()=>renderPedidos(),compras:()=>renderComprasHist()}[k];
+  if(f)f();labelize();
+}
+function linhaMais(k,total,mostrando,cols){
+  if(mostrando>=total)return'';
+  return `<tr><td colspan="${cols}" style="text-align:center;padding:14px"><button class="btn2" onclick="maisLinhas('${k}')">Mostrar mais ${Math.min(50,total-mostrando)} de ${total-mostrando} restantes</button></td></tr>`;
+}
 
-function insumoStatus(i){if(i.estoque<=i.minimo)return'low';if(i.estoque/(i.minimo||1)<1.5)return'warn';return'ok';}
-function moldeStatus(m){const r=m.usos/(m.vida||1);if(r>=1)return'low';if(r>=.8)return'warn';return'ok';}
 function rowActions(t,id,rep){return `<div class="row-actions">${rep?`<button class="icon-btn" title="Repetir" onclick="repetir('${t}','${id}')">⟳</button>`:''}<button class="icon-btn" onclick="openForm('${t}','${id}')">✎</button><button class="icon-btn" onclick="del('${t}','${id}')">🗑</button></div>`;}
 function repetir(type,id){const src=db[plural(type)].find(x=>x.id===id);if(!src)return;openForm(type);FORMS[type].fields.forEach(f=>{const el=document.getElementById('f_'+f.k);if(!el)return;if(f.t==='date'){el.value=f.k==='data'?hoje():'';}else if(src[f.k]!==undefined&&src[f.k]!==null)el.value=src[f.k];});}
 function toggleTimer(){const b=document.getElementById('timerBtn'),v=document.getElementById('timerView');if(!b)return;
   if(timerT0){clearInterval(timerInt);timerInt=null;const min=(Date.now()-timerT0)/60000;timerT0=null;const f=document.getElementById('f_minutos');if(f)f.value=Math.max(1,Math.round(min));b.textContent='▶ Cronometrar uma peça';if(v)v.textContent='tempo registrado ✓';}
   else{timerT0=Date.now();b.textContent='⏹ Parar e registrar';timerInt=setInterval(()=>{if(!v)return;const s=Math.floor((Date.now()-timerT0)/1000);v.textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');},1000);}}
-function calcCusto(p){let mat=0;(p.receita||[]).forEach(l=>{const ins=db.insumos.find(i=>i.id===l.insumo);if(ins)mat+=Number(ins.custo)*Number(l.qtd||0);});const mo=(Number(p.minutos||0)/60)*Number(p.custohora||25);let eq=0;if(p.equip){const e=db.equip.find(x=>x.id===p.equip);if(e&&Number(e.vidaHoras)>0)eq=(Number(p.minutos||0)/60)*(Number(e.custo||0)/Number(e.vidaHoras));}const sub=mat+mo+eq;const perda=sub*(Number(p.perda||8)/100);return{mat,mo,eq,sub,perda,total:sub+perda};}
-// lucro de um pedido: usa a taxa do canal (se houver) ou a taxa do produto
-function lucroPedido(p){const prod=db.produtos.find(x=>x.id===p.produto);if(!prod)return null;const q=Number(p.qtd||1);const custo=calcCusto(prod).total*q;const can=(db.canais||[]).find(c=>c.id===p.canal);const taxaPct=can?Number(can.taxa||0):Number(prod.taxa||0);return Number(p.valor||0)*(1-taxaPct/100)-custo-Number(p.frete||0);}
+// wrappers: injetam `db` no núcleo. calcCusto é memoizado — era recalculado
+// em loops aninhados (produtos × pedidos × gráficos) a cada render.
+let memoCusto=new Map();
+function limparMemo(){memoCusto=new Map();}
+function calcCusto(p){
+  if(!p||!p.id)return Core.calcCusto(p||{},db); // produto em edição (sem id): sempre fresco
+  const hit=memoCusto.get(p.id);
+  if(hit)return hit;
+  const r=Core.calcCusto(p,db);memoCusto.set(p.id,r);return r;
+}
+function lucroPedido(p){return Core.lucroPedido(p,db);}
+function diasEstoque(i){return Core.diasEstoque(i,db.producao,hoje());}
+function scoreFornecedor(fid){return Core.scoreFornecedor(fid,db.cotacoes);}
 function labelize(){document.querySelectorAll('.tablewrap table').forEach(t=>{const hs=[...t.querySelectorAll('thead th')].map(h=>h.textContent.trim());t.querySelectorAll('tbody tr').forEach(tr=>{[...tr.children].forEach((td,i)=>td.setAttribute('data-l',td.hasAttribute('colspan')?'':(hs[i]||'')));});});}
 function fillMeses(selId,rows,cur){const sel=document.getElementById(selId);if(!sel)return;const ms=[...new Set(rows.map(r=>(r.data||'').slice(0,7)).filter(Boolean))].sort().reverse();sel.innerHTML='<option value="">todos os meses</option>'+ms.map(m=>`<option ${m===cur?'selected':''}>${m}</option>`).join('');}
 
@@ -471,26 +498,21 @@ function renderCharts(){
 }
 function renderEquip(){document.getElementById('tbEquip').innerHTML=db.equip.length?db.equip.map(e=>`<tr><td>${esc(e.nome)}</td><td>${esc(e.tipo)||'—'}</td><td>${esc(e.compra)||'—'}</td><td class="money">${brl(e.custo)}</td><td><span class="pill ok">${esc(e.situacao||'Ativo')}</span></td><td>${rowActions('equip',e.id)}</td></tr>`).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum equipamento.</div></td></tr>`;}
 function renderMoldes(){document.getElementById('tbMoldes').innerHTML=db.moldes.length?db.moldes.map(m=>{const st=moldeStatus(m);const pct=Math.min(100,Math.round(m.usos/(m.vida||1)*100));const l=st==='low'?'Trocar':st==='warn'?'Quase no fim':'Bom';return `<tr><td>${esc(m.nome)}</td><td>${esc(m.material)}</td><td>${m.usos} / ${m.vida}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div></td><td><span class="pill ${st}">${l}</span></td><td>${rowActions('molde',m.id)}</td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum molde.</div></td></tr>`;}
-function diasEstoque(i){
-  const corte=new Date();corte.setDate(corte.getDate()-90);
-  const cISO=corte.getFullYear()+'-'+String(corte.getMonth()+1).padStart(2,'0')+'-'+String(corte.getDate()).padStart(2,'0');
-  let cons=0;db.producao.filter(p=>(p.data||'')>=cISO).forEach(p=>(p.baixas||[]).forEach(b=>{if(b.insumo===i.id)cons+=Number(b.qtd||0);}));
-  if(cons<=0)return null;
-  return Math.round(Number(i.estoque||0)/(cons/90));
-}
 function renderInsumos(){document.getElementById('tbInsumos').innerHTML=db.insumos.length?db.insumos.map(i=>{const st=insumoStatus(i);const l=st==='low'?'Repor':st==='warn'?'Baixo':'OK';const pct=Math.min(100,Math.round(i.estoque/((i.minimo||1)*2)*100));const dias=diasEstoque(i);return `<tr><td>${esc(i.nome)}</td><td>${i.estoque} ${esc(i.unidade)}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div><div style="font-size:11px;color:var(--warm);margin-top:3px">mín. ${i.minimo}${dias!==null&&dias<365?` · acaba em ~<b style="color:${dias<15?'var(--ember)':'inherit'}">${dias}d</b>`:''}</div></td><td class="money">${brl(i.custo)}/${esc(i.unidade)}</td><td><span class="pill ${st}">${l}</span></td><td><div class="row-actions"><button class="icon-btn" title="Histórico de preços" onclick="verPrecos('${i.id}')">📈</button><button class="icon-btn" onclick="openForm('insumo','${i.id}')">✎</button><button class="icon-btn" onclick="del('insumo','${i.id}')">🗑</button></div></td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum insumo.</div></td></tr>`;}
 function renderProdutos(){document.getElementById('tbProdutos').innerHTML=db.produtos.length?db.produtos.map(p=>{const c=calcCusto(p);const sug=c.total*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const margem=prat-taxa-c.total;const mpct=prat?Math.round(margem/prat*100):0;const h=Number(p.minutos||0)/60;const lph=h>0?margem/h:0;return `<tr><td>${esc(p.nome)}${p.publico?' <span title="no catálogo" style="color:var(--warm);font-size:11px">◈</span>':''}</td><td class="money">${brl(c.total)}</td><td class="money" style="color:var(--smoke)">${brl(sug)}</td><td class="money">${brl(prat)}</td><td><span class="pill ${mpct>50?'ok':mpct>30?'warn':'low'}">${mpct}%</span></td><td class="money">${h>0?brl(lph):'—'}</td><td>${Number(p.pronto||0)}</td><td><div class="row-actions"><button class="icon-btn" title="Duplicar" onclick="duplicarProduto('${p.id}')">⧉</button><button class="icon-btn" onclick="openForm('produto','${p.id}')">✎</button><button class="icon-btn" onclick="del('produto','${p.id}')">🗑</button></div></td></tr>`;}).join(''):`<tr><td colspan=8><div class="empty-t">Nenhum produto.</div></td></tr>`;}
 function renderProducao(){
   fillMeses('mesPro',db.producao,fP.m);
-  const rows=[...db.producao].reverse().filter(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const txt=((prod?prod.nome:'')+' '+(p.variacao||'')+' '+(p.lote||'')).toLowerCase();return(!fP.q||txt.includes(fP.q.toLowerCase()))&&(!fP.m||(p.data||'').slice(0,7)===fP.m);});
-  document.getElementById('tbProducao').innerHTML=rows.length?rows.map(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const mold=db.moldes.find(x=>x.id===p.molde);const nome=prod?esc(prod.nome)+(p.variacao?' · '+esc(p.variacao):''):'—';return `<tr><td>${esc(p.data)||'—'}</td><td>${nome}</td><td>${esc(p.qtd)}</td><td>${p.minutos?esc(p.minutos)+' min':'—'}</td><td>${mold?esc(mold.nome):'—'}</td><td style="color:var(--warm);font-size:12px">${esc(p.lote)||'—'}</td><td>${rowActions('producao',p.id,1)}</td></tr>`;}).join(''):`<tr><td colspan=7><div class="empty-t">${db.producao.length?'Nada encontrado com esse filtro.':'Nenhuma produção.'}</div></td></tr>`;
+  const todas=[...db.producao].reverse().filter(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const txt=((prod?prod.nome:'')+' '+(p.variacao||'')+' '+(p.lote||'')).toLowerCase();return(!fP.q||txt.includes(fP.q.toLowerCase()))&&(!fP.m||(p.data||'').slice(0,7)===fP.m);});
+  const rows=todas.slice(0,PAG.producao);
+  document.getElementById('tbProducao').innerHTML=(rows.length?rows.map(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const mold=db.moldes.find(x=>x.id===p.molde);const nome=prod?esc(prod.nome)+(p.variacao?' · '+esc(p.variacao):''):'—';return `<tr><td>${esc(p.data)||'—'}</td><td>${nome}</td><td>${esc(p.qtd)}</td><td>${p.minutos?esc(p.minutos)+' min':'—'}</td><td>${mold?esc(mold.nome):'—'}</td><td style="color:var(--warm);font-size:12px">${esc(p.lote)||'—'}</td><td>${rowActions('producao',p.id,1)}</td></tr>`;}).join(''):`<tr><td colspan=7><div class="empty-t">${db.producao.length?'Nada encontrado com esse filtro.':'Nenhuma produção.'}</div></td></tr>`)+linhaMais('producao',todas.length,rows.length,7);
   labelize();
 }
 function renderPedidos(){
   const sc={'Pendente':'warn','Pago':'ok','Entregue':'ok','Cancelado':'low'};const hj=hoje();
   fillMeses('mesPed',db.pedidos,fV.m);
-  const rows=[...db.pedidos].reverse().filter(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);const txt=((cli?cli.nome:p.cliente||'')+' '+(prod?prod.nome:'')+' '+(p.item||'')+' '+(p.variacao||'')).toLowerCase();return(!fV.q||txt.includes(fV.q.toLowerCase()))&&(!fV.m||(p.data||'').slice(0,7)===fV.m);});
-  document.getElementById('tbPedidos').innerHTML=rows.length?rows.map(p=>{
+  const todos=[...db.pedidos].reverse().filter(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);const txt=((cli?cli.nome:p.cliente||'')+' '+(prod?prod.nome:'')+' '+(p.item||'')+' '+(p.variacao||'')).toLowerCase();return(!fV.q||txt.includes(fV.q.toLowerCase()))&&(!fV.m||(p.data||'').slice(0,7)===fV.m);});
+  const rows=todos.slice(0,PAG.pedidos);
+  document.getElementById('tbPedidos').innerHTML=(rows.length?rows.map(p=>{
     const prod=db.produtos.find(x=>x.id===p.produto);const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);
     const q=Number(p.qtd||1);const can=(db.canais||[]).find(c=>c.id===p.canal);
     const nome=(prod?esc(prod.nome)+(q>1?' ×'+q:'')+(p.variacao?' · '+esc(p.variacao):''):esc(p.item)||'—')+(can?`<div style="font-size:11px;color:var(--warm)">via ${esc(can.nome)}</div>`:'');
@@ -500,12 +522,12 @@ function renderPedidos(){
     const prazo=p.prazo?(aberto&&p.prazo<hj?`<span class="pill low">${esc(p.prazo)}</span>`:esc(p.prazo)):'—';
     const acts=`<div class="row-actions"><button class="icon-btn" title="Recibo" onclick="reciboPedido('${p.id}')">🧾</button>${aberto&&cli?`<button class="icon-btn" title="Cobrar no WhatsApp" onclick="cobrarPedido('${p.id}')">💬</button>`:''}<button class="icon-btn" title="Repetir" onclick="repetir('pedido','${p.id}')">⟳</button><button class="icon-btn" onclick="openForm('pedido','${p.id}')">✎</button><button class="icon-btn" onclick="del('pedido','${p.id}')">🗑</button></div>`;
     return `<tr><td>${esc(p.data)||'—'}</td><td>${cli?esc(cli.nome):esc(p.cliente)||'—'}</td><td>${nome}</td><td>${prazo}</td><td class="money">${brl(p.valor)}</td><td>${lucro}</td><td><span class="pill ${sc[p.situacao]||'warn'}">${esc(p.situacao||'Pendente')}</span></td><td>${acts}</td></tr>`;
-  }).join(''):`<tr><td colspan=8><div class="empty-t">${db.pedidos.length?'Nada encontrado com esse filtro.':'Nenhum pedido.'}</div></td></tr>`;
-  // totais do filtro atual (respeita a busca/mês selecionados)
-  if(rows.length){
-    const somaV=rows.reduce((s,p)=>s+Number(p.valor||0),0);
-    const somaL=rows.reduce((s,p)=>{const l=lucroPedido(p);return l===null||p.situacao==='Cancelado'?s:s+l;},0);
-    document.getElementById('tbPedidos').innerHTML+=`<tr><td style="font-weight:600">Totais</td><td></td><td style="color:var(--warm);font-size:12px">${rows.length} pedido(s)</td><td></td><td class="money" style="font-weight:600">${brl(somaV)}</td><td class="money" style="font-weight:600;color:var(--ok)">${brl(somaL)}</td><td></td><td></td></tr>`;
+  }).join(''):`<tr><td colspan=8><div class="empty-t">${db.pedidos.length?'Nada encontrado com esse filtro.':'Nenhum pedido.'}</div></td></tr>`)+linhaMais('pedidos',todos.length,rows.length,8);
+  // totais do filtro atual (soma TODOS os filtrados, não só a página visível)
+  if(todos.length){
+    const somaV=todos.reduce((s,p)=>s+Number(p.valor||0),0);
+    const somaL=todos.reduce((s,p)=>{const l=lucroPedido(p);return l===null||p.situacao==='Cancelado'?s:s+l;},0);
+    document.getElementById('tbPedidos').innerHTML+=`<tr><td style="font-weight:600">Totais</td><td></td><td style="color:var(--warm);font-size:12px">${todos.length} pedido(s)</td><td></td><td class="money" style="font-weight:600">${brl(somaV)}</td><td class="money" style="font-weight:600;color:var(--ok)">${brl(somaL)}</td><td></td><td></td></tr>`;
   }
   labelize();
 }
@@ -520,9 +542,6 @@ function renderEquipe(){
     const badge=`<span class="papel ${papel}" ${ger&&id!==empresaDono?`style="cursor:pointer" title="Trocar papel" onclick="mudarPapel('${id}')"`:''}>${PAPEL_LABEL[papel]}</span>`;
     return `<div class="membro-chip">${esc(m.nome||'membro')} ${badge}${id===uid?' <button class="icon-btn" title="Editar meu nome" onclick="renomearMe()">✎</button>':(ger&&id!==empresaDono?` <button class="icon-btn" title="Remover" onclick="removerMembro('${id}')">✕</button>`:'')}</div>`;
   }).join('')||'<span style="color:var(--smoke);font-size:13px">Carregando membros…</span>';
-  const minhasAbertas=(db.tarefas||[]).filter(t=>t.resp===uid&&(t.status||'aberta')!=='feita').length;
-  const tabBtn=document.querySelector('[data-tab="equipe"]');
-  if(tabBtn)tabBtn.textContent='Equipe'+(minhasAbertas?' ('+minhasAbertas+')':'');
   const cols=['aberta','fazendo','feita'];const hj=hoje();
   cols.forEach((st,i)=>{
     const cards=(db.tarefas||[]).filter(t=>((t.status||'aberta')===st)&&(!filtroMinhas||t.resp===uid));
@@ -676,7 +695,7 @@ function renderCompras(){
   if(!low.length){box.innerHTML='<div class="empty-t" style="border:1px solid var(--line);border-radius:10px">Nada para comprar — estoque saudável.</div>';return;}
   box.innerHTML=low.map(i=>{const alvo=(i.minimo||0)*2;const comprar=Math.max(0,(alvo-i.estoque));const custo=comprar*Number(i.custo||0);return `<div class="shop-item"><div class="si-l"><div class="n">${esc(i.nome)}</div><div class="s">tem ${i.estoque} ${esc(i.unidade)} · mínimo ${i.minimo}</div></div><div class="si-r"><div class="si-q"><div class="q">+${comprar.toFixed(comprar%1?2:0)} ${esc(i.unidade)}</div><div class="c">≈ ${brl(custo)}</div></div><button class="btn2" onclick="buyDone('${i.id}',${comprar})">✓ Comprei</button></div></div>`;}).join('');
 }
-function renderComprasHist(){const rows=[...(db.compras||[])].reverse();document.getElementById('tbCompras').innerHTML=rows.length?rows.map(c=>{const ins=db.insumos.find(i=>i.id===c.insumo);const q=Number(c.qtd||0),v=Number(c.valor||0);return `<tr><td>${esc(c.data)||'—'}</td><td>${ins?esc(ins.nome):'—'}</td><td>${q} ${ins?esc(ins.unidade):''}</td><td class="money">${brl(v)}</td><td class="money" style="color:var(--smoke)">${q&&v?brl(v/q):'—'}</td><td>${esc(c.fornecedor)||'—'}</td><td>${rowActions('compra',c.id)}</td></tr>`;}).join(''):`<tr><td colspan=7><div class="empty-t">Nenhuma compra registrada.</div></td></tr>`;}
+function renderComprasHist(){const todas=[...(db.compras||[])].reverse();const rows=todas.slice(0,PAG.compras);document.getElementById('tbCompras').innerHTML=(rows.length?rows.map(c=>{const ins=db.insumos.find(i=>i.id===c.insumo);const q=Number(c.qtd||0),v=Number(c.valor||0);return `<tr><td>${esc(c.data)||'—'}</td><td>${ins?esc(ins.nome):'—'}</td><td>${q} ${ins?esc(ins.unidade):''}</td><td class="money">${brl(v)}</td><td class="money" style="color:var(--smoke)">${q&&v?brl(v/q):'—'}</td><td>${esc(c.fornecedor)||'—'}</td><td>${rowActions('compra',c.id)}</td></tr>`;}).join(''):`<tr><td colspan=7><div class="empty-t">Nenhuma compra registrada.</div></td></tr>`)+linhaMais('compras',todas.length,rows.length,7);}
 function renderFixos(){const rows=db.fixos||[];const tot=rows.reduce((s,f)=>s+Number(f.valor||0),0);document.getElementById('tbFixos').innerHTML=rows.length?rows.map(f=>`<tr><td>${esc(f.nome)}</td><td class="money">${brl(f.valor)}</td><td>${rowActions('fixo',f.id)}</td></tr>`).join('')+`<tr><td style="font-weight:600">Total</td><td class="money" style="color:var(--ember)">${brl(tot)}</td><td></td></tr>`:`<tr><td colspan=3><div class="empty-t">Nenhum custo fixo — cadastre aluguel, energia, assinaturas…</div></td></tr>`;}
 function setMeta(){const cur=Number(db.meta||0);const q=prompt('Meta de receita do mês (R$). Vazio ou 0 remove a meta:',cur||'');if(q===null)return;const n=Number(String(q).trim().replace(',','.'));if(!isFinite(n)||n<0){toast('Valor inválido');return;}db.meta=n;cloudSave();renderAll();toast(n?'Meta definida: '+brl(n)+'/mês':'Meta removida');}
 function setMeiTeto(){const cur=Number(db.meiTeto||81000);const q=prompt('Teto anual de faturamento (R$). O padrão do MEI é 81000:',cur);if(q===null)return;const n=Number(String(q).trim().replace(',','.'));if(!isFinite(n)||n<=0){toast('Valor inválido');return;}db.meiTeto=n;cloudSave();renderAll();toast('Teto anual: '+brl(n));}
@@ -727,7 +746,37 @@ function exportDRE(){
 function renderChecks(){document.querySelectorAll('.checklist input').forEach(c=>{c.checked=!!(db.checks&&db.checks[c.dataset.c]);});}
 function saveCheck(){db.checks=db.checks||{};document.querySelectorAll('.checklist input').forEach(c=>db.checks[c.dataset.c]=c.checked);cloudSave();}
 window.saveCheck=saveCheck;
-function renderAll(){if(!uid)return;aplicarPapel();renderDash();renderEquip();renderMoldes();renderInsumos();renderProdutos();renderProducao();renderPedidos();renderClientes();renderCanais();renderCompras();renderComprasHist();renderCotacoes();renderFornecedores();renderFixos();renderEquipe();renderProdMembro();renderAtividade();renderChecks();labelize();}
+// Renderiza apenas a aba visível: antes, cada mudança reconstruía 13 tabelas
+// e 8 gráficos. O badge da Equipe e os rótulos seguem sempre atualizados.
+const RENDER_ABA={
+  dashboard:()=>renderDash(),
+  equip:()=>renderEquip(),
+  moldes:()=>renderMoldes(),
+  insumos:()=>renderInsumos(),
+  compras:()=>{renderCompras();renderComprasHist();renderCotacoes();renderFornecedores();},
+  orcamento:()=>{renderProdutos();renderFixos();},
+  producao:()=>renderProducao(),
+  pedidos:()=>{renderPedidos();renderClientes();renderCanais();},
+  equipe:()=>{renderEquipe();renderProdMembro();renderAtividade();},
+  guia:()=>renderChecks(),
+};
+function abaAtiva(){const b=document.querySelector('#tabs button.active');return (b&&b.dataset.tab)||'dashboard';}
+function subAba(id){
+  document.querySelectorAll('.subtabs button').forEach(b=>{const on=b.dataset.sub===id;b.classList.toggle('active',on);b.setAttribute('aria-selected',on?'true':'false');});
+  document.querySelectorAll('.subpanel').forEach(p=>p.classList.toggle('active',p.id==='s-'+id));
+  renderAll();
+}
+function badgeEquipe(){
+  const n=(db.tarefas||[]).filter(t=>t.resp===uid&&(t.status||'aberta')!=='feita').length;
+  const b=document.querySelector('[data-tab="equipe"]');if(b)b.textContent='Equipe'+(n?' ('+n+')':'');
+}
+function renderAll(){
+  if(!uid)return;
+  aplicarPapel();aplicarRotulos();badgeEquipe();
+  const f=RENDER_ABA[abaAtiva()];
+  if(f)try{f();}catch(e){console.error(e);}
+  labelize();
+}
 
 // formulários (igual antes + baixa de estoque)
 let currentForm={type:null,id:null,recipe:[]};
@@ -805,11 +854,11 @@ function revertPedido(o){
 }
 function applyCompra(o){
   const ins=db.insumos.find(i=>i.id===o.insumo);if(!ins)return;
-  const q=Number(o.qtd||0),v=Number(o.valor||0);
-  o.estoqueAntes=Number(ins.estoque||0);o.custoAntes=Number(ins.custo||0); // snapshot p/ reverter
-  ins.estoque=o.estoqueAntes+q;
-  if(v>0&&(o.estoqueAntes+q)>0){
-    ins.custo=Math.round(((o.estoqueAntes*o.custoAntes)+v)/(o.estoqueAntes+q)*100)/100;
+  o.estoqueAntes=num(ins.estoque);o.custoAntes=num(ins.custo); // snapshot p/ reverter
+  const r=custoMedio(o.estoqueAntes,o.custoAntes,o.qtd,o.valor);
+  ins.estoque=r.estoque;
+  if(r.custo!==o.custoAntes){
+    ins.custo=r.custo;
     setTimeout(()=>toast(`Custo médio de <b>${esc(ins.nome)}</b> atualizado: ${brl(ins.custo)}/${esc(ins.unidade)}`),200);
   }
 }
@@ -824,13 +873,16 @@ function saveForm(){
   if(type==='cotacaoView'){closeModal();return;}
   if(type==='cotacaoSel'){
     const itens=[];document.querySelectorAll('[data-cot]').forEach(ch=>{if(!ch.checked)return;const iid=ch.getAttribute('data-cot');const q=Number((document.getElementById('cotq_'+iid)||{}).value||0);if(q>0)itens.push({insumo:iid,qtd:Math.round(q*100)/100});});
-    if(!itens.length){alert('Marque ao menos um item e informe a quantidade.');return;}
+    if(!itens.length){toast('Marque ao menos um item e informe a quantidade.');return;}
     const alvos=[];document.querySelectorAll('[data-alvo]').forEach(ch=>{if(ch.checked)alvos.push(ch.getAttribute('data-alvo'));});
     gerarCotacaoXlsx(itens,{validade:val('cotValidade')||'',cond:val('cotCond')||'',alvos});
     closeModal();return;
   }
-  if(type==='produto'){obj={nome:val('f_nome'),receita:currentForm.recipe.filter(l=>l.insumo&&l.qtd),minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),markup:val('f_markup'),preco:val('f_preco'),taxa:val('f_taxa'),equip:val('f_equip'),pronto:Number(val('f_pronto')||0),foto:val('f_foto'),publico:!!(document.getElementById('f_publico')||{}).checked};if(!obj.nome){alert('Dê um nome.');return;}}
-  else{FORMS[type].fields.forEach(f=>obj[f.k]=val('f_'+f.k));if(type==='fornecedor')obj.contatos=(currentForm.contatos||[]).filter(c=>c.nome&&c.nome.trim());if(!obj[FORMS[type].fields[0].k]){alert('Preencha o primeiro campo.');return;}}
+  if(type==='produto'){obj={nome:val('f_nome'),receita:currentForm.recipe.filter(l=>l.insumo&&l.qtd),minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),markup:val('f_markup'),preco:val('f_preco'),taxa:val('f_taxa'),equip:val('f_equip'),pronto:Number(val('f_pronto')||0),foto:val('f_foto'),publico:!!(document.getElementById('f_publico')||{}).checked};}
+  else{FORMS[type].fields.forEach(f=>obj[f.k]=val('f_'+f.k));if(type==='fornecedor')obj.contatos=(currentForm.contatos||[]).filter(c=>c.nome&&c.nome.trim());if(!obj[FORMS[type].fields[0].k]){toast('Preencha o primeiro campo.');return;}}
+  // validação de domínio (core.js): impede quantidade negativa, data absurda, taxa fora de 0-100…
+  const erro=validar(type,obj);
+  if(erro){toast('<b>'+esc(erro)+'</b>');return;}
   const list=plural(type);
   if(type==='producao'){
     if(id){const i=db[list].findIndex(x=>x.id===id);const old=db[list][i];revertProducao(old);obj={...old,...obj};delete obj.baixas;delete obj.usosMolde;applyProducao(obj);db[list][i]=obj;}
@@ -842,8 +894,7 @@ function saveForm(){
     if(id){const i=db[list].findIndex(x=>x.id===id);const old=db[list][i];revertPedido(old);obj={...old,...obj};delete obj.baixaPronto;obj.baixado=false;applyPedido(obj);db[list][i]=obj;}
     else{obj.id=uidGen();obj.por=uid;applyPedido(obj);db[list].push(obj);}
   } else if(type==='compra'){
-    if(!obj.insumo){alert('Escolha o insumo.');return;}
-    if(!Number(obj.qtd)){alert('Informe a quantidade.');return;}
+    if(!obj.insumo){toast('Escolha o insumo.');return;}
     if(obj.fornecedorId==='__new')obj.fornecedorId='';
     if(obj.fornecedorId){const f=(db.fornecedores||[]).find(x=>x.id===obj.fornecedorId);if(f)obj.fornecedor=f.nome;}
     if(id){const i=db[list].findIndex(x=>x.id===id);const old=db[list][i];revertCompra(old);obj={...old,...obj};delete obj.estoqueAntes;delete obj.custoAntes;applyCompra(obj);db[list][i]=obj;}
@@ -872,15 +923,6 @@ function renderContatosForn(){const box=document.getElementById('contatosLines')
 function addContatoForn(){currentForm.contatos=currentForm.contatos||[];currentForm.contatos.push({nome:'',cargo:'',whats:''});renderContatosForn();}
 function rmContatoForn(i){currentForm.contatos.splice(i,1);renderContatosForn();}
 function quickFornecedor(sel){const nome=prompt('Nome do fornecedor:');if(!nome){sel.value='';return;}const whats=prompt('WhatsApp (opcional):')||'';const f={id:uidGen(),nome:nome.trim(),whats,obs:''};db.fornecedores=db.fornecedores||[];db.fornecedores.push(f);cloudSave();const o=document.createElement('option');o.value=f.id;o.textContent=f.nome;sel.insertBefore(o,sel.querySelector('option[value="__new"]'));sel.value=f.id;toast('Fornecedor <b>'+esc(f.nome)+'</b> cadastrado');}
-function scoreFornecedor(fid){
-  let resp=0,wins=0,itensTot=0;const prazos=[];
-  (db.cotacoes||[]).forEach(c=>{const r=(c.respostas||[]).find(x=>x.fornecedorId===fid);if(!r)return;resp++;
-    c.itens.forEach(it=>{const meu=r.precos[it.insumo];if(!meu)return;itensTot++;
-      const todos=(c.respostas||[]).map(x=>x.precos[it.insumo]?x.precos[it.insumo].preco:null).filter(p=>p!==null);
-      if(meu.preco===Math.min(...todos))wins++;
-      const pz=Number(meu.prazo);if(isFinite(pz)&&pz>0)prazos.push(pz);});});
-  return{resp,winPct:itensTot?Math.round(wins/itensTot*100):null,prazoMed:prazos.length?Math.round(prazos.reduce((a,b)=>a+b,0)/prazos.length):null};
-}
 function renderFornecedores(){const tb=document.getElementById('tbFornecedores');if(!tb)return;const rows=db.fornecedores||[];
   const rc={'Baixo':'ok','Médio':'warn','Alto':'low'};
   tb.innerHTML=rows.length?rows.map(f=>{
@@ -909,7 +951,28 @@ async function publicarCatalogo(){
     toast('Catálogo publicado — link copiado! '+itens.length+' peça(s)');
   }catch(e){console.error(e);toast('Erro ao publicar: atualize as regras do Firestore (docs/firestore.rules)');}
 }
-function closeModal(){if(timerInt){clearInterval(timerInt);timerInt=null;}timerT0=null;document.getElementById('overlay').classList.remove('open');}
+function closeModal(){
+  if(timerInt){clearInterval(timerInt);timerInt=null;}timerT0=null;
+  document.getElementById('overlay').classList.remove('open');
+  if(focoAnterior&&focoAnterior.focus){try{focoAnterior.focus();}catch(e){}focoAnterior=null;} // devolve o foco a quem abriu
+}
+// acessibilidade do modal: foco entra ao abrir, circula com Tab e volta ao fechar
+let focoAnterior=null;
+const _ov=document.getElementById('overlay');
+new MutationObserver(()=>{
+  if(!_ov.classList.contains('open'))return;
+  focoAnterior=focoAnterior||document.activeElement;
+  const alvo=_ov.querySelector('input:not([type=hidden]),select,textarea,button');
+  if(alvo&&!_ov.contains(document.activeElement))setTimeout(()=>{try{alvo.focus();}catch(e){}},30);
+}).observe(_ov,{attributes:true,attributeFilter:['class']});
+_ov.addEventListener('keydown',e=>{
+  if(e.key!=='Tab')return;
+  const f=[..._ov.querySelectorAll('input:not([type=hidden]),select,textarea,button,a[href]')].filter(el=>el.offsetParent!==null);
+  if(!f.length)return;
+  const primeiro=f[0],ultimo=f[f.length-1];
+  if(e.shiftKey&&document.activeElement===primeiro){e.preventDefault();ultimo.focus();}
+  else if(!e.shiftKey&&document.activeElement===ultimo){e.preventDefault();primeiro.focus();}
+});
 document.getElementById('overlay').onclick=e=>{if(e.target.id==='overlay')closeModal();};
 
 // ---------- exportações ----------
