@@ -34,6 +34,14 @@ produção) sem valores de venda, lucro ou metas.
 - **Clientes** com WhatsApp clicável e histórico de compras
 - **Catálogo público** (`catalogo.html?u=...`): vitrine das peças marcadas como públicas,
   com foto, preço e botão de encomenda pelo WhatsApp — link para a bio do Instagram
+- **Portal do cliente** (`pedido.html?p=...`): link onde ele acompanha a encomenda
+  (etapa, prazo, saldo) e que se atualiza sozinho quando você muda o pedido
+- **Portal do fornecedor** (`cotacao.html?c=...`): ele preenche a cotação online,
+  sem login e sem Excel — e você importa as propostas com um clique
+- **Reposição preditiva**: cruza seu consumo diário com o prazo do fornecedor
+  ("peça o gesso até 12/08 — acaba dia 20 e a entrega leva 6 dias")
+- **Alerta de preço defasado**: avisa quando o custo subiu e o preço ficou para trás
+- **Sazonalidade**: com um ano de histórico, mostra os meses fortes e antecipa os picos
 - **Busca e filtro por mês** em produção e pedidos; **desfazer** ao excluir
 - **Lucro por hora de trabalho** por produto (tabela e gráfico) e **acompanhamento do teto MEI**
 - No celular, as tabelas viram **cartões** legíveis

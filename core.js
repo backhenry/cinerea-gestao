@@ -121,6 +121,112 @@ export function diasEstoque(insumo, producao, hojeISO, janela = 90) {
   return Math.round(num(insumo.estoque) / (cons / janela));
 }
 
+// ---------- reposição preditiva ----------
+// Cruza o consumo diário (dias de estoque) com o prazo de entrega do fornecedor:
+// diz ATÉ QUANDO pedir para o material não faltar.
+export function previsaoReposicao(insumo, ctx) {
+  const { producao = [], cotacoes = [], fornecedores = [], compras = [], hojeISO = hoje(), janela = 90 } = ctx || {};
+  const dias = diasEstoque(insumo, producao, hojeISO, janela);
+  if (dias === null) return null; // sem consumo registrado: nada a prever
+
+  // prazo do fornecedor: melhor score entre os que já cotaram este insumo;
+  // se ninguém cotou, usa o prazo médio geral; se nada disso, assume 7 dias.
+  let prazo = null, fornecedor = null;
+  const candidatos = (fornecedores || []).map(f => {
+    const s = scoreFornecedor(f.id, cotacoes);
+    const cotouEste = (cotacoes || []).some(c =>
+      (c.respostas || []).some(r => r.fornecedorId === f.id && r.precos && r.precos[insumo.id]));
+    return { f, s, cotouEste };
+  }).filter(x => x.s.prazoMed !== null);
+
+  const doInsumo = candidatos.filter(x => x.cotouEste);
+  const pool = doInsumo.length ? doInsumo : candidatos;
+  if (pool.length) {
+    // menor prazo entre os candidatos
+    const melhor = pool.reduce((a, b) => (a.s.prazoMed <= b.s.prazoMed ? a : b));
+    prazo = melhor.s.prazoMed;
+    fornecedor = melhor.f.nome;
+  }
+  // sem histórico de cotação: tenta o último fornecedor que vendeu este insumo
+  if (prazo === null) {
+    const ult = (compras || []).filter(c => c.insumo === insumo.id && c.fornecedor).sort((a, b) => (a.data || '') < (b.data || '') ? 1 : -1)[0];
+    if (ult) fornecedor = ult.fornecedor;
+    prazo = 7;
+  }
+
+  const base = new Date(hojeISO + 'T12:00:00');
+  const acaba = new Date(base); acaba.setDate(acaba.getDate() + dias);
+  const pedirAte = new Date(acaba); pedirAte.setDate(pedirAte.getDate() - prazo);
+  const diasAtePedir = Math.round((pedirAte - base) / 86400000);
+
+  return {
+    dias, prazo, fornecedor,
+    acabaEm: hoje(acaba),
+    pedirAte: hoje(pedirAte),
+    diasAtePedir,
+    urgente: diasAtePedir <= 0,      // já passou da hora
+    atencao: diasAtePedir > 0 && diasAtePedir <= 7,
+  };
+}
+
+// ---------- preço defasado ----------
+// Compara a margem de hoje com a margem de referência (gravada quando o preço
+// foi definido). Sem referência, usa o markup do produto como alvo.
+export function precoDefasado(p, db, tolerancia = 5) {
+  const atual = precoProduto(p, db);
+  if (!num(p.preco)) return null;             // preço automático acompanha o custo
+  const refPct = p.margemRef !== undefined && p.margemRef !== ''
+    ? num(p.margemRef)
+    : (atual.markup > 0 ? Math.round((1 - 1 / atual.markup) * 100) : null);
+  if (refPct === null) return null;
+  const queda = refPct - atual.margemPct;
+  if (queda < tolerancia) return null;
+  // preço que devolveria a margem de referência (considerando a taxa)
+  const taxaFrac = num(p.taxa) / 100;
+  const denom = (1 - refPct / 100 - taxaFrac);
+  const sugerido = denom > 0 ? atual.custo / denom : atual.custo * atual.markup;
+  return {
+    margemAtual: atual.margemPct, margemRef: refPct, queda,
+    precoAtual: atual.praticado, sugerido: Math.ceil(sugerido), custo: atual.custo,
+  };
+}
+
+// ---------- sazonalidade ----------
+// Índice por mês (1 = média). Precisa de pelo menos `minMeses` meses com venda.
+export function sazonalidade(pedidos, hojeISO = hoje(), minMeses = 12) {
+  const porMes = {};
+  (pedidos || []).forEach(p => {
+    if (p.situacao !== 'Pago' && p.situacao !== 'Entregue') return;
+    const m = (p.data || '').slice(0, 7);
+    if (!m) return;
+    porMes[m] = (porMes[m] || 0) + num(p.valor);
+  });
+  const meses = Object.keys(porMes);
+  if (meses.length < minMeses) return { pronto: false, meses: meses.length, faltam: minMeses - meses.length };
+
+  // média por mês do calendário (1-12), normalizada pela média geral
+  const soma = Array(13).fill(0), cont = Array(13).fill(0);
+  meses.forEach(m => { const i = Number(m.slice(5, 7)); soma[i] += porMes[m]; cont[i]++; });
+  const medias = [];
+  for (let i = 1; i <= 12; i++) medias[i] = cont[i] ? soma[i] / cont[i] : null;
+  const validos = medias.filter(v => v !== null && v > 0);
+  const geral = validos.length ? validos.reduce((a, b) => a + b, 0) / validos.length : 0;
+  if (!geral) return { pronto: false, meses: meses.length, faltam: 0 };
+
+  const indices = [];
+  for (let i = 1; i <= 12; i++) indices[i] = medias[i] === null ? null : Math.round(medias[i] / geral * 100) / 100;
+
+  // próximos 3 meses e se são de pico (índice ≥ 1,2)
+  const mAtual = Number(hojeISO.slice(5, 7));
+  const NOMES = ['', 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  const proximos = [1, 2, 3].map(d => {
+    const i = ((mAtual - 1 + d) % 12) + 1;
+    return { mes: i, nome: NOMES[i], indice: indices[i], pico: indices[i] !== null && indices[i] >= 1.2 };
+  });
+  const melhor = indices.reduce((best, v, i) => (v !== null && (best === null || v > indices[best]) ? i : best), null);
+  return { pronto: true, indices, proximos, melhorMes: melhor, melhorNome: NOMES[melhor], mediaGeral: geral };
+}
+
 // ---------- ponto de equilíbrio ----------
 export function pontoEquilibrio(produtos, fixos, db) {
   const margens = (produtos || []).map(p => precoProduto(p, db).margem).filter(m => m > 0);

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acompanhe sua encomenda</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#F2EFEA;--ash:#E7E3DC;--char:#1C1A17;--ember:#B5462A;--smoke:#6E6862;--line:#D8D2C8;--warm:#8A7E70;--ok:#3F7D5B}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--char);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;padding:0 20px 60px}
+  .wrap{max-width:480px;margin:0 auto}
+  header{text-align:center;padding:48px 0 28px}
+  header .sym{width:46px;margin:0 auto 16px;display:block}
+  header h1{font-family:'Fraunces',serif;font-weight:400;font-size:30px}
+  header .tag{font-family:'Fraunces',serif;font-style:italic;color:var(--smoke);margin-top:4px}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:16px}
+  .l{display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+  .l:last-child{border-bottom:none}
+  .l span{color:var(--smoke)}
+  .l b{text-align:right}
+  .money{font-family:'Fraunces',serif;font-size:17px}
+  .pill{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500}
+  .pill.ok{background:rgba(63,125,91,.14);color:var(--ok)}
+  .pill.warn{background:rgba(192,138,46,.16);color:#8A6510}
+  .pill.low{background:rgba(181,70,42,.14);color:var(--ember)}
+  /* linha do tempo do pedido */
+  .steps{display:flex;flex-direction:column;gap:0;margin:6px 0 4px}
+  .step{display:flex;gap:14px;align-items:flex-start;padding:0 0 18px;position:relative}
+  .step:last-child{padding-bottom:0}
+  .step .dot{width:14px;height:14px;border-radius:50%;background:var(--ash);border:2px solid var(--line);flex-shrink:0;margin-top:2px;z-index:1}
+  .step.done .dot{background:var(--ok);border-color:var(--ok)}
+  .step.cur .dot{background:var(--ember);border-color:var(--ember);box-shadow:0 0 0 4px rgba(181,70,42,.15)}
+  .step:not(:last-child)::before{content:'';position:absolute;left:6px;top:16px;bottom:0;width:2px;background:var(--line)}
+  .step.done:not(:last-child)::before{background:var(--ok)}
+  .step .t{font-size:14.5px;font-weight:500}
+  .step .s{font-size:12.5px;color:var(--smoke);margin-top:2px}
+  .step:not(.done):not(.cur) .t{color:var(--warm);font-weight:400}
+  .msg{text-align:center;color:var(--smoke);font-family:'Fraunces',serif;font-style:italic;padding:60px 20px;font-size:17px}
+  .wa{display:block;text-align:center;background:var(--char);color:var(--paper);text-decoration:none;padding:15px;border-radius:10px;font-size:14px;margin-top:8px}
+  .wa:hover{background:var(--ember)}
+  footer{text-align:center;color:var(--warm);font-size:12px;padding:26px 0}
+  @media(prefers-color-scheme:dark){
+    :root{--paper:#201D19;--ash:#2A2621;--char:#EDE8E0;--smoke:#B4ABA0;--line:#3B362F;--warm:#9C9286}
+    header .sym path{stroke:#EDE8E0}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg class="sym" viewBox="0 0 150 150" fill="none"><path d="M108 46 C97 31,70 28,53 42 C36 56,36 94,53 108 C70 122,97 119,108 104" stroke="#1C1A17" stroke-width="7" fill="none" stroke-linecap="round"/><circle cx="112" cy="75" r="9" fill="#B5462A"/></svg>
+    <h1 id="marca">Sua encomenda</h1>
+    <div class="tag">acompanhe por aqui</div>
+  </header>
+  <div class="msg" id="msg">Carregando…</div>
+  <div id="conteudo" hidden></div>
+  <footer id="rodape"></footer>
+</div>
+
+<script src="config.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const brl=n=>'R$ '+(Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const dataBR=d=>d?String(d).split('-').reverse().join('/'):'';
+
+const msg=document.getElementById('msg'),cont=document.getElementById('conteudo');
+const token=new URLSearchParams(location.search).get('p');
+const cfg=window.CINEREA_CONFIG;
+
+// a etapa (0-3) vem pronta do sistema — o portal não precisa conhecer o
+// vocabulário de status do app
+const ETAPAS=[
+  {t:'Pedido recebido',s:'Estamos com a sua encomenda anotada'},
+  {t:'Pagamento confirmado',s:'Obrigado! Já podemos produzir'},
+  {t:'Em produção',s:'Sua peça está sendo feita à mão'},
+  {t:'Entregue',s:'Esperamos que você ame 🕯️'},
+];
+
+function render(d){
+  const cancelado=d.cancelado===true;
+  const idx=Math.max(0,Math.min(3,Number(d.etapa||0)));
+  const falta=Math.max(0,Number(d.valor||0)-Number(d.pago||0));
+  const atrasado=d.prazo&&idx<3&&!cancelado&&d.prazo<new Date().toISOString().slice(0,10);
+
+  if(d.empresa){document.getElementById('marca').textContent=d.empresa;document.title=d.empresa+' — sua encomenda';}
+
+  const passos=cancelado
+    ? `<div class="step cur"><div class="dot"></div><div><div class="t">Pedido cancelado</div><div class="s">Fale com a gente se tiver dúvida</div></div></div>`
+    : ETAPAS.map((e,i)=>`<div class="step ${i<idx?'done':i===idx?'cur':''}"><div class="dot"></div><div><div class="t">${e.t}</div><div class="s">${i<=idx?e.s:''}</div></div></div>`).join('');
+
+  cont.innerHTML=`
+    <div class="card">
+      <div class="steps">${passos}</div>
+    </div>
+    <div class="card">
+      <div class="l"><span>Item</span><b>${esc(d.item||'—')}</b></div>
+      ${d.qtd&&Number(d.qtd)>1?`<div class="l"><span>Quantidade</span><b>${esc(d.qtd)}</b></div>`:''}
+      ${d.prazo?`<div class="l"><span>Entrega prevista</span><b>${dataBR(d.prazo)} ${atrasado?'<span class="pill low">atrasada</span>':''}</b></div>`:''}
+      <div class="l"><span>Valor</span><b class="money">${brl(d.valor)}</b></div>
+      ${Number(d.pago||0)>0?`<div class="l"><span>Já recebido</span><b class="money" style="color:var(--ok)">${brl(d.pago)}</b></div>
+        <div class="l"><span>Saldo</span><b class="money" style="color:${falta?'var(--ember)':'var(--ok)'}">${falta?brl(falta):'quitado ✓'}</b></div>`:''}
+    </div>
+    ${d.whats?`<a class="wa" href="https://wa.me/${esc(d.whats)}?text=${encodeURIComponent('Oi! Queria falar sobre a minha encomenda: '+(d.item||''))}" target="_blank" rel="noopener">Falar no WhatsApp</a>`:''}`;
+  document.getElementById('rodape').textContent=(d.empresa||'')+' · feito à mão';
+  msg.hidden=true;cont.hidden=false;
+}
+
+if(!token||!cfg||!cfg.apiKey||cfg.apiKey==='COLE_AQUI'){
+  msg.textContent='Link inválido. Peça um novo para quem te enviou.';
+}else{
+  try{
+    const fdb=getFirestore(initializeApp(cfg));
+    // onSnapshot: se a situação mudar no sistema, a página do cliente atualiza sozinha
+    onSnapshot(doc(fdb,'portal',token),snap=>{
+      if(!snap.exists()){msg.textContent='Encomenda não encontrada. O link pode ter expirado.';cont.hidden=true;msg.hidden=false;return;}
+      render(snap.data());
+    },err=>{console.error(err);msg.textContent='Não foi possível carregar agora. Tente de novo em instantes.';});
+  }catch(e){console.error(e);msg.textContent='Não foi possível carregar agora.';}
+}
+</script>
+</body>
+</html>

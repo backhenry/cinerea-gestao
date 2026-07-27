@@ -44,8 +44,10 @@ jobs:
         run: |
           node --check app.js
           node --check core.js
-          awk '/<script type="module">/{f=1;next}/<\/script>/{f=0}f' catalogo.html > /tmp/cat.mjs
-          node --check /tmp/cat.mjs
+          for p in catalogo pedido cotacao; do
+            awk '/<script type="module">/{f=1;next}/<\/script>/{f=0}f' $p.html > /tmp/$p.mjs
+            node --check /tmp/$p.mjs
+          done
           node --check sw.js
       - name: Gerar config.js a partir do secret
         env:

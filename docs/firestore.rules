@@ -93,5 +93,36 @@ service cloud.firestore {
       allow read: if true;
       allow write: if ehMembro(cid);
     }
+
+    // Portal do cliente: doc com o MÍNIMO do pedido (item, valor, saldo, etapa).
+    // O token no id é o segredo — quem tem o link lê; só membros escrevem.
+    match /portal/{token} {
+      allow read: if true;
+      allow write: if request.auth != null && ehMembro(request.resource.data.empresaId);
+      allow delete: if request.auth != null && ehMembro(resource.data.empresaId);
+    }
+
+    // Portal do fornecedor: a cotação é pública (via token) e ele envia a
+    // proposta sem login. Escrita anônima é permitida SOMENTE para criar uma
+    // resposta, com formato e tamanho limitados — nunca ler as dos outros,
+    // nem alterar ou apagar o que já foi enviado.
+    match /rfq/{token} {
+      allow read: if true;
+      allow write: if request.auth != null && ehMembro(request.resource.data.empresaId);
+
+      match /respostas/{r} {
+        allow create: if request.resource.data.keys().hasOnly(['fornecedor','precos','criado'])
+          && request.resource.data.fornecedor is string
+          && request.resource.data.fornecedor.size() > 0
+          && request.resource.data.fornecedor.size() <= 120
+          && request.resource.data.precos is map
+          && request.resource.data.precos.keys().size() <= 100
+          && !get(/databases/$(database)/documents/rfq/$(token)).data.get('fechada', false);
+        // só a empresa dona da cotação lê as propostas recebidas
+        allow read: if request.auth != null
+          && ehMembro(get(/databases/$(database)/documents/rfq/$(token)).data.empresaId);
+        allow update, delete: if false;
+      }
+    }
   }
 }

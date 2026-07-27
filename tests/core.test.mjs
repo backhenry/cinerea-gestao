@@ -240,6 +240,127 @@ test('sementeRamo vazio não cria nada', () => {
   assert.equal(s.moldes.length, 0);
 });
 
+// ---------- reposição preditiva ----------
+test('previsaoReposicao cruza consumo com prazo do fornecedor', () => {
+  const insumo = { id: 'i1', nome: 'Gesso', estoque: 30 };
+  // 90 kg em 90 dias = 1/dia → acaba em 30 dias
+  const producao = [{ data: '2026-07-20', baixas: [{ insumo: 'i1', qtd: 90 }] }];
+  const cotacoes = [{
+    itens: [{ insumo: 'i1', qtd: 1 }],
+    respostas: [{ fornecedorId: 'f1', precos: { i1: { preco: 10, prazo: 6 } } }],
+  }];
+  const fornecedores = [{ id: 'f1', nome: 'Casa do Gesso' }];
+  const r = C.previsaoReposicao(insumo, { producao, cotacoes, fornecedores, hojeISO: '2026-07-27' });
+  assert.equal(r.dias, 30);
+  assert.equal(r.prazo, 6);
+  assert.equal(r.fornecedor, 'Casa do Gesso');
+  assert.equal(r.acabaEm, '2026-08-26');
+  assert.equal(r.pedirAte, '2026-08-20');   // 6 dias antes de acabar
+  assert.equal(r.diasAtePedir, 24);
+  assert.equal(r.urgente, false);
+});
+
+test('previsaoReposicao marca urgente quando já passou da hora', () => {
+  const insumo = { id: 'i1', nome: 'Gesso', estoque: 3 };
+  const producao = [{ data: '2026-07-20', baixas: [{ insumo: 'i1', qtd: 90 }] }]; // 1/dia → 3 dias
+  const cotacoes = [{ itens: [{ insumo: 'i1', qtd: 1 }], respostas: [{ fornecedorId: 'f1', precos: { i1: { preco: 10, prazo: 6 } } }] }];
+  const r = C.previsaoReposicao(insumo, { producao, cotacoes, fornecedores: [{ id: 'f1', nome: 'X' }], hojeISO: '2026-07-27' });
+  assert.equal(r.urgente, true);
+  assert.ok(r.diasAtePedir < 0);
+});
+
+test('previsaoReposicao escolhe o fornecedor mais rápido que cotou o insumo', () => {
+  const insumo = { id: 'i1', estoque: 30 };
+  const producao = [{ data: '2026-07-20', baixas: [{ insumo: 'i1', qtd: 90 }] }];
+  const cotacoes = [{
+    itens: [{ insumo: 'i1', qtd: 1 }],
+    respostas: [
+      { fornecedorId: 'f1', precos: { i1: { preco: 10, prazo: 9 } } },
+      { fornecedorId: 'f2', precos: { i1: { preco: 12, prazo: 3 } } },
+    ],
+  }];
+  const r = C.previsaoReposicao(insumo, {
+    producao, cotacoes,
+    fornecedores: [{ id: 'f1', nome: 'Lenta' }, { id: 'f2', nome: 'Rápida' }],
+    hojeISO: '2026-07-27',
+  });
+  assert.equal(r.prazo, 3);
+  assert.equal(r.fornecedor, 'Rápida');
+});
+
+test('previsaoReposicao assume 7 dias sem histórico de cotação', () => {
+  const insumo = { id: 'i1', estoque: 30 };
+  const producao = [{ data: '2026-07-20', baixas: [{ insumo: 'i1', qtd: 90 }] }];
+  const r = C.previsaoReposicao(insumo, { producao, hojeISO: '2026-07-27' });
+  assert.equal(r.prazo, 7);
+  assert.equal(r.fornecedor, null);
+});
+
+test('previsaoReposicao devolve null sem consumo', () => {
+  assert.equal(C.previsaoReposicao({ id: 'i1', estoque: 10 }, { producao: [], hojeISO: '2026-07-27' }), null);
+});
+
+// ---------- preço defasado ----------
+test('precoDefasado detecta margem corroída pelo custo', () => {
+  const d = db();
+  // margem de referência 74%; encarece o gesso de 10 para 40
+  const p = { ...d.produtos[0], margemRef: 74 };
+  d.insumos[0].custo = 40;
+  const r = C.precoDefasado(p, d);
+  assert.ok(r, 'deveria acusar defasagem');
+  assert.equal(r.margemRef, 74);
+  assert.ok(r.margemAtual < 74);
+  assert.ok(r.sugerido > r.precoAtual);
+});
+
+test('precoDefasado fica quieto quando a margem se manteve', () => {
+  const d = db();
+  assert.equal(C.precoDefasado({ ...d.produtos[0], margemRef: 74 }, d), null);
+});
+
+test('precoDefasado ignora produto sem preço fixo (segue o custo)', () => {
+  const d = db();
+  assert.equal(C.precoDefasado({ ...d.produtos[0], preco: '' }, d), null);
+});
+
+test('precoDefasado usa o markup como referência quando não há margemRef', () => {
+  const d = db();
+  d.insumos[0].custo = 60;                 // custo dispara
+  const r = C.precoDefasado(d.produtos[0], d);
+  assert.ok(r);
+  assert.equal(r.margemRef, 67);           // markup 3 ≈ 67% de margem
+});
+
+// ---------- sazonalidade ----------
+const vendasAno = (ano, valores) => valores.map((v, i) =>
+  ({ data: `${ano}-${String(i + 1).padStart(2, '0')}-15`, situacao: 'Pago', valor: v }));
+
+test('sazonalidade avisa que falta histórico', () => {
+  const r = C.sazonalidade(vendasAno(2026, [100, 100, 100]), '2026-07-27');
+  assert.equal(r.pronto, false);
+  assert.equal(r.meses, 3);
+  assert.equal(r.faltam, 9);
+});
+
+test('sazonalidade identifica o pico do ano', () => {
+  // dezembro triplica
+  const meses = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 300];
+  const r = C.sazonalidade(vendasAno(2025, meses), '2026-07-27');
+  assert.equal(r.pronto, true);
+  assert.equal(r.melhorMes, 12);
+  assert.equal(r.melhorNome, 'dezembro');
+  assert.ok(r.indices[12] > 1.2);
+  assert.ok(r.indices[1] < 1);
+});
+
+test('sazonalidade aponta pico entre os próximos meses', () => {
+  const meses = [100, 100, 100, 100, 400, 100, 100, 100, 100, 100, 100, 100]; // maio forte
+  const r = C.sazonalidade(vendasAno(2025, meses), '2026-03-10');
+  const maio = r.proximos.find(x => x.mes === 5);
+  assert.ok(maio, 'maio deveria estar entre os próximos 3 meses');
+  assert.equal(maio.pico, true);
+});
+
 test('brl formata em real brasileiro', () => {
   assert.equal(C.brl(1234.5), 'R$ 1.234,50');
   assert.equal(C.brl(0), 'R$ 0,00');

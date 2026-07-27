@@ -154,6 +154,28 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
   alvos de 32px. Tema escuro recalibrado — texto secundário 7,4:1 (WCAG AA).
 - Aba Compras dividida em sub-abas (lista/histórico/cotações/fornecedores).
 
+## Expansões (jul/2026)
+- REPOSIÇÃO PREDITIVA: Core.previsaoReposicao() cruza diasEstoque (consumo 90d)
+  com o prazo do fornecedor (scoreFornecedor.prazoMed, preferindo quem já cotou
+  aquele insumo; 7d de padrão). Diz "pedir até DD/MM"; alerta no Painel e dica
+  na tabela de Insumos.
+- PREÇO DEFASADO: Core.precoDefasado() compara a margem de hoje com `margemRef`
+  (gravada no produto sempre que um preço manual é salvo; sem ela, usa o markup).
+  Alerta no Painel + marca na tabela de Orçamento, com preço sugerido.
+- SAZONALIDADE: Core.sazonalidade() → índice por mês do calendário (1 = média),
+  exige 12 meses com venda; gráfico chSaz + nota sobre os próximos picos.
+- PORTAL DO CLIENTE (`pedido.html?p={token}`): doc `portal/{token}` com o mínimo
+  (item, valor, pago, prazo, etapa 0-3, whats). Botão 🔗 no pedido publica e manda
+  pelo WhatsApp; syncPortal() reescreve ao editar o pedido ou registrar pagamento
+  (onSnapshot no portal = cliente vê mudar ao vivo). Status novo "Em produção".
+- PORTAL DO FORNECEDOR (`cotacao.html?c={token}`): doc `rfq/{token}` público com
+  os itens; fornecedor envia proposta SEM login em `rfq/{token}/respostas` (create
+  restrito por regra: só 3 campos, nome ≤120, ≤100 preços, bloqueado se `fechada`;
+  sem read/update/delete para anônimos). No app: 🌐 publica/copia link, ⬇ importa
+  respostas novas (dedupe por `rfqLidas`, cria fornecedor se preciso), 🔒 encerra.
+  O Excel continua valendo — os dois caminhos caem na mesma lista de respostas.
+  Campos de preço são type=text + inputmode=decimal (aceitam vírgula e ponto).
+
 ## Pendente / próximo
 - Domínio próprio: passos no README (exige compra do domínio pelo dono).
 - Push com app fechado (FCM + backend) se a equipe sentir falta.

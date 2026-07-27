@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, verifyBeforeUpdateEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, setDoc, updateDoc, deleteDoc, deleteField, arrayUnion, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, arrayUnion, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as Core from "./core.js";
 
 // ============================================================
@@ -63,7 +63,7 @@ try{aplicarPrefs(JSON.parse(localStorage.getItem('cinereaPrefs')||'{}'));}catch(
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if((window.__prefs||{}).tema==='auto')aplicarPrefs(window.__prefs);});
 let charts={};
 
-Object.assign(window,{doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,del,addRecipeLine,rmRecipeLine,updateCost,exportCSV,exportPDF,exportCompras,saveCheck,buyDone,exportJSON,importJSON,setMeta,setMeiTeto,quickCliente,publicarCatalogo,doUndo,renderProducao,renderPedidos,fP,fV,criarEmpresaUI,entrarEmpresaUI,gerarConvite,removerMembro,renomearMe,moveTarefa,repetir,toggleTimer,exportDRE,openPerfil,sairEmpresa,esqueciSenha,toggleMinhas,mudarPapel,dragTarefa,dropTarefa,addComent,gerarCotacao,importarCotacao,verCotacao,usarPrecoCotacao,verPrecos,criarTarefaProducao,addPagamento,arquivarAno,pedirNotifs,quickFornecedor,reciboPedido,cobrarPedido,duplicarProduto,verArquivo,abrirBusca,renderBusca,addContatoForn,rmContatoForn,setPeriodoDash,enviarCotacaoWhats,imprimirCotacao,subAba,maisLinhas});
+Object.assign(window,{doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,del,addRecipeLine,rmRecipeLine,updateCost,exportCSV,exportPDF,exportCompras,saveCheck,buyDone,exportJSON,importJSON,setMeta,setMeiTeto,quickCliente,publicarCatalogo,doUndo,renderProducao,renderPedidos,fP,fV,criarEmpresaUI,entrarEmpresaUI,gerarConvite,removerMembro,renomearMe,moveTarefa,repetir,toggleTimer,exportDRE,openPerfil,sairEmpresa,esqueciSenha,toggleMinhas,mudarPapel,dragTarefa,dropTarefa,addComent,gerarCotacao,importarCotacao,verCotacao,usarPrecoCotacao,verPrecos,criarTarefaProducao,addPagamento,arquivarAno,pedirNotifs,quickFornecedor,reciboPedido,cobrarPedido,duplicarProduto,verArquivo,abrirBusca,renderBusca,addContatoForn,rmContatoForn,setPeriodoDash,enviarCotacaoWhats,imprimirCotacao,subAba,maisLinhas,compartilharPedido,linkCotacao,buscarRespostasOnline,fecharRfq});
 
 if(!isConfigured){document.getElementById('gateSetup').style.display='block';}
 else{
@@ -173,7 +173,7 @@ function pode(cap){const p=meuPapel();if(cap==='gerir')return p==='dono'||p==='a
 function aplicarPapel(){
   const fin=pode('fin'),ger=pode('gerir');
   const tabOrc=document.querySelector('[data-tab="orcamento"]');if(tabOrc)tabOrc.style.display=fin?'':'none';
-  ['chCusto','chMargem','chRec','chMes','chLph','chSemana','abcBox','topCliBox'].forEach(id=>{const el=document.getElementById(id);if(el){const card=el.closest('.chartcard');if(card)card.style.display=fin?'':'none';}});
+  ['chCusto','chMargem','chRec','chMes','chLph','chSemana','abcBox','topCliBox','chSaz'].forEach(id=>{const el=document.getElementById(id);if(el){const card=el.closest('.chartcard');if(card)card.style.display=fin?'':'none';}});
   const per=document.getElementById('perDash');if(per)per.style.display=fin?'':'none';
   document.querySelectorAll('#p-dashboard .head-btns .btn2').forEach(b=>b.style.display=fin?'':'none');
   const conv=document.querySelector('[onclick="gerarConvite()"]');if(conv)conv.style.display=ger?'':'none';
@@ -403,6 +403,8 @@ function calcCusto(p){
 function lucroPedido(p){return Core.lucroPedido(p,db);}
 function diasEstoque(i){return Core.diasEstoque(i,db.producao,hoje());}
 function scoreFornecedor(fid){return Core.scoreFornecedor(fid,db.cotacoes);}
+function previsao(i){return Core.previsaoReposicao(i,{producao:db.producao,cotacoes:db.cotacoes,fornecedores:db.fornecedores,compras:db.compras,hojeISO:hoje()});}
+function precoDefasado(p){return Core.precoDefasado(p,db);}
 function labelize(){document.querySelectorAll('.tablewrap table').forEach(t=>{const hs=[...t.querySelectorAll('thead th')].map(h=>h.textContent.trim());t.querySelectorAll('tbody tr').forEach(tr=>{[...tr.children].forEach((td,i)=>td.setAttribute('data-l',td.hasAttribute('colspan')?'':(hs[i]||'')));});});}
 function fillMeses(selId,rows,cur){const sel=document.getElementById(selId);if(!sel)return;const ms=[...new Set(rows.map(r=>(r.data||'').slice(0,7)).filter(Boolean))].sort().reverse();sel.innerHTML='<option value="">todos os meses</option>'+ms.map(m=>`<option ${m===cur?'selected':''}>${m}</option>`).join('');}
 
@@ -450,6 +452,21 @@ function renderDash(){
   let a=[];lowIns.forEach(i=>a.push(`Repor <b>${esc(i.nome)}</b> — restam ${i.estoque} ${esc(i.unidade)}`));lowMold.forEach(m=>a.push(`Molde <b>${esc(m.nome)}</b> — ${m.usos}/${m.vida}`));
   const tamKB=Math.round(JSON.stringify(db).length/1024);
   if(tamKB>700)a.push(`⚠ Os dados estão com <b>${tamKB} KB</b> (limite ~1000). Use o botão <b>Arquivar ano</b> para mover registros antigos.`);
+  // reposição preditiva: cruza consumo diário com o prazo do fornecedor
+  db.insumos.forEach(i=>{
+    const p=previsao(i);
+    if(!p||(!p.urgente&&!p.atencao))return;
+    const quem=p.fornecedor?` (${esc(p.fornecedor)}, ~${p.prazo}d)`:` (prazo ~${p.prazo}d)`;
+    a.push(p.urgente
+      ?`🛒 <b>${esc(i.nome)}</b>: peça <b>hoje</b> — acaba em ${p.dias} dia(s) e a entrega leva ${p.prazo}${quem.replace(`, ~${p.prazo}d`,'')}`
+      :`🛒 <b>${esc(i.nome)}</b>: peça até <b>${p.pedirAte.split('-').reverse().join('/')}</b> — acaba em ${p.acabaEm.split('-').reverse().join('/')}${quem}`);
+  });
+  // preço defasado: custo subiu e o preço praticado ficou para trás
+  if(pode('fin'))db.produtos.forEach(p=>{
+    const d=precoDefasado(p);
+    if(!d)return;
+    a.push(`💰 <b>${esc(p.nome)}</b>: margem caiu de ${d.margemRef}% para <b>${d.margemAtual}%</b> — preço sugerido ${brl(d.sugerido)} (hoje ${brl(d.precoAtual)})`);
+  });
   // alerta de inflação: última compra bem acima do custo médio anterior
   db.insumos.forEach(i=>{
     const comprasIns=(db.compras||[]).filter(c=>c.insumo===i.id&&Number(c.qtd)>0&&Number(c.valor)>0).sort((x,y)=>(x.data||'')<(y.data||'')?-1:1);
@@ -491,6 +508,23 @@ function renderCharts(){
   const totAbc=abc.reduce((s,x)=>s+x.v,0);let acum=0;
   const abcBox=document.getElementById('abcBox');
   if(abcBox)abcBox.innerHTML=abc.length?abc.slice(0,8).map(x=>{acum+=x.v;const pct=totAbc?acum/totAbc*100:0;const cl=pct<=80?'A':pct<=95?'B':'C';return `<div class="prazo-item"><span><span class="pill ${cl==='A'?'ok':cl==='B'?'warn':'low'}">${cl}</span> ${esc(x.nome)}</span><b>${brl(x.v)} · ${totAbc?Math.round(x.v/totAbc*100):0}%</b></div>`;}).join(''):'<div class="empty-t" style="padding:16px">Sem vendas no período.</div>';
+  // sazonalidade: usa TODO o histórico (não o período) e sugere produzir antes do pico
+  const saz=Core.sazonalidade(db.pedidos,hoje());
+  const nota=document.getElementById('sazNota');
+  if(saz.pronto){
+    const MES=['','jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    const labels=MES.slice(1);
+    const vals=[];for(let i=1;i<=12;i++)vals.push(saz.indices[i]===null?0:saz.indices[i]);
+    mkChart('chSaz',{type:'bar',data:{labels,datasets:[{data:vals,backgroundColor:vals.map(v=>v>=1.2?C.ember:v>=1?C.warn:C.line),borderRadius:4}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>(c.raw?c.raw.toFixed(2)+'× a média':'sem dados')}}},scales:{y:{grid,ticks:{...tick,callback:v=>v+'×'}},x:{grid:{display:false},ticks:tick}}}});
+    const picos=saz.proximos.filter(x=>x.pico);
+    if(nota)nota.innerHTML=picos.length
+      ?`📈 <b>${esc(picos.map(x=>x.nome).join(' e '))}</b> costuma${picos.length>1?'m':''} vender ${picos.map(x=>x.indice.toFixed(1)+'×').join(' e ')} a média — comece a produzir com antecedência.`
+      :`Mês mais forte do ano: <b>${esc(saz.melhorNome)}</b> (${saz.indices[saz.melhorMes].toFixed(1)}× a média).`;
+  }else{
+    if(charts.chSaz){charts.chSaz.destroy();delete charts.chSaz;}
+    const cv2=document.getElementById('chSaz');if(cv2)cv2.getContext('2d').clearRect(0,0,cv2.width,cv2.height);
+    if(nota)nota.innerHTML=`Ainda não dá para prever a sazonalidade: você tem <b>${saz.meses} mês(es)</b> com vendas registradas${saz.faltam?` — faltam ${saz.faltam} para o primeiro retrato do ano`:''}.`;
+  }
   const recCli={};pedidosPeriodo().forEach(p=>{const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);const k=cli?cli.nome:(p.cliente||'');if(!k)return;recCli[k]=(recCli[k]||0)+Number(p.valor||0);});
   const topCli=Object.entries(recCli).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const cliBox=document.getElementById('topCliBox');
@@ -498,8 +532,8 @@ function renderCharts(){
 }
 function renderEquip(){document.getElementById('tbEquip').innerHTML=db.equip.length?db.equip.map(e=>`<tr><td>${esc(e.nome)}</td><td>${esc(e.tipo)||'—'}</td><td>${esc(e.compra)||'—'}</td><td class="money">${brl(e.custo)}</td><td><span class="pill ok">${esc(e.situacao||'Ativo')}</span></td><td>${rowActions('equip',e.id)}</td></tr>`).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum equipamento.</div></td></tr>`;}
 function renderMoldes(){document.getElementById('tbMoldes').innerHTML=db.moldes.length?db.moldes.map(m=>{const st=moldeStatus(m);const pct=Math.min(100,Math.round(m.usos/(m.vida||1)*100));const l=st==='low'?'Trocar':st==='warn'?'Quase no fim':'Bom';return `<tr><td>${esc(m.nome)}</td><td>${esc(m.material)}</td><td>${m.usos} / ${m.vida}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div></td><td><span class="pill ${st}">${l}</span></td><td>${rowActions('molde',m.id)}</td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum molde.</div></td></tr>`;}
-function renderInsumos(){document.getElementById('tbInsumos').innerHTML=db.insumos.length?db.insumos.map(i=>{const st=insumoStatus(i);const l=st==='low'?'Repor':st==='warn'?'Baixo':'OK';const pct=Math.min(100,Math.round(i.estoque/((i.minimo||1)*2)*100));const dias=diasEstoque(i);return `<tr><td>${esc(i.nome)}</td><td>${i.estoque} ${esc(i.unidade)}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div><div style="font-size:11px;color:var(--warm);margin-top:3px">mín. ${i.minimo}${dias!==null&&dias<365?` · acaba em ~<b style="color:${dias<15?'var(--ember)':'inherit'}">${dias}d</b>`:''}</div></td><td class="money">${brl(i.custo)}/${esc(i.unidade)}</td><td><span class="pill ${st}">${l}</span></td><td><div class="row-actions"><button class="icon-btn" title="Histórico de preços" onclick="verPrecos('${i.id}')">📈</button><button class="icon-btn" onclick="openForm('insumo','${i.id}')">✎</button><button class="icon-btn" onclick="del('insumo','${i.id}')">🗑</button></div></td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum insumo.</div></td></tr>`;}
-function renderProdutos(){document.getElementById('tbProdutos').innerHTML=db.produtos.length?db.produtos.map(p=>{const c=calcCusto(p);const sug=c.total*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const margem=prat-taxa-c.total;const mpct=prat?Math.round(margem/prat*100):0;const h=Number(p.minutos||0)/60;const lph=h>0?margem/h:0;return `<tr><td>${esc(p.nome)}${p.publico?' <span title="no catálogo" style="color:var(--warm);font-size:11px">◈</span>':''}</td><td class="money">${brl(c.total)}</td><td class="money" style="color:var(--smoke)">${brl(sug)}</td><td class="money">${brl(prat)}</td><td><span class="pill ${mpct>50?'ok':mpct>30?'warn':'low'}">${mpct}%</span></td><td class="money">${h>0?brl(lph):'—'}</td><td>${Number(p.pronto||0)}</td><td><div class="row-actions"><button class="icon-btn" title="Duplicar" onclick="duplicarProduto('${p.id}')">⧉</button><button class="icon-btn" onclick="openForm('produto','${p.id}')">✎</button><button class="icon-btn" onclick="del('produto','${p.id}')">🗑</button></div></td></tr>`;}).join(''):`<tr><td colspan=8><div class="empty-t">Nenhum produto.</div></td></tr>`;}
+function renderInsumos(){document.getElementById('tbInsumos').innerHTML=db.insumos.length?db.insumos.map(i=>{const st=insumoStatus(i);const l=st==='low'?'Repor':st==='warn'?'Baixo':'OK';const pct=Math.min(100,Math.round(i.estoque/((i.minimo||1)*2)*100));const dias=diasEstoque(i);return `<tr><td>${esc(i.nome)}</td><td>${i.estoque} ${esc(i.unidade)}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div><div style="font-size:11px;color:var(--warm);margin-top:3px">mín. ${i.minimo}${dias!==null&&dias<365?` · acaba em ~<b style="color:${dias<15?'var(--ember)':'inherit'}">${dias}d</b>`:''}</div></td><td class="money">${brl(i.custo)}/${esc(i.unidade)}</td><td><span class="pill ${st}">${l}</span>${(()=>{const pv=previsao(i);return pv&&(pv.urgente||pv.atencao)?`<div style="font-size:11px;color:var(--ember);margin-top:3px">🛒 pedir ${pv.urgente?'hoje':'até '+pv.pedirAte.slice(8,10)+'/'+pv.pedirAte.slice(5,7)}</div>`:'';})()}</td><td><div class="row-actions"><button class="icon-btn" title="Histórico de preços" onclick="verPrecos('${i.id}')">📈</button><button class="icon-btn" onclick="openForm('insumo','${i.id}')">✎</button><button class="icon-btn" onclick="del('insumo','${i.id}')">🗑</button></div></td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum insumo.</div></td></tr>`;}
+function renderProdutos(){document.getElementById('tbProdutos').innerHTML=db.produtos.length?db.produtos.map(p=>{const c=calcCusto(p);const sug=c.total*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const margem=prat-taxa-c.total;const mpct=prat?Math.round(margem/prat*100):0;const h=Number(p.minutos||0)/60;const lph=h>0?margem/h:0;const def=precoDefasado(p);return `<tr><td>${esc(p.nome)}${p.publico?' <span title="no catálogo" style="color:var(--warm);font-size:11px">◈</span>':''}${def?`<div style="font-size:11px;color:var(--ember)">💰 defasado · sugerido ${brl(def.sugerido)}</div>`:''}</td><td class="money">${brl(c.total)}</td><td class="money" style="color:var(--smoke)">${brl(sug)}</td><td class="money">${brl(prat)}</td><td><span class="pill ${mpct>50?'ok':mpct>30?'warn':'low'}">${mpct}%</span></td><td class="money">${h>0?brl(lph):'—'}</td><td>${Number(p.pronto||0)}</td><td><div class="row-actions"><button class="icon-btn" title="Duplicar" onclick="duplicarProduto('${p.id}')">⧉</button><button class="icon-btn" onclick="openForm('produto','${p.id}')">✎</button><button class="icon-btn" onclick="del('produto','${p.id}')">🗑</button></div></td></tr>`;}).join(''):`<tr><td colspan=8><div class="empty-t">Nenhum produto.</div></td></tr>`;}
 function renderProducao(){
   fillMeses('mesPro',db.producao,fP.m);
   const todas=[...db.producao].reverse().filter(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const txt=((prod?prod.nome:'')+' '+(p.variacao||'')+' '+(p.lote||'')).toLowerCase();return(!fP.q||txt.includes(fP.q.toLowerCase()))&&(!fP.m||(p.data||'').slice(0,7)===fP.m);});
@@ -520,7 +554,7 @@ function renderPedidos(){
     const lucro=l===null||p.situacao==='Cancelado'?'—':`<span class="money" style="color:${l>=0?'var(--ok)':'var(--ember)'}">${brl(l)}</span>`;
     const aberto=p.situacao!=='Entregue'&&p.situacao!=='Cancelado';
     const prazo=p.prazo?(aberto&&p.prazo<hj?`<span class="pill low">${esc(p.prazo)}</span>`:esc(p.prazo)):'—';
-    const acts=`<div class="row-actions"><button class="icon-btn" title="Recibo" onclick="reciboPedido('${p.id}')">🧾</button>${aberto&&cli?`<button class="icon-btn" title="Cobrar no WhatsApp" onclick="cobrarPedido('${p.id}')">💬</button>`:''}<button class="icon-btn" title="Repetir" onclick="repetir('pedido','${p.id}')">⟳</button><button class="icon-btn" onclick="openForm('pedido','${p.id}')">✎</button><button class="icon-btn" onclick="del('pedido','${p.id}')">🗑</button></div>`;
+    const acts=`<div class="row-actions"><button class="icon-btn" title="${p.portalToken?'Reenviar link de acompanhamento':'Compartilhar acompanhamento com o cliente'}" onclick="compartilharPedido('${p.id}')">${p.portalToken?'🔗':'🔗'}</button><button class="icon-btn" title="Recibo" onclick="reciboPedido('${p.id}')">🧾</button>${aberto&&cli?`<button class="icon-btn" title="Cobrar no WhatsApp" onclick="cobrarPedido('${p.id}')">💬</button>`:''}<button class="icon-btn" title="Repetir" onclick="repetir('pedido','${p.id}')">⟳</button><button class="icon-btn" onclick="openForm('pedido','${p.id}')">✎</button><button class="icon-btn" onclick="del('pedido','${p.id}')">🗑</button></div>`;
     return `<tr><td>${esc(p.data)||'—'}</td><td>${cli?esc(cli.nome):esc(p.cliente)||'—'}</td><td>${nome}</td><td>${prazo}</td><td class="money">${brl(p.valor)}</td><td>${lucro}</td><td><span class="pill ${sc[p.situacao]||'warn'}">${esc(p.situacao||'Pendente')}</span></td><td>${acts}</td></tr>`;
   }).join(''):`<tr><td colspan=8><div class="empty-t">${db.pedidos.length?'Nada encontrado com esse filtro.':'Nenhum pedido.'}</div></td></tr>`)+linhaMais('pedidos',todos.length,rows.length,8);
   // totais do filtro atual (soma TODOS os filtrados, não só a página visível)
@@ -586,6 +620,42 @@ function reciboPedido(id){
   <div class="foot">feito à mão com carinho 🕯️</div>
   </body></html>`);
   win.document.close();setTimeout(()=>win.print(),400);
+}
+// ---------- portal do cliente ----------
+const ETAPA_PEDIDO={'Pendente':0,'Pago':1,'Em produção':2,'Entregue':3};
+function dadosPortal(p){
+  const prod=db.produtos.find(x=>x.id===p.produto);
+  const {pago}=saldoPedido(p);
+  const item=(prod?prod.nome:(p.item||'Encomenda'))+(p.variacao?' · '+p.variacao:'');
+  return{empresa:empresaNome||'Cinérea',item,qtd:num(p.qtd)||1,valor:num(p.valor),pago,
+    prazo:p.prazo||'',etapa:ETAPA_PEDIDO[p.situacao]!==undefined?ETAPA_PEDIDO[p.situacao]:0,
+    cancelado:p.situacao==='Cancelado',whats:String(db.catWhats||'').replace(/\D/g,''),atualizado:Date.now()};
+}
+// publica/atualiza o doc público do pedido (só os campos que o cliente pode ver)
+async function syncPortal(p,silencioso){
+  if(!p||!p.portalToken||!eid)return;
+  try{await setDoc(doc(fdb,'portal',p.portalToken),{...dadosPortal(p),empresaId:eid});}
+  catch(e){if(!silencioso)console.error(e);}
+}
+async function compartilharPedido(id){
+  const p=db.pedidos.find(x=>x.id===id);if(!p)return;
+  try{
+    if(!p.portalToken){p.portalToken=uidGen()+uidGen().slice(0,4);cloudSave();}
+    await setDoc(doc(fdb,'portal',p.portalToken),{...dadosPortal(p),empresaId:eid});
+    const url=location.origin+location.pathname.replace(/index\.html$/,'')+'pedido.html?p='+p.portalToken;
+    const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);
+    const dg=String((cli&&cli.whats)||'').replace(/\D/g,'');
+    if(dg.length>=10){
+      const prod=db.produtos.find(x=>x.id===p.produto);
+      const msg=`Oi${cli.nome?', '+cli.nome.split(' ')[0]:''}! Acompanhe sua encomenda (${prod?prod.nome:(p.item||'pedido')}) por aqui: ${url}`;
+      window.open('https://wa.me/'+(dg.length>=12?dg:'55'+dg)+'?text='+encodeURIComponent(msg),'_blank');
+      toast('Link do portal aberto no WhatsApp');
+    }else{
+      if(navigator.clipboard)navigator.clipboard.writeText(url).catch(()=>{});
+      toast('Link copiado — envie ao cliente');
+    }
+    renderPedidos();
+  }catch(e){console.error(e);toast('Erro ao publicar — confira as regras do Firestore');}
 }
 function cobrarPedido(id){
   const p=db.pedidos.find(x=>x.id===id);if(!p)return;
@@ -675,6 +745,7 @@ function addPagamento(id){
   const pago=p.pagamentos.reduce((s,x)=>s+Number(x.v||0),0);
   if(pago>=Number(p.valor||0)&&p.situacao==='Pendente')p.situacao='Pago';
   logAtv('registrou pagamento no pedido');
+  syncPortal(p,true); // o cliente vê o saldo novo na hora
   cloudSave();closeModal();openForm('pedido',id);renderAll();
   toast('Pagamento registrado — recebido '+brl(pago)+' de '+brl(p.valor));
 }
@@ -785,7 +856,7 @@ const FORMS={
   molde:{title:'Molde',fields:[{k:'nome',l:'Nome',t:'text'},{k:'material',l:'Material',t:'select',opts:['gesso','cera']},{k:'usos',l:'Usos já feitos',t:'number'},{k:'vida',l:'Vida útil (peças)',t:'number',hint:'Gesso ≈40, cera ≈120'}]},
   insumo:{title:'Insumo',fields:[{k:'nome',l:'Nome',t:'text'},{k:'unidade',l:'Unidade',t:'select',opts:['kg','g','L','ml','un']},{k:'estoque',l:'Estoque atual',t:'number'},{k:'minimo',l:'Estoque mínimo',t:'number'},{k:'custo',l:'Custo por unidade (R$)',t:'number'}]},
   producao:{title:'Produção',fields:[{k:'data',l:'Data',t:'date'},{k:'produto',l:'Produto',t:'selectProd'},{k:'qtd',l:'Quantidade',t:'number',def:1},{k:'minutos',l:'Tempo por peça (min)',t:'number',hint:'Sua maior linha de custo'},{k:'variacao',l:'Variação / fragrância',t:'text',hint:'Opcional — ex.: lavanda'},{k:'molde',l:'Molde usado',t:'selectMolde'}]},
-  pedido:{title:'Pedido',fields:[{k:'data',l:'Data',t:'date'},{k:'clienteId',l:'Cliente',t:'selectCliente'},{k:'produto',l:'Produto',t:'selectProd',hint:'Ligue ao produto para ver o lucro e baixar o estoque pronto'},{k:'qtd',l:'Quantidade',t:'number',def:1},{k:'variacao',l:'Variação / fragrância',t:'text'},{k:'item',l:'Descrição livre',t:'text',hint:'Use se não for um produto cadastrado'},{k:'canal',l:'Canal de venda',t:'selectCanal',hint:'Define a taxa usada no lucro'},{k:'prazo',l:'Entregar até',t:'date',def:'',hint:'Opcional — aparece no Painel'},{k:'valor',l:'Valor (R$)',t:'number',hint:'Vazio = preço praticado × quantidade'},{k:'frete',l:'Frete/embalagem (R$)',t:'number',def:'',hint:'Custo de envio — desconta do lucro'},{k:'situacao',l:'Situação',t:'select',opts:['Pendente','Pago','Entregue','Cancelado']}]},
+  pedido:{title:'Pedido',fields:[{k:'data',l:'Data',t:'date'},{k:'clienteId',l:'Cliente',t:'selectCliente'},{k:'produto',l:'Produto',t:'selectProd',hint:'Ligue ao produto para ver o lucro e baixar o estoque pronto'},{k:'qtd',l:'Quantidade',t:'number',def:1},{k:'variacao',l:'Variação / fragrância',t:'text'},{k:'item',l:'Descrição livre',t:'text',hint:'Use se não for um produto cadastrado'},{k:'canal',l:'Canal de venda',t:'selectCanal',hint:'Define a taxa usada no lucro'},{k:'prazo',l:'Entregar até',t:'date',def:'',hint:'Opcional — aparece no Painel'},{k:'valor',l:'Valor (R$)',t:'number',hint:'Vazio = preço praticado × quantidade'},{k:'frete',l:'Frete/embalagem (R$)',t:'number',def:'',hint:'Custo de envio — desconta do lucro'},{k:'situacao',l:'Situação',t:'select',opts:['Pendente','Pago','Em produção','Entregue','Cancelado']}]},
   cliente:{title:'Cliente',fields:[{k:'nome',l:'Nome',t:'text'},{k:'whats',l:'WhatsApp',t:'text',hint:'Só números com DDD — vira link para conversar'},{k:'obs',l:'Observações',t:'text',hint:'Preferências, endereço…'}]},
   canal:{title:'Canal de venda',fields:[{k:'nome',l:'Nome',t:'text'},{k:'taxa',l:'Taxa (%)',t:'number',def:0,hint:'Ex.: marketplace 12, Pix 0'}]},
   tarefa:{title:'Tarefa',fields:[{k:'titulo',l:'Tarefa',t:'text'},{k:'desc',l:'Detalhes',t:'text',hint:'Opcional'},{k:'resp',l:'Responsável',t:'selectMembro'},{k:'prazo',l:'Prazo',t:'date',def:''},{k:'status',l:'Situação',t:'select',opts:['aberta','fazendo','feita']}]},
@@ -878,7 +949,11 @@ function saveForm(){
     gerarCotacaoXlsx(itens,{validade:val('cotValidade')||'',cond:val('cotCond')||'',alvos});
     closeModal();return;
   }
-  if(type==='produto'){obj={nome:val('f_nome'),receita:currentForm.recipe.filter(l=>l.insumo&&l.qtd),minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),markup:val('f_markup'),preco:val('f_preco'),taxa:val('f_taxa'),equip:val('f_equip'),pronto:Number(val('f_pronto')||0),foto:val('f_foto'),publico:!!(document.getElementById('f_publico')||{}).checked};}
+  if(type==='produto'){obj={nome:val('f_nome'),receita:currentForm.recipe.filter(l=>l.insumo&&l.qtd),minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),markup:val('f_markup'),preco:val('f_preco'),taxa:val('f_taxa'),equip:val('f_equip'),pronto:Number(val('f_pronto')||0),foto:val('f_foto'),publico:!!(document.getElementById('f_publico')||{}).checked};
+    // grava a margem de referência do momento em que o preço foi definido —
+    // é contra ela que o alerta de "preço defasado" compara depois
+    if(num(obj.preco)>0){const ref=precoProduto({...obj,id:id||'tmp'},db);obj.margemRef=ref.margemPct;}
+    else delete obj.margemRef;}
   else{FORMS[type].fields.forEach(f=>obj[f.k]=val('f_'+f.k));if(type==='fornecedor')obj.contatos=(currentForm.contatos||[]).filter(c=>c.nome&&c.nome.trim());if(!obj[FORMS[type].fields[0].k]){toast('Preencha o primeiro campo.');return;}}
   // validação de domínio (core.js): impede quantidade negativa, data absurda, taxa fora de 0-100…
   const erro=validar(type,obj);
@@ -891,7 +966,7 @@ function saveForm(){
     if(!obj.qtd)obj.qtd=1;
     if(obj.clienteId==='__new')obj.clienteId='';
     if(!obj.valor&&obj.produto){const pr=db.produtos.find(x=>x.id===obj.produto);if(pr){const c=calcCusto(pr).total;obj.valor=Math.round((Number(pr.preco)||c*Number(pr.markup||3))*Number(obj.qtd||1)*100)/100;}}
-    if(id){const i=db[list].findIndex(x=>x.id===id);const old=db[list][i];revertPedido(old);obj={...old,...obj};delete obj.baixaPronto;obj.baixado=false;applyPedido(obj);db[list][i]=obj;}
+    if(id){const i=db[list].findIndex(x=>x.id===id);const old=db[list][i];revertPedido(old);obj={...old,...obj};delete obj.baixaPronto;obj.baixado=false;applyPedido(obj);db[list][i]=obj;syncPortal(obj,true);}
     else{obj.id=uidGen();obj.por=uid;applyPedido(obj);db[list].push(obj);}
   } else if(type==='compra'){
     if(!obj.insumo){toast('Escolha o insumo.');return;}
@@ -1106,7 +1181,8 @@ function renderCotacoes(){const tb=document.getElementById('tbCotacoes');if(!tb)
     else st='<span class="pill warn">aguardando'+(c.validade?' · até '+esc(c.validade.slice(5)):'')+'</span>';
     const alvosNomes=(c.alvos||[]).map(a=>{const f=(db.fornecedores||[]).find(x=>x.id===a);return f?f.nome:'';}).filter(Boolean);
     const pendComWhats=(c.alvos||[]).map(a=>(db.fornecedores||[]).find(x=>x.id===a)).filter(f=>f&&String(f.whats||'').replace(/\D/g,'').length>=10&&!(c.respostas||[]).some(r=>r.fornecedorId===f.id));
-    return `<tr><td style="font-family:monospace">${esc(c.id)}${alvosNomes.length?`<div style="font-size:11px;color:var(--warm)">→ ${esc(alvosNomes.join(', '))}</div>`:''}${c.cond?`<div style="font-size:11px;color:var(--warm)">${esc(c.cond)}</div>`:''}</td><td>${esc(c.data)}</td><td>${c.itens.length}</td><td>${st}</td><td><div class="row-actions">${pendComWhats.length?`<button class="icon-btn" title="Enviar/cobrar no WhatsApp" onclick="enviarCotacaoWhats('${c.id}')">💬</button>`:''}${nResp?`<button class="icon-btn" title="Comparar preços" onclick="verCotacao('${c.id}')">⇄</button>`:''}<button class="icon-btn" onclick="del('cotacao','${c.id}')">🗑</button></div></td></tr>`;
+    const online=c.rfqToken?(c.rfqFechada?'<div style="font-size:11px;color:var(--warm)">🌐 portal encerrado</div>':'<div style="font-size:11px;color:var(--ok)">🌐 aberto no portal</div>'):'';
+    return `<tr><td style="font-family:monospace">${esc(c.id)}${alvosNomes.length?`<div style="font-size:11px;color:var(--warm)">→ ${esc(alvosNomes.join(', '))}</div>`:''}${c.cond?`<div style="font-size:11px;color:var(--warm)">${esc(c.cond)}</div>`:''}${online}</td><td>${esc(c.data)}</td><td>${c.itens.length}</td><td>${st}</td><td><div class="row-actions"><button class="icon-btn" title="${c.rfqToken?'Copiar link do portal':'Publicar cotação online'}" onclick="linkCotacao('${c.id}')">🌐</button>${c.rfqToken?`<button class="icon-btn" title="Buscar respostas enviadas pelo portal" onclick="buscarRespostasOnline('${c.id}')">⬇</button>`:''}${c.rfqToken&&!c.rfqFechada?`<button class="icon-btn" title="Encerrar cotação online" onclick="fecharRfq('${c.id}')">🔒</button>`:''}${pendComWhats.length?`<button class="icon-btn" title="Enviar/cobrar no WhatsApp" onclick="enviarCotacaoWhats('${c.id}')">💬</button>`:''}${nResp?`<button class="icon-btn" title="Comparar preços" onclick="verCotacao('${c.id}')">⇄</button>`:''}<button class="icon-btn" onclick="del('cotacao','${c.id}')">🗑</button></div></td></tr>`;
   }).join(''):`<tr><td colspan=5><div class="empty-t">Nenhuma cotação — gere uma a partir da lista de compras.</div></td></tr>`;
   // gasto com compras por mês
   if(typeof Chart!=='undefined'&&document.getElementById('chCompras')){
@@ -1115,6 +1191,62 @@ function renderCotacoes(){const tb=document.getElementById('tbCotacoes');if(!tb)
     const css=getComputedStyle(document.documentElement);const cv=(n,fb)=>((css.getPropertyValue(n)||'').trim()||fb);
     mkChart('chCompras',{type:'bar',data:{labels:meses,datasets:[{data:meses.map(m=>byMes[m].toFixed(2)),backgroundColor:cv('--warm','#8A7E70'),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{ticks:{color:cv('--smoke','#6E6862')}},x:{grid:{display:false},ticks:{color:cv('--smoke','#6E6862')}}}}});
   }
+}
+// ---------- portal do fornecedor ----------
+// Publica a cotação numa página onde o fornecedor preenche os preços online.
+// O Excel continua funcionando para quem prefere — os dois caminhos convergem
+// para a mesma lista de respostas.
+async function publicarRfq(cotId){
+  const c=(db.cotacoes||[]).find(x=>x.id===cotId);if(!c)return null;
+  if(!c.rfqToken)c.rfqToken=uidGen()+uidGen().slice(0,4);
+  await setDoc(doc(fdb,'rfq',c.rfqToken),{
+    empresaId:eid,empresa:empresaNome||'Cinérea',cotacao:c.id,
+    validade:c.validade||'',cond:c.cond||'',fechada:false,
+    itens:c.itens.map(it=>{const ins=db.insumos.find(x=>x.id===it.insumo);return{insumo:it.insumo,nome:ins?ins.nome:'item',unidade:ins?ins.unidade:'',qtd:it.qtd};}),
+    atualizado:Date.now(),
+  });
+  cloudSave();
+  return location.origin+location.pathname.replace(/index\.html$/,'')+'cotacao.html?c='+c.rfqToken;
+}
+async function linkCotacao(cotId){
+  try{
+    const url=await publicarRfq(cotId);
+    if(!url)return;
+    if(navigator.clipboard)navigator.clipboard.writeText(url).catch(()=>{});
+    toast('Link da cotação copiado — mande ao fornecedor. Ele preenche online e você importa com o ↓');
+    renderCotacoes();
+  }catch(e){console.error(e);toast('Erro ao publicar — confira as regras do Firestore');}
+}
+async function buscarRespostasOnline(cotId){
+  const c=(db.cotacoes||[]).find(x=>x.id===cotId);
+  if(!c||!c.rfqToken){toast('Publique o link online primeiro (🌐)');return;}
+  try{
+    const qs=await getDocs(collection(fdb,'rfq',c.rfqToken,'respostas'));
+    let novas=0;
+    c.respostas=c.respostas||[];c.rfqLidas=c.rfqLidas||[];
+    qs.forEach(d=>{
+      if(c.rfqLidas.includes(d.id))return;             // já importada
+      const r=d.data();
+      if(!r||!r.precos||!Object.keys(r.precos).length)return;
+      const nome=String(r.fornecedor||'Fornecedor').slice(0,120);
+      db.fornecedores=db.fornecedores||[];
+      let f=db.fornecedores.find(x=>x.nome.toLowerCase()===nome.toLowerCase());
+      if(!f){f={id:uidGen(),nome,whats:'',obs:'',contatos:[]};db.fornecedores.push(f);}
+      c.respostas.push({fornecedor:nome,fornecedorId:f.id,data:hoje(),precos:r.precos,online:true});
+      c.rfqLidas.push(d.id);novas++;
+    });
+    if(!novas){toast('Nenhuma resposta nova por enquanto');return;}
+    logAtv('importou '+novas+' resposta(s) online da cotação '+c.id);
+    cloudSave();renderAll();
+    toast('<b>'+novas+'</b> resposta(s) importada(s) do portal');
+  }catch(e){console.error(e);toast('Erro ao buscar respostas — confira as regras do Firestore');}
+}
+async function fecharRfq(cotId){
+  const c=(db.cotacoes||[]).find(x=>x.id===cotId);
+  if(!c||!c.rfqToken)return;
+  if(!confirm('Encerrar a cotação online? O link para de aceitar propostas.'))return;
+  try{await setDoc(doc(fdb,'rfq',c.rfqToken),{fechada:true},{merge:true});c.rfqFechada=true;cloudSave();renderCotacoes();toast('Cotação online encerrada');}
+  catch(e){console.error(e);toast('Erro ao encerrar');}
 }
 function enviarCotacaoWhats(cotId){
   const c=(db.cotacoes||[]).find(x=>x.id===cotId);if(!c)return;
@@ -1125,7 +1257,10 @@ function enviarCotacaoWhats(cotId){
   if(!fila.length){c.enviados=[];fila=pend;} // todos já receberam: recomeça (cobrança)
   const f=fila[0];c.enviados.push(f.id);cloudSave();
   const dg=String(f.whats).replace(/\D/g,'');
-  const msg=`Olá${(f.contatos||[])[0]?', '+f.contatos[0].nome.split(' ')[0]:''}! Aqui é da ${empresaNome||'Cinérea'}. Estou enviando nossa cotação ${c.id} (${c.itens.length} itens${c.validade?', responder até '+c.validade.split('-').reverse().join('/'):''}${c.cond?', condições: '+c.cond:''}). Vou anexar a planilha aqui — é só preencher as células destacadas e devolver o arquivo. Obrigado!`;
+  const link=c.rfqToken?location.origin+location.pathname.replace(/index\.html$/,'')+'cotacao.html?c='+c.rfqToken:'';
+  const msg=`Olá${(f.contatos||[])[0]?', '+f.contatos[0].nome.split(' ')[0]:''}! Aqui é da ${empresaNome||'Cinérea'}. Estou enviando nossa cotação ${c.id} (${c.itens.length} itens${c.validade?', responder até '+c.validade.split('-').reverse().join('/'):''}${c.cond?', condições: '+c.cond:''}). `
+    +(link?`Você pode preencher direto por aqui: ${link} — ou me pedir a planilha, como preferir. Obrigado!`
+          :`Vou anexar a planilha aqui — é só preencher as células destacadas e devolver o arquivo. Obrigado!`);
   window.open('https://wa.me/'+(dg.length>=12?dg:'55'+dg)+'?text='+encodeURIComponent(msg),'_blank');
   if(fila.length>1)toast('Aberto para <b>'+esc(f.nome)+'</b> — toque de novo para o próximo ('+(fila.length-1)+' na fila)');
 }

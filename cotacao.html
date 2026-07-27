@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cotação de preços</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#F2EFEA;--ash:#E7E3DC;--char:#1C1A17;--ember:#B5462A;--smoke:#6E6862;--line:#D8D2C8;--warm:#8A7E70;--ok:#3F7D5B}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--char);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;padding:0 20px 60px}
+  .wrap{max-width:680px;margin:0 auto}
+  header{text-align:center;padding:44px 0 24px}
+  header .sym{width:44px;margin:0 auto 14px;display:block}
+  header h1{font-family:'Fraunces',serif;font-weight:400;font-size:28px}
+  header .tag{font-family:'Fraunces',serif;font-style:italic;color:var(--smoke);margin-top:4px}
+  .aviso{background:var(--ash);border-left:3px solid var(--ember);border-radius:0 8px 8px 0;padding:14px 18px;font-size:13.5px;color:var(--smoke);margin-bottom:22px;line-height:1.5}
+  .aviso b{color:var(--char)}
+  .campo{margin-bottom:16px}
+  .campo label{display:block;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--warm);margin-bottom:6px}
+  .campo input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--paper);font-family:'Inter';font-size:15px;color:var(--char)}
+  .campo input:focus{outline:none;border-color:var(--char)}
+  .item{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:12px;background:var(--paper)}
+  .item .n{font-family:'Fraunces',serif;font-size:17px}
+  .item .q{font-size:13px;color:var(--smoke);margin-top:2px;margin-bottom:12px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:520px){.grid{grid-template-columns:1fr}}
+  .grid label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--warm);margin-bottom:5px}
+  .grid input{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:8px;background:var(--paper);font-family:'Inter';font-size:15px;color:var(--char)}
+  .grid input:focus{outline:none;border-color:var(--ember)}
+  .total{display:flex;justify-content:space-between;align-items:center;padding:18px;border:1px solid var(--line);border-radius:12px;margin:18px 0;background:var(--ash)}
+  .total .k{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--warm)}
+  .total .v{font-family:'Fraunces',serif;font-size:24px;color:var(--ember)}
+  .btn{width:100%;background:var(--char);color:var(--paper);border:none;border-radius:10px;padding:16px;font-size:15px;font-family:'Inter';cursor:pointer}
+  .btn:hover{background:var(--ember)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .msg{text-align:center;color:var(--smoke);font-family:'Fraunces',serif;font-style:italic;padding:60px 20px;font-size:17px}
+  .ok-box{text-align:center;padding:50px 20px}
+  .ok-box .big{font-size:44px}
+  .ok-box h2{font-family:'Fraunces',serif;font-weight:400;font-size:24px;margin:14px 0 8px}
+  .ok-box p{color:var(--smoke);font-size:14.5px}
+  footer{text-align:center;color:var(--warm);font-size:12px;padding:26px 0}
+  .erro{color:var(--ember);font-size:13px;text-align:center;margin-top:10px;min-height:18px}
+  @media(prefers-color-scheme:dark){
+    :root{--paper:#201D19;--ash:#2A2621;--char:#EDE8E0;--smoke:#B4ABA0;--line:#3B362F;--warm:#9C9286}
+    header .sym path{stroke:#EDE8E0}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg class="sym" viewBox="0 0 150 150" fill="none"><path d="M108 46 C97 31,70 28,53 42 C36 56,36 94,53 108 C70 122,97 119,108 104" stroke="#1C1A17" stroke-width="7" fill="none" stroke-linecap="round"/><circle cx="112" cy="75" r="9" fill="#B5462A"/></svg>
+    <h1 id="marca">Cotação de preços</h1>
+    <div class="tag" id="sub">preencha e envie</div>
+  </header>
+  <div class="msg" id="msg">Carregando…</div>
+  <div id="form" hidden></div>
+  <footer id="rodape"></footer>
+</div>
+
+<script src="config.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, getDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const brl=n=>'R$ '+(Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const num=v=>{const n=Number(String(v??'').replace(',','.'));return isFinite(n)?n:0;};
+const dataBR=d=>d?String(d).split('-').reverse().join('/'):'';
+
+const msg=document.getElementById('msg'),form=document.getElementById('form');
+const token=new URLSearchParams(location.search).get('c');
+const cfg=window.CINEREA_CONFIG;
+let fdb=null,rfq=null;
+
+function total(){
+  let t=0;
+  (rfq.itens||[]).forEach((it,i)=>{
+    const p=num((document.getElementById('p'+i)||{}).value);
+    if(p>0)t+=p*num(it.qtd);
+  });
+  const el=document.getElementById('totalV');
+  if(el)el.textContent=t>0?brl(t):'—';
+}
+window.__total=total;
+
+function render(){
+  if(rfq.empresa){document.getElementById('marca').textContent=rfq.empresa;document.title='Cotação — '+rfq.empresa;}
+  document.getElementById('sub').textContent='cotação '+token.slice(0,8).toUpperCase();
+  form.innerHTML=`
+    <div class="aviso">
+      <b>Olá!</b> Preencha o preço unitário de cada item que você fornece — deixe em branco o que não trabalha.
+      ${rfq.validade?`<br>Precisamos da resposta até <b>${dataBR(rfq.validade)}</b>.`:''}
+      ${rfq.cond?`<br>Condições de pagamento: <b>${esc(rfq.cond)}</b>.`:''}
+    </div>
+    <div class="campo"><label>Nome do fornecedor / empresa *</label><input id="forn" placeholder="como devemos te chamar" autocomplete="organization"></div>
+    <div class="campo"><label>Prazo de entrega (dias)</label><input id="prazo" type="text" inputmode="numeric" placeholder="ex.: 5"></div>
+    ${(rfq.itens||[]).map((it,i)=>`
+      <div class="item">
+        <div class="n">${esc(it.nome)}</div>
+        <div class="q">Precisamos de <b>${esc(it.qtd)} ${esc(it.unidade||'')}</b></div>
+        <div class="grid">
+          <div><label>Preço por ${esc(it.unidade||'unidade')} (R$)</label><input id="p${i}" type="text" inputmode="decimal" placeholder="0,00" oninput="window.__total()"></div>
+          <div><label>Observação</label><input id="o${i}" placeholder="marca, embalagem…"></div>
+        </div>
+      </div>`).join('')}
+    <div class="total"><span class="k">Total da proposta</span><span class="v" id="totalV">—</span></div>
+    <button class="btn" id="enviar">Enviar proposta</button>
+    <div class="erro" id="erro"></div>`;
+  msg.hidden=true;form.hidden=false;
+  document.getElementById('rodape').textContent=(rfq.empresa||'')+' · obrigado pela parceria';
+  document.getElementById('enviar').onclick=enviar;
+}
+
+async function enviar(){
+  const btn=document.getElementById('enviar'),erro=document.getElementById('erro');
+  const fornecedor=document.getElementById('forn').value.trim();
+  if(!fornecedor){erro.textContent='Diga o nome da sua empresa para identificarmos a proposta.';return;}
+  const prazoGeral=String(num(document.getElementById('prazo').value)||'');
+  const precos={};
+  (rfq.itens||[]).forEach((it,i)=>{
+    const p=num((document.getElementById('p'+i)||{}).value);
+    if(p>0)precos[it.insumo]={preco:p,prazo:prazoGeral,obs:(document.getElementById('o'+i)||{}).value.trim()};
+  });
+  if(!Object.keys(precos).length){erro.textContent='Preencha o preço de ao menos um item.';return;}
+  btn.disabled=true;btn.textContent='Enviando…';erro.textContent='';
+  try{
+    await addDoc(collection(fdb,'rfq',token,'respostas'),{fornecedor:fornecedor.slice(0,120),precos,criado:Date.now()});
+    form.innerHTML=`<div class="ok-box"><div class="big">✓</div><h2>Proposta enviada!</h2><p>Obrigado, ${esc(fornecedor)}. Vamos analisar e retornamos em breve.</p></div>`;
+  }catch(e){
+    console.error(e);
+    btn.disabled=false;btn.textContent='Enviar proposta';
+    erro.textContent='Não foi possível enviar agora. Tente de novo em instantes.';
+  }
+}
+
+if(!token||!cfg||!cfg.apiKey||cfg.apiKey==='COLE_AQUI'){
+  msg.textContent='Link inválido. Peça um novo para quem te enviou.';
+}else{
+  try{
+    fdb=getFirestore(initializeApp(cfg));
+    const snap=await getDoc(doc(fdb,'rfq',token));
+    if(!snap.exists()){msg.textContent='Cotação não encontrada. O link pode ter expirado.';}
+    else{
+      rfq=snap.data();
+      const hj=new Date().toISOString().slice(0,10);
+      if(rfq.fechada||(rfq.validade&&rfq.validade<hj)){
+        msg.innerHTML='Esta cotação já foi encerrada.<br><span style="font-size:14px">Obrigado pelo interesse — falaremos na próxima.</span>';
+      }else render();
+    }
+  }catch(e){console.error(e);msg.textContent='Não foi possível carregar agora.';}
+}
+</script>
+</body>
+</html>
