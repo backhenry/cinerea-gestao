@@ -108,8 +108,14 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
 - Notificações locais: pedirNotifs() no Perfil; checarNotifs() avisa tarefas novas
   atribuídas a mim e entregas do dia (sem FCM — push real com servidor fica p/ depois).
 
+- Acabamento: recibo imprimível (🧾) e cobrança via WhatsApp (💬) no pedido,
+  duplicar produto (⧉), Ver arquivo (consulta/baixa anos arquivados),
+  produção do mês por membro (Equipe), busca global (🔍 no topo, atalho "/",
+  abre o registro direto), Guia reescrito para o app atual.
+
 ## Pendente / próximo
 - Domínio próprio: passos no README (exige compra do domínio pelo dono).
+- Push com app fechado (FCM + backend) se a equipe sentir falta.
 
 ## Ideias de próximos passos (do dono do projeto)
 - Migrar o app para GitHub Pages ou Netlify com deploy automático.

@@ -44,7 +44,7 @@
 <header>
   <div class="head-in">
     <div class="brand"><svg class="sym" viewBox="0 0 150 150" fill="none"><path d="M108 46 C97 31,70 28,53 42 C36 56,36 94,53 108 C70 122,97 119,108 104" stroke="#1C1A17" stroke-width="9" fill="none" stroke-linecap="round"/><circle cx="112" cy="75" r="11" fill="#B5462A"/></svg><span id="brandName">Cinérea · Gestão</span></div>
-    <div class="head-actions"><span class="synced" id="syncState"><span class="dot"></span> sincronizado</span><button class="mini" onclick="openPerfil()">Perfil</button><button class="mini" onclick="doLogout()">Sair</button></div>
+    <div class="head-actions"><span class="synced" id="syncState"><span class="dot"></span> sincronizado</span><button class="mini" onclick="abrirBusca()" title="Buscar (atalho: /)">🔍</button><button class="mini" onclick="openPerfil()">Perfil</button><button class="mini" onclick="doLogout()">Sair</button></div>
   </div>
 </header>
 
@@ -64,7 +64,7 @@
 <main>
   <section class="panel active" id="p-dashboard">
     <div class="panel-head"><div><h2>Painel</h2><div class="desc">Visão geral da Cinérea</div></div>
-      <div class="head-btns"><button class="btn2" onclick="exportDRE()">Fechamento</button><button class="btn2" onclick="exportCSV()">↓ Planilha</button><button class="btn2" onclick="exportPDF()">↓ PDF</button><button class="btn2" onclick="exportJSON()">↓ Backup</button><button class="btn2" onclick="importJSON()">↑ Restaurar</button><button class="btn2" onclick="arquivarAno()">Arquivar ano</button></div></div>
+      <div class="head-btns"><button class="btn2" onclick="exportDRE()">Fechamento</button><button class="btn2" onclick="exportCSV()">↓ Planilha</button><button class="btn2" onclick="exportPDF()">↓ PDF</button><button class="btn2" onclick="exportJSON()">↓ Backup</button><button class="btn2" onclick="importJSON()">↑ Restaurar</button><button class="btn2" onclick="arquivarAno()">Arquivar ano</button><button class="btn2" onclick="verArquivo()">Ver arquivo</button></div></div>
     <div class="stats" id="dashStats"></div>
     <div class="chartgrid">
       <div class="chartcard"><h3>Custo por peça (R$)</h3><canvas id="chCusto"></canvas></div>
@@ -135,25 +135,29 @@
       <div class="kb-col" ondragover="event.preventDefault()" ondrop="dropTarefa(event,1)"><h3>Fazendo <span class="kb-n" id="kbN1"></span></h3><div id="kb1"></div></div>
       <div class="kb-col" ondragover="event.preventDefault()" ondrop="dropTarefa(event,2)"><h3>Feito <span class="kb-n" id="kbN2"></span></h3><div id="kb2"></div></div>
     </div>
+    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Produção do mês por membro</h2><div class="desc">Peças e horas registradas por cada um</div></div></div>
+    <div class="chartcard" id="prodMembroBox"></div>
     <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Atividade recente</h2><div class="desc">Quem fez o quê</div></div></div>
     <div class="chartcard" id="atvBox"></div>
   </section>
 
   <section class="panel" id="p-guia">
     <div class="panel-head"><div><h2>Guia</h2><div class="desc">Como usar cada parte — na ordem certa</div></div></div>
-    <div class="guide-step"><div class="gn">1</div><div><h3>Cadastre seus insumos</h3><p>Comece pela aba <b>Insumos</b>. Coloque cada material (gesso, cera, essência…), o <b>estoque atual</b>, o <b>estoque mínimo</b> (quando cair nele, vira alerta) e o <b>custo por unidade</b>. É a base de tudo — o orçamento puxa esses preços.</p></div></div>
-    <div class="guide-step"><div class="gn">2</div><div><h3>Cadastre seus moldes e equipamentos</h3><p>Na aba <b>Moldes</b>, registre cada molde e a vida útil (gesso ~40, cera ~120). Em <b>Equipamentos</b>, sua impressora e ferramentas. Os moldes vão sendo "gastos" sozinhos conforme você produz.</p></div></div>
-    <div class="guide-step"><div class="gn">3</div><div><h3>Monte o orçamento de cada produto</h3><p>Na aba <b>Orçamento</b>, crie o produto e monte a <b>receita</b> — quais insumos e quanto de cada um ele consome. O app calcula o custo, aplica mão de obra, perda e markup, e mostra o <b>preço sugerido e a margem</b>. É aqui que você descobre por quanto vender.</p></div></div>
-    <div class="guide-step"><div class="gn">4</div><div><h3>Registre a produção</h3><p>Toda vez que fizer peças, registre em <b>Produção</b>: produto, quantidade, tempo por peça e o molde usado. Ao salvar, <b>o estoque dos insumos baixa sozinho</b> e o molde ganha usos. Anote o tempo de verdade — é sua maior linha de custo.</p></div></div>
-    <div class="guide-step"><div class="gn">5</div><div><h3>Acompanhe o painel e a lista de compras</h3><p>O <b>Painel</b> mostra gráficos e alertas. A aba <b>Compras</b> reúne sozinha tudo que está baixo, com quantidade sugerida — leve ao fornecedor. Quando comprar, atualize o estoque do insumo.</p></div></div>
-    <div class="guide-step"><div class="gn">6</div><div><h3>Registre vendas e exporte</h3><p>Em <b>Pedidos</b>, cada venda. No painel, os botões <b>Planilha</b> e <b>PDF</b> exportam tudo para você guardar, mandar ao contador ou fazer backup.</p></div></div>
+    <div class="guide-step"><div class="gn">1</div><div><h3>Cadastre insumos, moldes e equipamentos</h3><p>Em <b>Insumos</b>: cada material com estoque atual, mínimo (vira alerta) e custo. Em <b>Moldes</b>: vida útil (gesso ~40, cera ~120) — a produção soma usos sozinha. Em <b>Equipamentos</b>: informe custo e vida útil em horas para a depreciação entrar no preço.</p></div></div>
+    <div class="guide-step"><div class="gn">2</div><div><h3>Monte o orçamento das peças</h3><p>Em <b>Orçamento</b>, crie o produto com a <b>receita de insumos</b>, tempo e equipamento. O app calcula custo, preço sugerido, margem e <b>lucro por hora</b> — arraste o slider de markup para simular. Marque "mostrar no catálogo" e use <b>Publicar catálogo</b> para gerar sua vitrine com link para a bio.</p></div></div>
+    <div class="guide-step"><div class="gn">3</div><div><h3>Produza cronometrando</h3><p>Em <b>Produção</b>, registre com o <b>cronômetro</b> (▶) para ter o tempo real. Ao salvar, o estoque baixa, o molde ganha usos, a peça entra no estoque de prontas e o lote é gerado. Use <b>⟳</b> para repetir produções frequentes. Excluiu errado? <b>Desfazer</b> no aviso.</p></div></div>
+    <div class="guide-step"><div class="gn">4</div><div><h3>Venda com prazo e pagamentos</h3><p>Em <b>Pedidos</b>, ligue a venda ao produto, cliente e <b>canal</b> (a taxa certa entra no lucro). Defina o <b>prazo de entrega</b> — o Painel avisa atrasos e monta o <b>plano de produção</b>. Registre <b>sinal e parcelas</b> ao editar o pedido; use <b>🧾</b> para o recibo e <b>💬</b> para cobrar pelo WhatsApp.</p></div></div>
+    <div class="guide-step"><div class="gn">5</div><div><h3>Compre com cotação</h3><p>Em <b>Compras</b>, a lista do que está baixo se monta sozinha. Use <b>Nova cotação</b> para gerar a planilha (escolhendo itens e quantidades), envie ao fornecedor, <b>importe a resposta</b> e compare os preços — o 🛒 registra a compra com o melhor preço e o custo médio se atualiza. O 📈 no insumo mostra a evolução de preços.</p></div></div>
+    <div class="guide-step"><div class="gn">6</div><div><h3>Trabalhe em equipe</h3><p>Em <b>Equipe</b>, convide pessoas com um código que já define o papel: <b>admin</b> gere tudo, <b>sócio</b> vê o financeiro, <b>empregado</b> só opera. Distribua tarefas no kanban (arraste os cards), comente nelas e acompanhe a atividade e a produção de cada um.</p></div></div>
+    <div class="guide-step"><div class="gn">7</div><div><h3>Feche o mês e proteja os dados</h3><p>No <b>Painel</b>: metas, ponto de equilíbrio, teto MEI e o botão <b>Fechamento</b> (DRE do mês para o contador). O backup mensal é automático; baixe um <b>Backup</b> manual de vez em quando, e use <b>Arquivar ano</b> quando os dados crescerem. A busca 🔍 (atalho <b>/</b>) acha qualquer coisa.</p></div></div>
     <div class="checklist"><h3>Primeiros passos</h3>
-      <label><input type="checkbox" onchange="saveCheck()" data-c="c1"> Cadastrei meus insumos com preços reais</label>
-      <label><input type="checkbox" onchange="saveCheck()" data-c="c2"> Cadastrei meus moldes (vitrola e estátua)</label>
-      <label><input type="checkbox" onchange="saveCheck()" data-c="c3"> Montei o orçamento da vitrola</label>
-      <label><input type="checkbox" onchange="saveCheck()" data-c="c4"> Montei o orçamento da estátua</label>
-      <label><input type="checkbox" onchange="saveCheck()" data-c="c5"> Registrei minha primeira produção</label>
-      <label><input type="checkbox" onchange="saveCheck()" data-c="c6"> Fiz um backup (Planilha ou PDF)</label>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c1"> Cadastrei insumos com preços reais</label>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c2"> Montei o orçamento das minhas peças</label>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c3"> Registrei uma produção cronometrada</label>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c4"> Criei um pedido com prazo e canal</label>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c5"> Gerei e importei uma cotação</label>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c6"> Convidei alguém para a equipe</label>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c7"> Publiquei o catálogo e salvei um backup</label>
     </div>
   </section>
 </main>
