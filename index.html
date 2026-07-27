@@ -12,6 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -102,7 +103,7 @@
     <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Cotações com fornecedores</h2><div class="desc">Escolha itens e quantidades, o fornecedor preenche os preços, importe e compare</div></div><div class="head-btns"><button class="btn2" onclick="importarCotacao()">↑ Importar resposta</button><button class="btn" onclick="gerarCotacao()">Nova cotação</button></div></div>
     <div class="tablewrap"><table><thead><tr><th>Cotação</th><th>Data</th><th>Itens</th><th>Respostas</th><th></th></tr></thead><tbody id="tbCotacoes"></tbody></table></div>
     <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Fornecedores</h2><div class="desc">Quem vende para você — respostas de cotação criam o cadastro sozinhas</div></div><button class="btn" onclick="openForm('fornecedor')">+ Fornecedor</button></div>
-    <div class="tablewrap"><table><thead><tr><th>Nome</th><th>WhatsApp</th><th>Compras</th><th>Total gasto</th><th></th></tr></thead><tbody id="tbFornecedores"></tbody></table></div>
+    <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Risco</th><th>WhatsApp</th><th>Compras</th><th>Total gasto</th><th></th></tr></thead><tbody id="tbFornecedores"></tbody></table></div>
   </section>
   <section class="panel" id="p-orcamento">
     <div class="panel-head"><div><h2>Orçamento</h2><div class="desc">Custo e preço de cada peça</div></div><div class="head-btns"><button class="btn2" onclick="publicarCatalogo()">Publicar catálogo</button><button class="btn" onclick="openForm('produto')">+ Produto</button></div></div>

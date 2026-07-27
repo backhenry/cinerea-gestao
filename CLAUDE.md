@@ -108,6 +108,14 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
 - Notificações locais: pedirNotifs() no Perfil; checarNotifs() avisa tarefas novas
   atribuídas a mim e entregas do dia (sem FCM — push real com servidor fica p/ depois).
 
+- Fornecedor completo: categoria, risco (Baixo/Médio/Alto), endereço e contatos
+  internos (lista nome/cargo/whats em f.contatos, editados via currentForm.contatos).
+- Planilha de cotação v2 (ExcelJS via CDN, só para GERAR; SheetJS segue lendo):
+  logo da marca (icon-192 via fetch→base64), cores da paleta, células D/E/F
+  destacadas e desbloqueadas, resto protegido (senha 'cinerea'), aba "Contato"
+  (empresa, responsável, WhatsApp=catWhats, e-mail, endereço=db.endereco definido
+  no Perfil). Layout: marcador em H1, header linha 4, itens da linha 5, ids na
+  col H oculta — o importador continua compatível.
 - Acabamento: recibo imprimível (🧾) e cobrança via WhatsApp (💬) no pedido,
   duplicar produto (⧉), Ver arquivo (consulta/baixa anos arquivados),
   produção do mês por membro (Equipe), busca global (🔍 no topo, atalho "/",
