@@ -119,8 +119,12 @@ test('portal do fornecedor: proposta sem nome é rejeitada', () =>
 test('portal do fornecedor: fornecedor NÃO lê as propostas dos concorrentes', () =>
   assertFails(env.unauthenticatedContext().firestore().collection('rfq/RFQ1/respostas').get()));
 
+// dono1, e não emp1: o teste de remoção acima tira emp1 da empresa
 test('portal do fornecedor: a empresa lê as propostas recebidas', () =>
-  assertSucceeds(fs('emp1').collection('rfq/RFQ1/respostas').get()));
+  assertSucceeds(fs('dono1').collection('rfq/RFQ1/respostas').get()));
+
+test('portal do fornecedor: ex-membro perde acesso às propostas', () =>
+  assertFails(fs('emp1').collection('rfq/RFQ1/respostas').get()));
 
 test('portal do fornecedor: proposta enviada não pode ser alterada nem apagada', async () => {
   let id;
