@@ -42,6 +42,15 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
 - NUNCA commitar `config.js` nem chaves. Já está no `.gitignore`.
 - As regras do Firestore (em `docs/firestore.rules`) restringem cada usuário aos
   próprios dados — não afrouxar.
+- O arquivo de regras é **um só para o projeto Firebase inteiro**, e o projeto é
+  dividido com o app dos clientes (`backhenry/cinerea-app`, privado): as regras
+  de `clientes/` moram no mesmo arquivo. Publicar só a metade daqui apaga a de
+  lá. O arquivo é idêntico nos dois repos — mudou em um, copie no outro. Publica-
+  se a partir do `cinerea-app`.
+- Criar empresa exige um documento em `gestores/{uid}`. Sem isso, qualquer conta
+  autenticada abria empresa — inclusive um cliente do app, que usa o mesmo Auth.
+  A coleção é `read, write: if false`: invisível para os dois apps, só o Console
+  escreve. O `exists()` das regras roda no servidor e não passa pelas regras.
 
 ## Já implementado (julho/2026)
 - Baixa de estoque reversível (produção guarda snapshot `baixas`/`usosMolde`).

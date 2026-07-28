@@ -2,6 +2,17 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ATENÇÃO: as regras do Firestore são UM arquivo só para o projeto inteiro
+    // (`cinerea1`). Este arquivo é o conjunto completo: o sistema de gestão
+    // (usuarios/, empresas/, catalogo/, portal/, rfq/, convites/) MAIS o app dos
+    // clientes (clientes/). Publicar só a parte de baixo apagaria a de cima.
+    //
+    // Este arquivo existe idêntico em dois repositórios:
+    //   cinerea-app    → docs/firestore.rules   (é daqui que se publica)
+    //   cinerea-gestao → docs/firestore.rules   (espelho, alimenta o CI de lá)
+    // Mudou em um, copie no outro — senão os testes de um lado passam a
+    // proteger uma regra que não é a que está no ar.
+
     // ---------- funções de papel ----------
     function ehMembro(eid) {
       return request.auth != null
@@ -21,6 +32,19 @@ service cloud.firestore {
       return ehDono(eid) || (ehMembro(eid)
         && get(/databases/$(database)/documents/empresas/$(eid)/membros/$(request.auth.uid)).data.get('papel','') in ['admin','socio']);
     }
+    function ehDaCasa() {
+      // Quem pode abrir empresa no sistema de gestão. Antes disto, QUALQUER conta
+      // autenticada podia — inclusive um cliente do app, que usa o mesmo Auth.
+      return request.auth != null
+        && exists(/databases/$(database)/documents/gestores/$(request.auth.uid));
+    }
+
+    // Lista de quem é da casa. Um documento vazio por uid basta — o que importa
+    // é existir. Só se mexe pelo Console do Firebase; nenhum app lê nem escreve.
+    // (`exists()` dentro das regras não passa pelas regras, então funciona.)
+    match /gestores/{uid} {
+      allow read, write: if false;
+    }
 
     // Conta individual: ponteiro para a empresa + preferências + dados legados
     match /usuarios/{uid} {
@@ -29,7 +53,7 @@ service cloud.firestore {
 
     // Empresa: dados compartilhados
     match /empresas/{eid} {
-      allow create: if request.auth != null && request.resource.data.dono == request.auth.uid;
+      allow create: if ehDaCasa() && request.resource.data.dono == request.auth.uid;
       allow read: if ehMembro(eid);
       // qualquer membro salva os DADOS; nome só gestor; o dono nunca muda
       allow update: if ehMembro(eid)
@@ -123,6 +147,30 @@ service cloud.firestore {
           && ehMembro(get(/databases/$(database)/documents/rfq/$(token)).data.empresaId);
         allow update, delete: if false;
       }
+    }
+
+    // ==================================================================
+    // APP DOS CLIENTES — daqui para baixo é o cinerea-app
+    // ==================================================================
+    // Cada dono de peça enxerga só o que é dele. Nada aqui cruza com a gestão:
+    // um cliente não lê empresa nenhuma, e um gestor não lê as peças de ninguém.
+
+    function ehOCliente(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    match /clientes/{uid} {
+      allow read, write: if ehOCliente(uid);
+
+      // O id da peça é o UID de fábrica da tag NFC — imutável e único por chip.
+      // Conteúdo e histórico ficam dentro do documento (histórico é array, não
+      // subcoleção), então uma regra só cobre a peça inteira.
+      match /pecas/{tagUid} {
+        allow read, write: if ehOCliente(uid);
+      }
+
+      // Subcoleção nova daqui para frente precisa do próprio bloco: sem match,
+      // o Firestore nega. É de propósito — falhar fechado.
     }
   }
 }

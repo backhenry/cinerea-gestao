@@ -146,3 +146,46 @@ test('portal do fornecedor: cotação encerrada não aceita mais propostas', asy
 
 test('portal do fornecedor: estranho não publica cotação', () =>
   assertFails(env.unauthenticatedContext().firestore().doc('rfq/RFQ9').set({ empresaId: 'E1', itens: [] })));
+
+// ---------------------------------------------------------------------------
+// Quem pode abrir empresa (coleção `gestores`, fechada na Fase 2.5 do app)
+// ---------------------------------------------------------------------------
+
+test('conta comum NÃO cria empresa', () =>
+  assertFails(fs('forasteiro').doc('empresas/NOVA').set({ nome: 'Golpe', dono: 'forasteiro', dados: {} })));
+
+test('quem está em gestores cria empresa', async () => {
+  await env.withSecurityRulesDisabled(async ctx =>
+    ctx.firestore().doc('gestores/dacasa').set({ nome: 'Da Casa' }));
+  await assertSucceeds(fs('dacasa').doc('empresas/NOVA2').set({ nome: 'Cinérea', dono: 'dacasa', dados: {} }));
+});
+
+test('gestor NÃO cria empresa em nome de outra pessoa', () =>
+  assertFails(fs('dacasa').doc('empresas/NOVA3').set({ nome: 'Laranja', dono: 'forasteiro', dados: {} })));
+
+test('gestores é invisível: ninguém lê nem escreve pelo app', async () => {
+  await assertFails(fs('dacasa').doc('gestores/dacasa').get());
+  await assertFails(fs('dacasa').doc('gestores/forasteiro').set({ nome: 'X' }));
+});
+
+// ---------------------------------------------------------------------------
+// App dos clientes (cinerea-app): mora no mesmo projeto, isolado da gestão
+// ---------------------------------------------------------------------------
+
+test('cliente escreve e lê a própria peça', async () => {
+  await assertSucceeds(fs('ana').doc('clientes/ana').set({ nome: 'Ana' }));
+  await assertSucceeds(fs('ana').doc('clientes/ana/pecas/04A2B3').set({ nome: 'Vela da sala' }));
+});
+
+test('cliente NÃO alcança as peças de outro cliente', async () => {
+  await assertFails(fs('bruno').doc('clientes/ana/pecas/04A2B3').get());
+  await assertFails(fs('bruno').doc('clientes/ana/pecas/04A2B3').set({ nome: 'roubada' }));
+});
+
+test('cliente do app não enxerga a gestão, e a gestão não enxerga as peças', async () => {
+  await assertFails(fs('ana').doc('empresas/E1').get());
+  await assertFails(fs('dono1').doc('clientes/ana/pecas/04A2B3').get());
+});
+
+test('subcoleção não declarada em clientes/ falha fechado', () =>
+  assertFails(fs('ana').doc('clientes/ana/rascunhos/x').set({ a: 1 })));

@@ -41,21 +41,35 @@ o Firebase** e **publicar o app num link**. Reserve ~20 minutos.
 1. No menu: **Criação → Firestore Database → Criar banco de dados**.
 2. Local: pode deixar o sugerido (ou `southamerica-east1`, São Paulo).
 3. Comece em **modo de produção**. Criar.
-4. Aba **Regras (Rules)** — apague o que estiver lá e cole exatamente isto, para que
-   cada usuário só acesse os próprios dados:
+### 6. Liberar quem pode abrir empresa
 
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /usuarios/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-    }
-  }
-}
+Ainda no **Firestore Database**, crie uma coleção `gestores` com **um documento
+por pessoa que pode abrir empresa** — o ID do documento é o UID dela.
+
+O seu UID está em **Authentication → Users**, coluna **User UID**. Copie, e no
+Firestore: **Iniciar coleção** → ID `gestores` → ID do documento: cole o UID (não
+use "ID automático") → campo `nome` (string) com seu nome.
+
+O conteúdo não importa: a regra só checa se o documento existe. Sem ele, ninguém
+cria empresa — nem você. Quem entra por convite (sócio, empregado) não precisa
+estar aqui: entra como membro de uma empresa que já existe.
+
+### 7. Publicar as regras de segurança
+
+As regras ficam em [`firestore.rules`](firestore.rules), neste repositório. **Não
+copie de nenhum outro lugar** e não escreva à mão: é um arquivo só, e ele cobre
+tanto a gestão quanto o app dos clientes, que dividem o mesmo projeto Firebase.
+Publicar uma versão parcial derruba a outra metade.
+
+Da pasta do projeto:
+
+```bash
+npx firebase-tools login
+npx firebase-tools deploy --only firestore:rules --project SEU_PROJETO
 ```
 
-5. Clique em **Publicar**.
+Se preferir o Console: aba **Regras (Rules)** → apague tudo → cole o arquivo
+`docs/firestore.rules` **inteiro** → **Publicar**.
 
 Pronto — o Firebase está configurado. Se você abrir o HTML agora (mesmo dando dois
 cliques nele), ele vai mostrar a tela de login em vez da tela de configuração. Crie
@@ -101,7 +115,7 @@ passa a abrir como um aplicativo, em tela cheia.
 
 - Suas chaves do Firebase **podem** ficar visíveis no código do site — isso é normal
   e esperado para apps web. A proteção real são as **regras do Firestore** (Parte 1,
-  passo 5), que garantem que só você, logado, acessa seus dados. Não pule esse passo.
+  passo 7), que garantem que só você, logado, acessa seus dados. Não pule esse passo.
 - Use uma senha que você não usa em outro lugar.
 - O Firebase tem backup próprio, mas se quiser dormir tranquilo, dá para exportar os
   dados pelo painel do Firestore de tempos em tempos.
@@ -115,7 +129,9 @@ passa a abrir como um aplicativo, em tela cheia.
 - **"Erro: auth/..." ao entrar:** login não ativado (Parte 1, passo 4) ou senha
   curta (mínimo 6 caracteres).
 - **Entra mas não salva:** as regras do Firestore não foram publicadas (Parte 1,
-  passo 5).
+  passo 7).
+- **"Permissão negada" ao criar empresa:** falta o seu documento em `gestores`
+  (Parte 1, passo 6). O ID do documento tem que ser o seu UID, exatamente.
 - **Quer recomeçar do zero:** no Firestore, apague o documento em
   `usuarios / [seu-id]`.
 
