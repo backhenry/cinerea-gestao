@@ -175,3 +175,54 @@
     .tablewrap tr:hover td{background:none}
     .row-actions{justify-content:flex-end}
   }
+
+  /* ============ Gerador de post ============
+     ATENÇÃO: as cores do post são FIXAS, não usam var(--paper) e companhia.
+     A interface tem tema escuro; o post não. Se ele herdasse o tema, mudar a
+     aparência do sistema mudaria a imagem exportada — e o feed do Instagram
+     sairia diferente do que a pessoa viu na tela. */
+  .postgrid{display:grid;grid-template-columns:360px 1fr;gap:24px;align-items:start}
+  @media(max-width:900px){.postgrid{grid-template-columns:1fr}}
+  .postform .field{margin-bottom:16px}
+  .postup{border:1px dashed var(--line);border-radius:9px;padding:16px;text-align:center;cursor:pointer;color:var(--smoke);font-size:13px;transition:.15s}
+  .postup:hover{border-color:var(--char);color:var(--char)}
+  .postseg{display:flex;gap:6px;flex-wrap:wrap}
+  .postseg button{flex:1;padding:9px 8px;border:1px solid var(--line);background:var(--paper);border-radius:7px;font-size:12px;color:var(--smoke);transition:.15s;white-space:nowrap}
+  .postseg button.on{background:var(--char);color:var(--paper);border-color:var(--char)}
+  .postcap{background:var(--ash);border-radius:8px;padding:12px;font-size:12px;color:var(--smoke);white-space:pre-wrap;line-height:1.6;max-height:200px;overflow-y:auto}
+  .poststage{display:flex;justify-content:center;padding:8px}
+  .postwrap{box-shadow:0 20px 60px rgba(28,26,23,.18);max-width:100%}
+
+  /* o post em si — daqui para baixo, nada de variável de tema */
+  #po_post{position:relative;overflow:hidden;background:#F2EFEA;width:540px;height:540px;max-width:100%}
+  /* No clima escuro o selo da marca fica claro, para contrastar com foto escura.
+     Sem foto, o fundo seria papel e a marca sumiria — branco no branco. Esta base
+     escura resolve o estado vazio; com foto, ela fica coberta e não muda nada. */
+  #po_post.dk{background:#2A2621}
+  #po_post.r45{height:675px}
+  #po_post .po-photo{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat}
+  #po_post .po-scrim{position:absolute;inset:0}
+  #po_post.dk .po-scrim{background:linear-gradient(to top,rgba(28,26,23,.72) 0%,rgba(28,26,23,.15) 45%,rgba(28,26,23,0) 70%)}
+  #po_post.lt .po-scrim{background:linear-gradient(to top,rgba(242,239,234,.82) 0%,rgba(242,239,234,.2) 42%,rgba(242,239,234,0) 66%)}
+  #po_post .po-frame{position:absolute;inset:20px;border:1px solid;pointer-events:none}
+  #po_post.dk .po-frame{border-color:rgba(242,239,234,.4)}
+  #po_post.lt .po-frame{border-color:rgba(28,26,23,.25)}
+  #po_post .po-frame.nf{display:none}
+  #po_post .po-topmark{position:absolute;top:34px;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:8px}
+  #po_post .po-topmark svg{width:34px;height:34px}
+  #po_post .po-topmark .po-nm{font-family:'Fraunces';font-weight:300;letter-spacing:.14em;font-size:19px}
+  #po_post.dk .po-topmark .po-nm{color:#F2EFEA}
+  #po_post.dk .po-topmark path{stroke:#F2EFEA}
+  #po_post.lt .po-topmark .po-nm{color:#1C1A17}
+  #po_post.lt .po-topmark path{stroke:#1C1A17}
+  #po_post .po-topmark.hide{display:none}
+  #po_post .po-content{position:absolute;left:0;right:0;bottom:44px;padding:0 44px;text-align:center}
+  #po_post .po-eyebrow{font-family:'Inter';font-size:11px;letter-spacing:.28em;text-transform:uppercase;margin-bottom:12px;color:#B5462A}
+  #po_post .po-title{font-family:'Fraunces';font-weight:300;letter-spacing:-.01em;line-height:1.04;font-size:40px}
+  #po_post .po-title .it{font-style:italic;font-weight:400}
+  #po_post .po-subtitle{font-family:'Fraunces';font-style:italic;font-weight:300;font-size:18px;margin-top:12px;opacity:.9}
+  #po_post .po-price{font-family:'Inter';font-size:13px;letter-spacing:.14em;text-transform:uppercase;margin-top:16px}
+  #po_post.dk .po-title,#po_post.dk .po-subtitle,#po_post.dk .po-price{color:#F2EFEA}
+  #po_post.lt .po-title,#po_post.lt .po-subtitle,#po_post.lt .po-price{color:#1C1A17}
+  #po_post .po-badge{position:absolute;top:34px;right:34px;font-family:'Inter';font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:6px 12px;background:#B5462A;color:#F2EFEA}
+  #po_post .po-badge.hide{display:none}

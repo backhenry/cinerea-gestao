@@ -9,10 +9,11 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#F2EFEA">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -66,6 +67,7 @@
   <button data-tab="producao">Produção</button>
   <button data-tab="pedidos">Pedidos</button>
   <button data-tab="equipe">Equipe</button>
+  <button data-tab="posts">Posts</button>
   <button data-tab="guia">Guia</button>
 </nav>
 
@@ -189,6 +191,93 @@
       <label><input type="checkbox" onchange="saveCheck()" data-c="c5"> Gerei e importei uma cotação</label>
       <label><input type="checkbox" onchange="saveCheck()" data-c="c6"> Convidei alguém para a equipe</label>
       <label><input type="checkbox" onchange="saveCheck()" data-c="c7"> Publiquei o catálogo e salvei um backup</label>
+    </div>
+  </section>
+
+  <section class="panel" id="p-posts">
+    <div class="panel-head">
+      <div><h2>Posts</h2><div class="desc">Monta a imagem do Instagram a partir das peças que você já cadastrou</div></div>
+      <div class="head-btns"><button class="btn" onclick="exportarPost()">↓ Baixar imagem</button></div>
+    </div>
+
+    <div class="postgrid">
+      <div class="postform">
+        <div class="field">
+          <label>Partir de uma peça</label>
+          <select id="po_produto" onchange="postDoProduto(this.value)"></select>
+          <div class="hint">Preenche título, preço e foto com o que está no cadastro. Depois é só ajustar.</div>
+        </div>
+
+        <div class="field">
+          <label>Foto</label>
+          <div class="postup" id="po_upbtn">clique para enviar do computador
+            <input type="file" id="po_upinput" accept="image/*" hidden>
+          </div>
+          <input type="text" id="po_fotourl" placeholder="ou cole o endereço de uma imagem" oninput="postFotoUrl(this.value)" style="margin-top:8px">
+          <div class="hint" id="po_fotohint">Foto real da peça vende mais que conceito.</div>
+        </div>
+
+        <div class="field-row">
+          <div class="field"><label>Formato</label>
+            <div class="postseg" id="po_ratio">
+              <button class="on" onclick="postRatio('sq',this)">Quadrado</button>
+              <button onclick="postRatio('45',this)">Feed 4:5</button>
+            </div>
+          </div>
+          <div class="field"><label>Clima do post</label>
+            <div class="postseg" id="po_mood">
+              <button class="on" onclick="postMood('lt',this)">Claro</button>
+              <button onclick="postMood('dk',this)">Escuro</button>
+            </div>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:-8px">Alterne claro e escuro entre posts — dá ritmo ao feed.</div>
+
+        <div class="field"><label>Linha ou coleção</label>
+          <input type="text" id="po_eyebrow" maxlength="40" placeholder="Coleção Areia"></div>
+        <div class="field"><label>Título</label>
+          <input type="text" id="po_title" maxlength="40" placeholder="Oferenda">
+          <div class="hint">Use *asteriscos* para deixar uma palavra em itálico: a *chama* que fica</div></div>
+        <div class="field"><label>Subtítulo</label>
+          <input type="text" id="po_subtitle" maxlength="60" placeholder="a base permanece, a luz se renova"></div>
+        <div class="field-row">
+          <div class="field"><label>Preço</label><input type="text" id="po_price" placeholder="R$ 219"></div>
+          <div class="field"><label>Etiqueta de canto</label><input type="text" id="po_badge" placeholder="Novo"></div>
+        </div>
+
+        <div class="field"><label>Elementos</label>
+          <div class="postseg" id="po_toggles">
+            <button class="on" onclick="postToggle('mark',this)">Selo da marca</button>
+            <button class="on" onclick="postToggle('frame',this)">Moldura</button>
+          </div>
+        </div>
+
+        <div class="field"><label>Legenda sugerida</label>
+          <div class="postcap" id="po_caption"></div>
+          <button class="btn2" onclick="copiarLegenda()" style="margin-top:8px">Copiar legenda</button>
+        </div>
+      </div>
+
+      <div class="poststage">
+        <div class="postwrap">
+          <div id="po_post" class="lt">
+            <div class="po-photo" id="po_photo"></div>
+            <div class="po-scrim"></div>
+            <div class="po-frame" id="po_frame"></div>
+            <div class="po-topmark" id="po_topmark">
+              <svg viewBox="0 0 150 150" fill="none"><path d="M108 46 C97 31,70 28,53 42 C36 56,36 94,53 108 C70 122,97 119,108 104" stroke-width="8" fill="none" stroke-linecap="round"/><circle cx="112" cy="75" r="10" fill="#B5462A"/></svg>
+              <div class="po-nm">Cinérea</div>
+            </div>
+            <div class="po-badge hide" id="po_badgeel"></div>
+            <div class="po-content">
+              <div class="po-eyebrow" id="po_peyebrow"></div>
+              <div class="po-title" id="po_ptitle"></div>
+              <div class="po-subtitle" id="po_psubtitle"></div>
+              <div class="po-price" id="po_pprice"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 </main>

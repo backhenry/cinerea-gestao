@@ -826,6 +826,7 @@ const RENDER_ABA={
   insumos:()=>renderInsumos(),
   compras:()=>{renderCompras();renderComprasHist();renderCotacoes();renderFornecedores();},
   orcamento:()=>{renderProdutos();renderFixos();},
+  posts:()=>renderPostProdutos(),
   producao:()=>renderProducao(),
   pedidos:()=>{renderPedidos();renderClientes();renderCanais();},
   equipe:()=>{renderEquipe();renderProdMembro();renderAtividade();},
@@ -1370,3 +1371,133 @@ if('serviceWorker' in navigator){
   }).catch(()=>{});
   navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload());
 }
+
+// ============================================================
+// GERADOR DE POST
+// Monta a imagem do Instagram a partir das peças já cadastradas, para não
+// redigitar nome, preço e foto que o sistema já sabe.
+// ============================================================
+
+let poFoto='';   // data URI (upload) ou URL (cadastro/colada)
+
+/** Preenche o seletor de peças. Chamado pelo renderAll. */
+function renderPostProdutos(){
+  const sel=document.getElementById('po_produto');
+  if(!sel)return;
+  const atual=sel.value;
+  const itens=(db.produtos||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+  sel.innerHTML='<option value="">— escrever do zero —</option>'+
+    itens.map(p=>`<option value="${esc(p.id)}">${esc(p.nome||'sem nome')}</option>`).join('');
+  if(atual)sel.value=atual;
+}
+
+function postDoProduto(id){
+  if(!id){postSync();return;}
+  const p=(db.produtos||[]).find(x=>String(x.id)===String(id));
+  if(!p)return;
+  const custo=calcCusto(p).total;
+  const preco=Number(p.preco)||custo*Number(p.markup||3);
+  document.getElementById('po_title').value=p.nome||'';
+  document.getElementById('po_price').value=preco?brl(Math.round(preco*100)/100):'';
+  if(p.foto){document.getElementById('po_fotourl').value=p.foto;postFotoUrl(p.foto);}
+  postSync();
+}
+
+function postFotoUrl(url){
+  poFoto=(url||'').trim();
+  document.getElementById('po_photo').style.backgroundImage=poFoto?`url("${poFoto}")`:'';
+  // Imagem de outro domínio pode "sujar" o canvas e impedir o download. Só
+  // descobrimos na hora de exportar, então o aviso fica preparado ali.
+  document.getElementById('po_fotohint').textContent = poFoto && !poFoto.startsWith('data:')
+    ? 'Foto por link: se o download falhar, envie o arquivo do computador.'
+    : 'Foto real da peça vende mais que conceito.';
+}
+
+function postRatio(r,btn){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('po_post').classList.toggle('r45',r==='45');
+}
+
+function postMood(m,btn){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  const el=document.getElementById('po_post');
+  el.classList.remove('lt','dk');el.classList.add(m);
+}
+
+function postToggle(t,btn){
+  btn.classList.toggle('on');
+  const on=btn.classList.contains('on');
+  if(t==='mark')document.getElementById('po_topmark').classList.toggle('hide',!on);
+  if(t==='frame')document.getElementById('po_frame').classList.toggle('nf',!on);
+}
+
+/** *palavra* vira itálico — escapando antes, para o texto não injetar HTML. */
+function postItalico(s){
+  return esc(s).replace(/\*(.+?)\*/g,'<span class="it">$1</span>');
+}
+
+function postSync(){
+  const v=id=>(document.getElementById(id)||{}).value||'';
+  document.getElementById('po_peyebrow').textContent=v('po_eyebrow');
+  document.getElementById('po_ptitle').innerHTML=postItalico(v('po_title'));
+  const sub=v('po_subtitle'),pr=v('po_price'),bd=v('po_badge');
+  const elSub=document.getElementById('po_psubtitle');elSub.textContent=sub;elSub.style.display=sub?'block':'none';
+  const elPr=document.getElementById('po_pprice');elPr.textContent=pr;elPr.style.display=pr?'block':'none';
+  const elBd=document.getElementById('po_badgeel');elBd.textContent=bd;elBd.classList.toggle('hide',!bd);
+  postLegenda();
+}
+
+function postLegenda(){
+  const v=id=>(document.getElementById(id)||{}).value||'';
+  const t=v('po_title').replace(/\*/g,''),e=v('po_eyebrow'),s=v('po_subtitle'),pr=v('po_price');
+  let c=t?(e?`${t} — ${e}.\n\n`:`${t}.\n\n`):'';
+  if(s)c+=s.charAt(0).toUpperCase()+s.slice(1)+'.\n\n';
+  c+='Feito à mão em Campos do Jordão. Cada peça é única.\n';
+  if(pr)c+=`${pr} · link na bio.\n`;
+  c+='\n#cinerea #velasdeautor #decoração #velasartesanais #camposdojordão #homedecor #velasperfumadas #aromaterapia';
+  document.getElementById('po_caption').textContent=c;
+}
+
+function copiarLegenda(){
+  const t=document.getElementById('po_caption').textContent;
+  if(navigator.clipboard)navigator.clipboard.writeText(t).then(()=>toast('Legenda copiada')).catch(()=>toast('Não consegui copiar'));
+}
+
+async function exportarPost(){
+  const alvo=document.getElementById('po_post');
+  if(typeof html2canvas!=='function'){toast('Sem internet para carregar o exportador');return;}
+  try{
+    // 1080 de largura é o que o Instagram quer; o palco tem 540.
+    const canvas=await html2canvas(alvo,{scale:1080/540,backgroundColor:null,useCORS:true});
+    const a=document.createElement('a');
+    a.href=canvas.toDataURL('image/png');
+    const nome=(document.getElementById('po_title').value||'post').replace(/[^\w\-]+/g,'-').toLowerCase();
+    a.download=`cinerea-${nome}.png`;a.click();
+    toast('Imagem baixada');
+  }catch(e){
+    console.error(e);
+    // Quase sempre é o canvas "sujo" por imagem de outro domínio.
+    toast('Não consegui gerar. Envie a foto do computador em vez de usar link.');
+  }
+}
+
+// liga os campos e o upload
+['po_eyebrow','po_title','po_subtitle','po_price','po_badge'].forEach(id=>{
+  const el=document.getElementById(id);if(el)el.addEventListener('input',postSync);
+});
+(()=>{
+  const btn=document.getElementById('po_upbtn'),inp=document.getElementById('po_upinput');
+  if(!btn||!inp)return;
+  btn.onclick=()=>inp.click();
+  inp.onchange=e=>{
+    const f=e.target.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=()=>{document.getElementById('po_fotourl').value='';postFotoUrl(String(r.result));};
+    r.readAsDataURL(f);
+  };
+  postSync();
+})();
+
+Object.assign(window,{postDoProduto,postFotoUrl,postRatio,postMood,postToggle,copiarLegenda,exportarPost});
