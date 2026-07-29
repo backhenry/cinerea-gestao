@@ -226,3 +226,10 @@
   #po_post.lt .po-title,#po_post.lt .po-subtitle,#po_post.lt .po-price{color:#1C1A17}
   #po_post .po-badge{position:absolute;top:34px;right:34px;font-family:'Inter';font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:6px 12px;background:#B5462A;color:#F2EFEA}
   #po_post .po-badge.hide{display:none}
+
+  /* bloco da loja dentro do formulário de produto */
+  .loja-bloco{border-top:1px solid var(--line);margin-top:18px;padding-top:16px}
+  .loja-tit{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--warm);margin-bottom:14px}
+  .loja-bloco textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);font-family:'Inter';font-size:14px;color:var(--char);resize:vertical}
+  .loja-bloco textarea:focus{outline:none;border-color:var(--char)}
+  .loja-bloco code{background:var(--ash);padding:1px 5px;border-radius:4px;font-size:11px}
