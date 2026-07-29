@@ -836,7 +836,7 @@ const RENDER_ABA={
   vender:()=>{renderPedidos();renderClientes();renderCanais();renderPostProdutos();},
   produzir:()=>{renderProducao();renderMoldes();renderEquip();},
   comprar:()=>{renderCompras();renderComprasHist();renderCotacoes();renderFornecedores();renderInsumos();},
-  numeros:()=>{renderProdutos();renderFixos();},
+  numeros:()=>{renderProdutos();renderFixos();avisoCatalogo();},
   // Encomendas nao entra aqui: e busca de rede, e renderAll roda a cada
   // salvamento. Ela carrega quando a sub-aba e aberta.
   ajustes:()=>{renderEquipe();renderProdMembro();renderAtividade();},
@@ -1031,9 +1031,42 @@ function renderFornecedores(){const tb=document.getElementById('tbFornecedores')
     return `<tr><td>${esc(f.nome)}${contHtml}${scHtml}${f.endereco?`<div style="font-size:11px;color:var(--warm)">📍 ${esc(f.endereco)}</div>`:''}${f.obs?`<div style="font-size:11px;color:var(--warm)">${esc(f.obs)}</div>`:''}</td><td>${esc(f.categoria)||'—'}</td><td>${f.risco?`<span class="pill ${rc[f.risco]||'warn'}">${esc(f.risco)}</span>`:'—'}</td><td>${wa}</td><td>${compras.length}</td><td class="money">${brl(tot)}</td><td>${rowActions('fornecedor',f.id)}</td></tr>`;
   }).join(''):`<tr><td colspan=7><div class="empty-t">Nenhum fornecedor — importe uma cotação ou cadastre.</div></td></tr>`;}
 function quickCliente(sel){const nome=prompt('Nome do cliente:');if(!nome){sel.value='';return;}const whats=prompt('WhatsApp (opcional, só números com DDD):')||'';const c={id:uidGen(),nome,whats,obs:''};db.clientes=db.clientes||[];db.clientes.push(c);cloudSave();const o=document.createElement('option');o.value=c.id;o.textContent=nome;sel.insertBefore(o,sel.querySelector('option[value="__new"]'));sel.value=c.id;toast('Cliente <b>'+esc(nome)+'</b> cadastrado');}
+/**
+ * Assinatura do que o catálogo publicaria AGORA.
+ *
+ * O app e o site leem `catalogo/{eid}`, que só muda quando alguém clica em
+ * publicar. Editar um preço e esquecer de publicar deixa a loja vendendo pelo
+ * valor velho — sem nenhum sinal de que isso aconteceu. Comparar esta
+ * assinatura com a da última publicação transforma esse silêncio em aviso.
+ */
+function assinaturaCatalogo(){
+  return JSON.stringify(itensDoCatalogo());
+}
+
+/** O recorte público de cada produto marcado para o catálogo. */
+function itensDoCatalogo(){
+  return db.produtos.filter(p=>p.publico).map(p=>{
+    const c=calcCusto(p).total;
+    const preco=Number(p.preco)||c*Number(p.markup||3);
+    return{id:p.id,nome:p.nome,preco:Math.round(preco*100)/100,foto:p.foto||'',
+      linha:p.linha||'',situacao:p.situacao||'disponivel',desc:p.desc||'',longa:p.longa||'',
+      ficha:p.ficha||[],destaque:!!p.destaque,pronto:Number(p.pronto)||0};
+  });
+}
+
+/** Mostra "há alterações não publicadas" quando a loja está atrasada. */
+function avisoCatalogo(){
+  const box=document.getElementById('avisoCatalogo');
+  if(!box)return;
+  const mudou=db.produtos.some(p=>p.publico) && db.catalogoAssinatura!==assinaturaCatalogo();
+  box.innerHTML = mudou
+    ? '<div class="hint-box" style="border-left-color:var(--ember)">A loja está <b>desatualizada</b>: há mudanças em produtos que ainda não foram publicadas. O app e o site continuam mostrando o que foi publicado da última vez.<div style="margin-top:10px"><button class="btn" onclick="publicarCatalogo()">Publicar catálogo agora</button></div></div>'
+    : (db.catalogoAssinatura ? '<div class="hint">Loja em dia com o cadastro.</div>' : '');
+}
+
 async function publicarCatalogo(){
   if(!pode('fin')){toast('Sem permissão');return;}
-  const itens=db.produtos.filter(p=>p.publico).map(p=>{const c=calcCusto(p).total;const preco=Number(p.preco)||c*Number(p.markup||3);return{id:p.id,nome:p.nome,preco:Math.round(preco*100)/100,foto:p.foto||'',linha:p.linha||'',situacao:p.situacao||'disponivel',desc:p.desc||'',longa:p.longa||'',ficha:p.ficha||[],destaque:!!p.destaque,pronto:Number(p.pronto)||0};});
+  const itens=itensDoCatalogo();
   if(!itens.length){toast('Marque "mostrar no catálogo" em algum produto primeiro');return;}
   const whats=prompt('WhatsApp para encomendas no catálogo (só números com DDD, vazio = sem botão):',db.catWhats||'');
   if(whats===null)return;
@@ -1042,6 +1075,7 @@ async function publicarCatalogo(){
     await setDoc(doc(fdb,'catalogo',eid),{itens,nome:empresaNome||'Cinérea',whats:db.catWhats,atualizado:Date.now()});
     const url=location.origin+location.pathname.replace(/index\.html$/,'')+'catalogo.html?u='+eid;
     if(navigator.clipboard)navigator.clipboard.writeText(url).catch(()=>{});
+    db.catalogoAssinatura=assinaturaCatalogo();cloudSave();avisoCatalogo();
     toast('Catálogo publicado — link copiado! '+itens.length+' peça(s)');
   }catch(e){console.error(e);toast('Erro ao publicar: atualize as regras do Firestore (docs/firestore.rules)');}
 }
@@ -1628,7 +1662,7 @@ async function recusarEncomenda(id){
   }catch(err){console.error(err);toast('Não consegui atualizar');}
 }
 
-Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda});
+Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo});
 
 // ============================================================
 // FOTO DE PRODUTO — envio para o Cloud Storage
