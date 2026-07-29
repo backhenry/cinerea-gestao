@@ -835,6 +835,7 @@ const RENDER_ABA={
   compras:()=>{renderCompras();renderComprasHist();renderCotacoes();renderFornecedores();},
   orcamento:()=>{renderProdutos();renderFixos();},
   posts:()=>renderPostProdutos(),
+  encomendas:()=>carregarEncomendas(),
   producao:()=>renderProducao(),
   pedidos:()=>{renderPedidos();renderClientes();renderCanais();},
   equipe:()=>{renderEquipe();renderProdMembro();renderAtividade();},
@@ -1509,3 +1510,113 @@ async function exportarPost(){
 })();
 
 Object.assign(window,{postDoProduto,postFotoUrl,postRatio,postMood,postToggle,copiarLegenda,exportarPost});
+
+// ============================================================
+// ENCOMENDAS — a caixa de entrada da loja do app
+// Uma encomenda NÃO é um pedido: é um pedido de compra esperando aceite.
+// Sem pagamento online, quem decide é gente: confere estoque e preço antes.
+// ============================================================
+
+let encomendas=[];
+
+async function carregarEncomendas(){
+  const box=document.getElementById('encList');
+  if(!box)return;
+  if(!pode('fin')){box.innerHTML='<div class="hint-box">Sem permissão para ver encomendas.</div>';return;}
+  box.innerHTML='<div class="hint">Buscando…</div>';
+  try{
+    const snap=await getDocs(collection(fdb,'encomendas'));
+    encomendas=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(b.criadaEm?.toMillis?.()||0)-(a.criadaEm?.toMillis?.()||0));
+    renderEncomendas();
+  }catch(e){
+    console.error(e);
+    box.innerHTML='<div class="hint-box">Não consegui buscar. Publique as regras do Firestore (docs/firestore.rules) e confira se você está em <code>gestores</code>.</div>';
+  }
+}
+
+/**
+ * O total que o app enviou é o que o CLIENTE VIU. Aqui recalculamos pelo nosso
+ * próprio cadastro — é isso que impede um preço adulterado de virar venda
+ * enquanto não existe servidor. Divergiu, aparece na tela.
+ */
+function conferirTotal(enc){
+  let nosso=0, achouTodos=true;
+  (enc.itens||[]).forEach(i=>{
+    const p=db.produtos.find(x=>String(x.id)===String(i.id));
+    if(!p){achouTodos=false;return;}
+    const c=calcCusto(p).total;
+    nosso+=(Number(p.preco)||c*Number(p.markup||3))*Number(i.qtd||1);
+  });
+  nosso=Math.round(nosso*100)/100;
+  return {nosso,achouTodos,divergiu:achouTodos&&Math.abs(nosso-Number(enc.totalVisto||0))>0.01};
+}
+
+function renderEncomendas(){
+  const box=document.getElementById('encList');
+  if(!box)return;
+  const novas=encomendas.filter(e=>e.situacao==='nova');
+  if(!encomendas.length){box.innerHTML='<div class="hint-box">Nenhuma encomenda ainda. Elas chegam quando alguém fecha a sacola no app.</div>';return;}
+  box.innerHTML=(novas.length?'':'<div class="hint">Nenhuma encomenda nova.</div>')+encomendas.map(e=>{
+    const t=conferirTotal(e);
+    const itens=(e.itens||[]).map(i=>`<div class="prazo-item"><span>${i.qtd}× ${esc(i.nome)}</span><b>${brl(Number(i.preco||0)*Number(i.qtd||1))}</b></div>`).join('');
+    const alerta = t.divergiu
+      ? `<div class="hint-box" style="margin-top:8px">Atenção: o cliente viu <b>${brl(e.totalVisto)}</b>, mas pelo cadastro de hoje dá <b>${brl(t.nosso)}</b>. Combine antes de aceitar.</div>`
+      : (!t.achouTodos?'<div class="hint-box" style="margin-top:8px">Alguma peça desta encomenda não está mais no cadastro.</div>':'');
+    const acoes = e.situacao==='nova'
+      ? `<div style="display:flex;gap:8px;margin-top:12px"><button class="btn" onclick="aceitarEncomenda('${e.id}')">Aceitar e criar pedido</button><button class="btn2" onclick="recusarEncomenda('${e.id}')">Não consigo atender</button></div>`
+      : `<div class="hint" style="margin-top:10px">Situação: ${esc(e.situacao)}</div>`;
+    return `<div class="chartcard" style="margin-bottom:14px">
+      <h3>${esc(e.clienteNome||'Sem nome')} · ${brl(e.totalVisto)}</h3>
+      <div class="hint">${esc(e.clienteEmail||'')} · ${esc(e.clienteTelefone||'')}</div>
+      <div class="hint" style="margin-top:6px">${esc(e.endereco||'sem endereço')}</div>
+      ${e.recado?`<div class="hint" style="margin-top:6px">Recado: ${esc(e.recado)}</div>`:''}
+      <div style="margin-top:12px">${itens}</div>
+      ${alerta}${acoes}
+    </div>`;
+  }).join('');
+}
+
+/**
+ * Aceitar cria UM PEDIDO POR ITEM, porque o pedido daqui é de um produto só.
+ * Transformar o pedido em multi-item mexeria no painel, na receita e na baixa
+ * de estoque — muito risco para o ganho.
+ */
+async function aceitarEncomenda(id){
+  const e=encomendas.find(x=>x.id===id);if(!e)return;
+  const t=conferirTotal(e);
+  if(t.divergiu&&!confirm(`O cliente viu ${brl(e.totalVisto)} e o cadastro de hoje dá ${brl(t.nosso)}. Criar os pedidos pelo preço de hoje?`))return;
+
+  let cli=db.clientes.find(c=>c.nome===e.clienteNome);
+  if(!cli){cli={id:uidGen(),nome:e.clienteNome||'Cliente do app',contato:e.clienteTelefone||e.clienteEmail||'',endereco:e.endereco||''};db.clientes.push(cli);}
+
+  (e.itens||[]).forEach(i=>{
+    const p=db.produtos.find(x=>String(x.id)===String(i.id));
+    const c=p?calcCusto(p).total:0;
+    const preco=p?(Number(p.preco)||c*Number(p.markup||3)):Number(i.preco||0);
+    db.pedidos.push({
+      id:uidGen(), produto:p?p.id:'', clienteId:cli.id, cliente:cli.nome,
+      qtd:Number(i.qtd||1), valor:Math.round(preco*Number(i.qtd||1)*100)/100,
+      situacao:'Pendente', data:hoje(), origem:'loja do app', encomendaId:e.id,
+    });
+  });
+
+  cloudSave();
+  try{
+    await updateDoc(doc(fdb,'encomendas',id),{situacao:'aceita'});
+    e.situacao='aceita';
+    toast(`Pedido${(e.itens||[]).length>1?'s':''} criado${(e.itens||[]).length>1?'s':''} — veja em Pedidos`);
+  }catch(err){console.error(err);toast('Pedidos criados aqui, mas não consegui avisar o cliente');}
+  renderEncomendas();
+}
+
+async function recusarEncomenda(id){
+  if(!confirm('Marcar como não atendida? O cliente vê isso no app.'))return;
+  try{
+    await updateDoc(doc(fdb,'encomendas',id),{situacao:'recusada'});
+    const e=encomendas.find(x=>x.id===id);if(e)e.situacao='recusada';
+    renderEncomendas();toast('Encomenda marcada');
+  }catch(err){console.error(err);toast('Não consegui atualizar');}
+}
+
+Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda});

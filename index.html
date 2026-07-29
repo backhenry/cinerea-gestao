@@ -67,6 +67,7 @@
   <button data-tab="producao">Produção</button>
   <button data-tab="pedidos">Pedidos</button>
   <button data-tab="equipe">Equipe</button>
+  <button data-tab="encomendas">Encomendas</button>
   <button data-tab="posts">Posts</button>
   <button data-tab="guia">Guia</button>
 </nav>
@@ -279,6 +280,14 @@
         </div>
       </div>
     </div>
+  </section>
+
+  <section class="panel" id="p-encomendas">
+    <div class="panel-head">
+      <div><h2>Encomendas</h2><div class="desc">O que chegou pela loja do app — confira antes de virar pedido</div></div>
+      <div class="head-btns"><button class="btn2" onclick="carregarEncomendas()">Atualizar</button></div>
+    </div>
+    <div id="encList"></div>
   </section>
 </main>
 

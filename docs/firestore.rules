@@ -168,6 +168,32 @@ service cloud.firestore {
       }
     }
 
+    // Encomendas feitas pela loja do app.
+    //
+    // NÃO são pedidos: são PEDIDOS DE COMPRA, esperando a casa aceitar. Sem
+    // pagamento (estágio 2), aceitar é decisão humana — confere-se estoque e
+    // preço antes de virar pedido de verdade lá na gestão.
+    //
+    // O preço que vem aqui é o que o cliente VIU, e serve para conferência: a
+    // gestão recalcula pelo próprio cadastro na hora de aceitar. Enquanto o
+    // servidor não existe, é isso que impede um preço adulterado de virar venda.
+    match /encomendas/{id} {
+      allow create: if request.auth != null
+        && request.resource.data.clienteUid == request.auth.uid
+        && request.resource.data.situacao == 'nova'
+        && request.resource.data.itens is list
+        && request.resource.data.itens.size() > 0
+        && request.resource.data.itens.size() <= 30;
+
+      // O cliente lê as próprias (consultando por clienteUid); a casa lê todas.
+      allow read: if request.auth != null
+        && (ehDaCasa() || resource.data.clienteUid == request.auth.uid);
+
+      // Só a casa muda a situação. O cliente não reescreve o que já mandou.
+      allow update: if ehDaCasa();
+      allow delete: if false;
+    }
+
     // ==================================================================
     // APP DOS CLIENTES — daqui para baixo é o cinerea-app
     // ==================================================================
