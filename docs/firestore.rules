@@ -40,10 +40,29 @@ service cloud.firestore {
     }
 
     // Lista de quem é da casa. Um documento vazio por uid basta — o que importa
-    // é existir. Só se mexe pelo Console do Firebase; nenhum app lê nem escreve.
-    // (`exists()` dentro das regras não passa pelas regras, então funciona.)
+    // é existir. Só se mexe pelo Console do Firebase: nenhum app escreve aqui.
+    //
+    // Cada um lê APENAS o próprio documento, e só para saber se é da casa — é
+    // isso que faz o app dos clientes mostrar a opção de registrar peça na
+    // produção para o dono, e escondê-la de todo mundo. Ler o dos outros
+    // continua negado, então ninguém descobre quem mais é gestor.
     match /gestores/{uid} {
-      allow read, write: if false;
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Registro de fábrica: uma peça Cinérea que existe no mundo.
+    // O id é o UID do chip — o mesmo que identifica a peça no app do cliente.
+    //
+    // Leitura aberta de propósito: é a certidão da peça, e no futuro a página
+    // que o convidado abre ao encostar precisa lê-la sem login. Não há nada
+    // pessoal aqui — modelo, número de série e data de fabricação.
+    // Escrita só de quem é da casa: é isto que impede um cliente de forjar
+    // procedência para uma peça que a Cinérea não fez.
+    match /pecas/{tagUid} {
+      allow read: if true;
+      allow create, update: if ehDaCasa();
+      allow delete: if false;
     }
 
     // Conta individual: ponteiro para a empresa + preferências + dados legados

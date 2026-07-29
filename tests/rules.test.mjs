@@ -163,9 +163,35 @@ test('quem está em gestores cria empresa', async () => {
 test('gestor NÃO cria empresa em nome de outra pessoa', () =>
   assertFails(fs('dacasa').doc('empresas/NOVA3').set({ nome: 'Laranja', dono: 'forasteiro', dados: {} })));
 
-test('gestores é invisível: ninguém lê nem escreve pelo app', async () => {
-  await assertFails(fs('dacasa').doc('gestores/dacasa').get());
-  await assertFails(fs('dacasa').doc('gestores/forasteiro').set({ nome: 'X' }));
+test('cada um lê só o próprio gestores; escrita é só pelo Console', async () => {
+  // é isto que faz o app mostrar "registrar peça" só para quem é da casa
+  await assertSucceeds(fs('dacasa').doc('gestores/dacasa').get());
+  await assertFails(fs('forasteiro').doc('gestores/dacasa').get());
+  await assertFails(fs('dacasa').doc('gestores/dacasa').set({ nome: 'X' }));
+});
+
+// ---------------------------------------------------------------------------
+// Certidão da peça: registro de fábrica em `pecas/{tagUid}`
+// ---------------------------------------------------------------------------
+
+test('qualquer um lê a certidão de uma peça, até sem login', async () => {
+  await env.withSecurityRulesDisabled(async ctx =>
+    ctx.firestore().doc('pecas/04A2B3').set({ modelo: 'Ondina', serie: 12, total: 40 }));
+  await assertSucceeds(env.unauthenticatedContext().firestore().doc('pecas/04A2B3').get());
+  await assertSucceeds(fs('ana').doc('pecas/04A2B3').get());
+});
+
+test('cliente NÃO forja procedência de peça', async () => {
+  await assertFails(fs('ana').doc('pecas/FALSA').set({ modelo: 'Ondina', serie: 1 }));
+  await assertFails(fs('ana').doc('pecas/04A2B3').set({ modelo: 'Ondina', serie: 999 }));
+});
+
+test('quem é da casa registra peça na produção', async () => {
+  await assertSucceeds(fs('dacasa').doc('pecas/04NOVA').set({ modelo: 'Ondina', serie: 13 }));
+});
+
+test('peça registrada não se apaga, nem por quem é da casa', async () => {
+  await assertFails(fs('dacasa').doc('pecas/04A2B3').delete());
 });
 
 // ---------------------------------------------------------------------------
