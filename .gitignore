@@ -6,3 +6,6 @@ config.js
 Thumbs.db
 node_modules/
 *.log
+
+# lockfile: as dependencias aqui sao so para testar as regras
+package-lock.json
