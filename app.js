@@ -1144,18 +1144,35 @@ function avisoCatalogo(){
 
 async function publicarCatalogo(){
   if(!pode('fin')){toast('Sem permissão');return;}
-  const itens=itensDoCatalogo();
+  // O Firestore recusa `undefined` em qualquer campo, e um produto sem nome ou
+  // sem id chegaria assim. Limpar aqui evita um erro que nao explica nada.
+  const itens=itensDoCatalogo().map(i=>{
+    const limpo={}; for(const k in i) if(i[k]!==undefined) limpo[k]=i[k];
+    return limpo;
+  });
   if(!itens.length){toast('Marque "mostrar no catálogo" em algum produto primeiro');return;}
   const whats=prompt('WhatsApp para encomendas no catálogo (só números com DDD, vazio = sem botão):',db.catWhats||'');
   if(whats===null)return;
   db.catWhats=whats.trim();cloudSave();
   try{
-    await setDoc(doc(fdb,'catalogo',eid),{itens,colecoes:colecoesOrdenadas().map(c=>({id:c.id,nome:c.nome,desc:c.desc||''})),nome:empresaNome||'Cinérea',whats:db.catWhats,atualizado:Date.now()});
+    await setDoc(doc(fdb,'catalogo',eid),{itens,colecoes:colecoesOrdenadas().map(c=>({id:c.id||'',nome:c.nome||'',desc:c.desc||''})),nome:empresaNome||'Cinérea',whats:db.catWhats,atualizado:Date.now()});
     const url=location.origin+location.pathname.replace(/index\.html$/,'')+'catalogo.html?u='+eid;
     if(navigator.clipboard)navigator.clipboard.writeText(url).catch(()=>{});
     db.catalogoAssinatura=assinaturaCatalogo();cloudSave();avisoCatalogo();
     toast('Catálogo publicado — link copiado! '+itens.length+' peça(s)');
-  }catch(e){console.error(e);toast('Erro ao publicar: atualize as regras do Firestore (docs/firestore.rules)');}
+  }catch(e){
+    console.error('publicarCatalogo:',e);
+    // A mensagem antiga chutava sempre "atualize as regras", mesmo quando a
+    // causa era outra — e chute vira caça ao fantasma. Agora ela diz o que o
+    // Firebase disse.
+    const cod=(e&&e.code)||'';
+    const dica = cod==='permission-denied'
+      ? 'sem permissão para publicar — confira se você é membro da empresa'
+      : /invalid|undefined|Unsupported/i.test(String(e&&e.message))
+        ? 'algum campo do produto está vazio de um jeito que o Firestore recusa'
+        : (e&&e.message)||'erro desconhecido';
+    toast('Não consegui publicar: '+esc(dica));
+  }
 }
 function closeModal(){
   if(timerInt){clearInterval(timerInt);timerInt=null;}timerT0=null;
