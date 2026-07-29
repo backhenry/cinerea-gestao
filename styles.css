@@ -262,3 +262,28 @@
   .graficos>summary::before{content:'▸ ';color:var(--ember)}
   .graficos[open]>summary::before{content:'▾ '}
   .graficos>summary:hover{color:var(--char)}
+
+  /* ---- Tela pequena: o cabeçalho não cabia ---- */
+  /* O nome da marca em serifada de 20px empurrava "Sair" para fora da tela.
+     No celular o símbolo já identifica o app — o nome escrito é redundante e
+     custa a única coisa escassa ali, que é largura. */
+  @media(max-width:560px){
+    .head-in{padding:12px 14px;gap:8px}
+    .brand{font-size:0;gap:0}          /* esconde o texto, mantém o símbolo */
+    .brand .sym{width:24px;height:24px}
+    .synced{display:none}              /* "sincronizado" reaparece se der erro */
+    .head-actions{gap:6px;flex-shrink:0}
+    .head-actions .btn2{padding:8px 12px;font-size:12.5px}
+    nav.tabs{padding:0 14px}
+    nav.tabs button{padding:13px 11px}
+    .subtabs{padding:0 14px !important}
+  }
+
+  /* A barra de grupos rola quando não cabe. Sem a barra de rolagem visível,
+     que num app parece defeito, e com um respiro no fim para deixar claro
+     que há mais coisa à direita. */
+  nav.tabs{scrollbar-width:none;-ms-overflow-style:none}
+  nav.tabs::-webkit-scrollbar{display:none}
+  nav.tabs::after{content:'';flex:0 0 12px}
+  .subtabs{scrollbar-width:none;-ms-overflow-style:none;overflow-x:auto}
+  .subtabs::-webkit-scrollbar{display:none}

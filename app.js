@@ -374,7 +374,9 @@ function aplicarRotulos(){
   document.querySelectorAll('[data-rot-molde]').forEach(el=>el.textContent=rot('molde','Molde'));
 }
 
-document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>{x.classList.remove('active');x.setAttribute('aria-selected','false');});b.classList.add('active');b.setAttribute('aria-selected','true');document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.getElementById('p-'+b.dataset.tab).classList.add('active');renderAll();});
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>{x.classList.remove('active');x.setAttribute('aria-selected','false');});b.classList.add('active');b.setAttribute('aria-selected','true');document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.getElementById('p-'+b.dataset.tab).classList.add('active');// no celular a barra rola: sem isto, tocar num grupo do fim deixa
+  // o selecionado fora de vista
+  b.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});renderAll();});
 // paginação: tabelas longas renderizam por blocos (evita centenas de linhas no DOM)
 const PAG={producao:50,pedidos:50,compras:50};
 function maisLinhas(k){
