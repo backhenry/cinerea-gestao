@@ -59,25 +59,36 @@
 
 <nav class="tabs" id="tabs" role="tablist" aria-label="Seções do sistema">
   <button class="active" role="tab" aria-selected="true" data-tab="dashboard">Painel</button>
-  <button data-tab="equip">Equipamentos</button>
-  <button data-tab="moldes">Moldes</button>
-  <button data-tab="insumos">Insumos</button>
-  <button data-tab="compras">Compras</button>
-  <button data-tab="orcamento">Orçamento</button>
-  <button data-tab="producao">Produção</button>
-  <button data-tab="pedidos">Pedidos</button>
-  <button data-tab="equipe">Equipe</button>
-  <button data-tab="encomendas">Encomendas</button>
-  <button data-tab="posts">Posts</button>
-  <button data-tab="guia">Guia</button>
+  <button role="tab" aria-selected="false" data-tab="vender">Vender</button>
+  <button role="tab" aria-selected="false" data-tab="produzir">Produzir</button>
+  <button role="tab" aria-selected="false" data-tab="comprar">Comprar</button>
+  <button role="tab" aria-selected="false" data-tab="numeros">Números</button>
+  <button role="tab" aria-selected="false" data-tab="ajustes">Ajustes</button>
 </nav>
 
 <main>
   <section class="panel active" id="p-dashboard">
-    <div class="panel-head"><div><h2>Painel</h2><div class="desc">Visão geral · <select id="perDash" onchange="setPeriodoDash(this.value)" style="border:none;background:none;color:var(--ember);font-size:13px;cursor:pointer"><option value="0">todo o período</option><option value="3">últimos 3 meses</option><option value="6">últimos 6 meses</option><option value="12">últimos 12 meses</option></select></div></div>
-      <div class="head-btns"><button class="btn2" onclick="exportDRE()">Fechamento</button><button class="btn2" onclick="exportCSV()">↓ Planilha</button><button class="btn2" onclick="exportPDF()">↓ PDF</button><button class="btn2" onclick="exportJSON()">↓ Backup</button><button class="btn2" onclick="importJSON()">↑ Restaurar</button><button class="btn2" onclick="arquivarAno()">Arquivar ano</button><button class="btn2" onclick="verArquivo()">Ver arquivo</button></div></div>
-    <div class="stats" id="dashStats"></div>
-    <div class="chartgrid">
+    <div class="panel-head">
+      <div><h2>Painel</h2><div class="desc">O que precisa de você hoje</div></div>
+      <details class="ferramentas">
+        <summary>Ferramentas</summary>
+        <div class="ferramentas-menu"><button class="btn2" onclick="exportDRE()">Fechamento</button><button class="btn2" onclick="exportCSV()">↓ Planilha</button><button class="btn2" onclick="exportPDF()">↓ PDF</button><button class="btn2" onclick="exportJSON()">↓ Backup</button><button class="btn2" onclick="importJSON()">↑ Restaurar</button><button class="btn2" onclick="arquivarAno()">Arquivar ano</button><button class="btn2" onclick="verArquivo()">Ver arquivo</button></div>
+      </details>
+    </div>
+
+    <!-- Primeiro o que pede ação. Antes isto vinha DEPOIS de nove gráficos:
+         o urgente enterrado embaixo do que exige interpretação. -->
+    <div class="hint-box" id="dashAlerts" style="margin-top:20px"></div>
+    <div id="dashPrazos" style="margin-top:16px"></div>
+
+    <div class="dash-numeros">
+      <div class="dash-titulo">Números · <select id="perDash" onchange="setPeriodoDash(this.value)" style="border:none;background:none;color:var(--ember);font-size:13px;cursor:pointer"><option value="0">todo o período</option><option value="3">últimos 3 meses</option><option value="6">últimos 6 meses</option><option value="12">últimos 12 meses</option></select></div>
+      <div class="stats" id="dashStats"></div>
+    </div>
+
+    <details class="graficos">
+      <summary>Ver gráficos</summary>
+      <div class="chartgrid">
       <div class="chartcard"><h3>Custo por peça (R$)</h3><canvas id="chCusto"></canvas></div>
       <div class="chartcard"><h3>Margem por peça (%)</h3><canvas id="chMargem"></canvas></div>
       <div class="chartcard"><h3>Produção ao longo do tempo</h3><canvas id="chProd"></canvas></div>
@@ -89,69 +100,16 @@
       <div class="chartcard"><h3>Top clientes</h3><div id="topCliBox"></div></div>
       <div class="chartcard"><h3>Sazonalidade — força de cada mês</h3><canvas id="chSaz"></canvas><div id="sazNota" style="font-size:12px;color:var(--smoke);margin-top:10px"></div></div>
     </div>
-    <div class="hint-box" id="dashAlerts" style="margin-top:20px"></div>
-    <div id="dashPrazos" style="margin-top:16px"></div>
-    <div id="dashCal" style="margin-top:16px"></div>
-  </section>
-
-  <section class="panel" id="p-equip">
-    <div class="panel-head"><div><h2>Equipamentos</h2><div class="desc">Impressora, ferramentas</div></div><button class="btn" onclick="openForm('equip')">+ Equipamento</button></div>
-    <div class="tablewrap"><table><thead><tr><th>Item</th><th>Tipo</th><th>Compra</th><th>Custo</th><th>Situação</th><th></th></tr></thead><tbody id="tbEquip"></tbody></table></div>
-  </section>
-  <section class="panel" id="p-moldes">
-    <div class="panel-head"><div><h2>Moldes</h2><div class="desc">Vida útil de cada molde</div></div><button class="btn" onclick="openForm('molde')">+ Molde</button></div>
-    <div class="hint-box">Gesso ~40 peças, cera ~120. A produção soma usos sozinha aqui.</div>
-    <div class="tablewrap"><table><thead><tr><th>Molde</th><th>Material</th><th>Usos</th><th>Vida útil</th><th>Situação</th><th></th></tr></thead><tbody id="tbMoldes"></tbody></table></div>
-  </section>
-  <section class="panel" id="p-insumos">
-    <div class="panel-head"><div><h2>Insumos</h2><div class="desc">Estoque com alerta e baixa automática</div></div><button class="btn" onclick="openForm('insumo')">+ Insumo</button></div>
-    <div class="hint-box">Quando você registra produção, o estoque dos insumos da receita baixa sozinho.</div>
-    <div class="tablewrap"><table><thead><tr><th>Insumo</th><th>Estoque</th><th>Nível</th><th>Custo unit.</th><th>Situação</th><th></th></tr></thead><tbody id="tbInsumos"></tbody></table></div>
-  </section>
-  <section class="panel" id="p-compras">
-    <nav class="subtabs" role="tablist" aria-label="Seções de compras">
-      <button class="active" role="tab" aria-selected="true" data-sub="lista" onclick="subAba('lista')">Lista de compras</button>
-      <button role="tab" aria-selected="false" data-sub="hist" onclick="subAba('hist')">Histórico</button>
-      <button role="tab" aria-selected="false" data-sub="cot" onclick="subAba('cot')">Cotações</button>
-      <button role="tab" aria-selected="false" data-sub="forn" onclick="subAba('forn')">Fornecedores</button>
+    
+    </details>
+</section>
+  <section class="panel" id="p-vender">
+    <nav class="subtabs" role="tablist" aria-label="Seções de venda">
+      <button class="active" role="tab" aria-selected="true" data-sub="pedidos" onclick="subAba('pedidos')">Pedidos</button>
+      <button class="" role="tab" aria-selected="false" data-sub="encomendas" onclick="subAba('encomendas');carregarEncomendas()">Encomendas</button>
+      <button class="" role="tab" aria-selected="false" data-sub="posts" onclick="subAba('posts')">Posts</button>
     </nav>
-
-    <div class="subpanel active" id="s-lista">
-      <div class="panel-head"><div><h2>Lista de compras</h2><div class="desc">O que está baixo, gerado automático</div></div><button class="btn2" onclick="exportCompras()">↓ Copiar lista</button></div>
-      <div class="hint-box">Reúne tudo que está no mínimo ou abaixo. A quantidade sugerida repõe até o dobro do mínimo — ajuste ao seu fornecedor. Quando comprar, toque em <b>✓ Comprei</b> para registrar a compra e dar entrada no estoque.</div>
-      <div id="shopList"></div>
-    </div>
-
-    <div class="subpanel" id="s-hist">
-      <div class="panel-head"><div><h2>Histórico de compras</h2><div class="desc">Cada compra com valor recalcula o custo médio do insumo</div></div><button class="btn" onclick="openForm('compra')">+ Compra</button></div>
-      <div class="tablewrap"><table><thead><tr><th>Data</th><th>Insumo</th><th>Qtd</th><th>Valor pago</th><th>R$/un</th><th>Fornecedor</th><th></th></tr></thead><tbody id="tbCompras"></tbody></table></div>
-      <div class="chartcard" style="margin-top:24px"><h3>Gasto com compras por mês (R$)</h3><canvas id="chCompras"></canvas></div>
-    </div>
-
-    <div class="subpanel" id="s-cot">
-      <div class="panel-head"><div><h2>Cotações com fornecedores</h2><div class="desc">Escolha itens e quantidades, o fornecedor preenche os preços, importe e compare</div></div><div class="head-btns"><button class="btn2" onclick="importarCotacao()">↑ Importar resposta</button><button class="btn" onclick="gerarCotacao()">Nova cotação</button></div></div>
-      <div class="tablewrap"><table><thead><tr><th>Cotação</th><th>Data</th><th>Itens</th><th>Respostas</th><th></th></tr></thead><tbody id="tbCotacoes"></tbody></table></div>
-    </div>
-
-    <div class="subpanel" id="s-forn">
-      <div class="panel-head"><div><h2>Fornecedores</h2><div class="desc">Quem vende para você — respostas de cotação criam o cadastro sozinhas</div></div><button class="btn" onclick="openForm('fornecedor')">+ Fornecedor</button></div>
-      <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Risco</th><th>WhatsApp</th><th>Compras</th><th>Total gasto</th><th></th></tr></thead><tbody id="tbFornecedores"></tbody></table></div>
-    </div>
-  </section>
-  <section class="panel" id="p-orcamento">
-    <div class="panel-head"><div><h2>Orçamento</h2><div class="desc">Custo e preço de cada peça</div></div><div class="head-btns"><button class="btn2" onclick="publicarCatalogo()">Publicar catálogo</button><button class="btn" onclick="openForm('produto')">+ Produto</button></div></div>
-    <div class="hint-box">O custo puxa os preços dos Insumos. Ajuste mão de obra, markup e taxa.</div>
-    <div class="tablewrap"><table><thead><tr><th>Produto</th><th>Custo</th><th>Sugerido</th><th>Praticado</th><th>Margem</th><th>R$/h</th><th>Prontas</th><th></th></tr></thead><tbody id="tbProdutos"></tbody></table></div>
-    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Custos fixos mensais</h2><div class="desc">Aluguel, energia, assinaturas — alimentam o ponto de equilíbrio no Painel</div></div><button class="btn" onclick="openForm('fixo')">+ Custo fixo</button></div>
-    <div class="tablewrap"><table><thead><tr><th>Custo</th><th>Valor mensal</th><th></th></tr></thead><tbody id="tbFixos"></tbody></table></div>
-  </section>
-  <section class="panel" id="p-producao">
-    <div class="panel-head"><div><h2>Produção</h2><div class="desc">O que você fez, quanto tempo levou</div></div><button class="btn" onclick="openForm('producao')">+ Registro</button></div>
-    <div class="hint-box">Registrar produção baixa o estoque dos insumos e soma uso ao molde, automaticamente.</div>
-    <div class="filterbar"><input id="qPro" placeholder="Buscar produto, variação, lote…" oninput="fP.q=this.value;renderProducao()"><select id="mesPro" onchange="fP.m=this.value;renderProducao()"></select></div>
-    <div class="tablewrap"><table><thead><tr><th>Data</th><th>Produto</th><th>Qtd</th><th>Tempo/peça</th><th>Molde</th><th>Lote</th><th></th></tr></thead><tbody id="tbProducao"></tbody></table></div>
-  </section>
-  <section class="panel" id="p-pedidos">
+    <div class="subpanel active" id="s-pedidos">
     <div class="panel-head"><div><h2>Pedidos</h2><div class="desc">Vendas e encomendas</div></div><button class="btn" onclick="openForm('pedido')">+ Pedido</button></div>
     <div class="filterbar"><input id="qPed" placeholder="Buscar cliente, produto, descrição…" oninput="fV.q=this.value;renderPedidos()"><select id="mesPed" onchange="fV.m=this.value;renderPedidos()"></select></div>
     <div class="tablewrap"><table><thead><tr><th>Data</th><th>Cliente</th><th>Item</th><th>Prazo</th><th>Valor</th><th>Lucro</th><th>Situação</th><th></th></tr></thead><tbody id="tbPedidos"></tbody></table></div>
@@ -159,43 +117,15 @@
     <div class="tablewrap"><table><thead><tr><th>Nome</th><th>WhatsApp</th><th>Pedidos</th><th>Total</th><th></th></tr></thead><tbody id="tbClientes"></tbody></table></div>
     <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Canais de venda</h2><div class="desc">Cada canal com sua taxa — o lucro do pedido usa a taxa do canal</div></div><button class="btn" onclick="openForm('canal')">+ Canal</button></div>
     <div class="tablewrap"><table><thead><tr><th>Canal</th><th>Taxa</th><th></th></tr></thead><tbody id="tbCanais"></tbody></table></div>
-  </section>
-
-  <section class="panel" id="p-equipe">
-    <div class="panel-head"><div><h2>Equipe</h2><div class="desc" id="equipeDesc">Membros e tarefas da empresa</div></div><div class="head-btns"><button class="btn2" id="btnMinhas" onclick="toggleMinhas()">Só minhas</button><button class="btn2" onclick="gerarConvite()">Convidar</button><button class="btn" onclick="openForm('tarefa')">+ Tarefa</button></div></div>
-    <div id="membrosBox" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px"></div>
-    <div class="kanban">
-      <div class="kb-col" ondragover="event.preventDefault()" ondrop="dropTarefa(event,0)"><h3>A fazer <span class="kb-n" id="kbN0"></span></h3><div id="kb0"></div></div>
-      <div class="kb-col" ondragover="event.preventDefault()" ondrop="dropTarefa(event,1)"><h3>Fazendo <span class="kb-n" id="kbN1"></span></h3><div id="kb1"></div></div>
-      <div class="kb-col" ondragover="event.preventDefault()" ondrop="dropTarefa(event,2)"><h3>Feito <span class="kb-n" id="kbN2"></span></h3><div id="kb2"></div></div>
+  </div>
+    <div class="subpanel" id="s-encomendas">
+    <div class="panel-head">
+      <div><h2>Encomendas</h2><div class="desc">O que chegou pela loja do app — confira antes de virar pedido</div></div>
+      <div class="head-btns"><button class="btn2" onclick="carregarEncomendas()">Atualizar</button></div>
     </div>
-    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Produção do mês por membro</h2><div class="desc">Peças e horas registradas por cada um</div></div></div>
-    <div class="chartcard" id="prodMembroBox"></div>
-    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Atividade recente</h2><div class="desc">Quem fez o quê</div></div></div>
-    <div class="chartcard" id="atvBox"></div>
-  </section>
-
-  <section class="panel" id="p-guia">
-    <div class="panel-head"><div><h2>Guia</h2><div class="desc">Como usar cada parte — na ordem certa</div></div></div>
-    <div class="guide-step"><div class="gn">1</div><div><h3>Cadastre insumos, moldes e equipamentos</h3><p>Em <b>Insumos</b>: cada material com estoque atual, mínimo (vira alerta) e custo. Em <b>Moldes</b>: vida útil (gesso ~40, cera ~120) — a produção soma usos sozinha. Em <b>Equipamentos</b>: informe custo e vida útil em horas para a depreciação entrar no preço.</p></div></div>
-    <div class="guide-step"><div class="gn">2</div><div><h3>Monte o orçamento das peças</h3><p>Em <b>Orçamento</b>, crie o produto com a <b>receita de insumos</b>, tempo e equipamento. O app calcula custo, preço sugerido, margem e <b>lucro por hora</b> — arraste o slider de markup para simular. Marque "mostrar no catálogo" e use <b>Publicar catálogo</b> para gerar sua vitrine com link para a bio.</p></div></div>
-    <div class="guide-step"><div class="gn">3</div><div><h3>Produza cronometrando</h3><p>Em <b>Produção</b>, registre com o <b>cronômetro</b> (▶) para ter o tempo real. Ao salvar, o estoque baixa, o molde ganha usos, a peça entra no estoque de prontas e o lote é gerado. Use <b>⟳</b> para repetir produções frequentes. Excluiu errado? <b>Desfazer</b> no aviso.</p></div></div>
-    <div class="guide-step"><div class="gn">4</div><div><h3>Venda com prazo e pagamentos</h3><p>Em <b>Pedidos</b>, ligue a venda ao produto, cliente e <b>canal</b> (a taxa certa entra no lucro). Defina o <b>prazo de entrega</b> — o Painel avisa atrasos e monta o <b>plano de produção</b>. Registre <b>sinal e parcelas</b> ao editar o pedido; use <b>🧾</b> para o recibo e <b>💬</b> para cobrar pelo WhatsApp.</p></div></div>
-    <div class="guide-step"><div class="gn">5</div><div><h3>Compre com cotação</h3><p>Em <b>Compras</b>, a lista do que está baixo se monta sozinha. Use <b>Nova cotação</b> para gerar a planilha (escolhendo itens e quantidades), envie ao fornecedor, <b>importe a resposta</b> e compare os preços — o 🛒 registra a compra com o melhor preço e o custo médio se atualiza. O 📈 no insumo mostra a evolução de preços.</p></div></div>
-    <div class="guide-step"><div class="gn">6</div><div><h3>Trabalhe em equipe</h3><p>Em <b>Equipe</b>, convide pessoas com um código que já define o papel: <b>admin</b> gere tudo, <b>sócio</b> vê o financeiro, <b>empregado</b> só opera. Distribua tarefas no kanban (arraste os cards), comente nelas e acompanhe a atividade e a produção de cada um.</p></div></div>
-    <div class="guide-step"><div class="gn">7</div><div><h3>Feche o mês e proteja os dados</h3><p>No <b>Painel</b>: metas, ponto de equilíbrio, teto MEI e o botão <b>Fechamento</b> (DRE do mês para o contador). O backup mensal é automático; baixe um <b>Backup</b> manual de vez em quando, e use <b>Arquivar ano</b> quando os dados crescerem. A busca 🔍 (atalho <b>/</b>) acha qualquer coisa.</p></div></div>
-    <div class="checklist"><h3>Primeiros passos</h3>
-      <label><input type="checkbox" onchange="saveCheck()" data-c="c1"> Cadastrei insumos com preços reais</label>
-      <label><input type="checkbox" onchange="saveCheck()" data-c="c2"> Montei o orçamento das minhas peças</label>
-      <label><input type="checkbox" onchange="saveCheck()" data-c="c3"> Registrei uma produção cronometrada</label>
-      <label><input type="checkbox" onchange="saveCheck()" data-c="c4"> Criei um pedido com prazo e canal</label>
-      <label><input type="checkbox" onchange="saveCheck()" data-c="c5"> Gerei e importei uma cotação</label>
-      <label><input type="checkbox" onchange="saveCheck()" data-c="c6"> Convidei alguém para a equipe</label>
-      <label><input type="checkbox" onchange="saveCheck()" data-c="c7"> Publiquei o catálogo e salvei um backup</label>
-    </div>
-  </section>
-
-  <section class="panel" id="p-posts">
+    <div id="encList"></div>
+  </div>
+    <div class="subpanel" id="s-posts">
     <div class="panel-head">
       <div><h2>Posts</h2><div class="desc">Monta a imagem do Instagram a partir das peças que você já cadastrou</div></div>
       <div class="head-btns"><button class="btn" onclick="exportarPost()">↓ Baixar imagem</button></div>
@@ -280,14 +210,111 @@
         </div>
       </div>
     </div>
+  </div>
   </section>
+  <section class="panel" id="p-produzir">
+    <nav class="subtabs" role="tablist" aria-label="Seções de produção">
+      <button class="active" role="tab" aria-selected="true" data-sub="producao" onclick="subAba('producao')">Produção</button>
+      <button class="" role="tab" aria-selected="false" data-sub="moldes" onclick="subAba('moldes')">Moldes</button>
+      <button class="" role="tab" aria-selected="false" data-sub="equip" onclick="subAba('equip')">Equipamentos</button>
+    </nav>
+    <div class="subpanel active" id="s-producao">
+    <div class="panel-head"><div><h2>Produção</h2><div class="desc">O que você fez, quanto tempo levou</div></div><button class="btn" onclick="openForm('producao')">+ Registro</button></div>
+    <div class="hint-box">Registrar produção baixa o estoque dos insumos e soma uso ao molde, automaticamente.</div>
+    <div class="filterbar"><input id="qPro" placeholder="Buscar produto, variação, lote…" oninput="fP.q=this.value;renderProducao()"><select id="mesPro" onchange="fP.m=this.value;renderProducao()"></select></div>
+    <div class="tablewrap"><table><thead><tr><th>Data</th><th>Produto</th><th>Qtd</th><th>Tempo/peça</th><th>Molde</th><th>Lote</th><th></th></tr></thead><tbody id="tbProducao"></tbody></table></div>
+  </div>
+    <div class="subpanel" id="s-moldes">
+    <div class="panel-head"><div><h2>Moldes</h2><div class="desc">Vida útil de cada molde</div></div><button class="btn" onclick="openForm('molde')">+ Molde</button></div>
+    <div class="hint-box">Gesso ~40 peças, cera ~120. A produção soma usos sozinha aqui.</div>
+    <div class="tablewrap"><table><thead><tr><th>Molde</th><th>Material</th><th>Usos</th><th>Vida útil</th><th>Situação</th><th></th></tr></thead><tbody id="tbMoldes"></tbody></table></div>
+  </div>
+    <div class="subpanel" id="s-equip">
+    <div class="panel-head"><div><h2>Equipamentos</h2><div class="desc">Impressora, ferramentas</div></div><button class="btn" onclick="openForm('equip')">+ Equipamento</button></div>
+    <div class="tablewrap"><table><thead><tr><th>Item</th><th>Tipo</th><th>Compra</th><th>Custo</th><th>Situação</th><th></th></tr></thead><tbody id="tbEquip"></tbody></table></div>
+  </div>
+  </section>
+  <section class="panel" id="p-comprar">
+    <nav class="subtabs" role="tablist" aria-label="Seções de compras">
+      <button class="active" role="tab" aria-selected="true" data-sub="lista" onclick="subAba('lista')">Lista de compras</button>
+      <button class="" role="tab" aria-selected="false" data-sub="insumos" onclick="subAba('insumos')">Insumos</button>
+      <button role="tab" aria-selected="false" data-sub="hist" onclick="subAba('hist')">Histórico</button>
+      <button role="tab" aria-selected="false" data-sub="cot" onclick="subAba('cot')">Cotações</button>
+      <button role="tab" aria-selected="false" data-sub="forn" onclick="subAba('forn')">Fornecedores</button>
+    </nav>
 
-  <section class="panel" id="p-encomendas">
-    <div class="panel-head">
-      <div><h2>Encomendas</h2><div class="desc">O que chegou pela loja do app — confira antes de virar pedido</div></div>
-      <div class="head-btns"><button class="btn2" onclick="carregarEncomendas()">Atualizar</button></div>
+
+    <div class="subpanel active" id="s-lista">
+      <div class="panel-head"><div><h2>Lista de compras</h2><div class="desc">O que está baixo, gerado automático</div></div><button class="btn2" onclick="exportCompras()">↓ Copiar lista</button></div>
+      <div class="hint-box">Reúne tudo que está no mínimo ou abaixo. A quantidade sugerida repõe até o dobro do mínimo — ajuste ao seu fornecedor. Quando comprar, toque em <b>✓ Comprei</b> para registrar a compra e dar entrada no estoque.</div>
+      <div id="shopList"></div>
     </div>
-    <div id="encList"></div>
+
+    <div class="subpanel" id="s-hist">
+      <div class="panel-head"><div><h2>Histórico de compras</h2><div class="desc">Cada compra com valor recalcula o custo médio do insumo</div></div><button class="btn" onclick="openForm('compra')">+ Compra</button></div>
+      <div class="tablewrap"><table><thead><tr><th>Data</th><th>Insumo</th><th>Qtd</th><th>Valor pago</th><th>R$/un</th><th>Fornecedor</th><th></th></tr></thead><tbody id="tbCompras"></tbody></table></div>
+      <div class="chartcard" style="margin-top:24px"><h3>Gasto com compras por mês (R$)</h3><canvas id="chCompras"></canvas></div>
+    </div>
+
+    <div class="subpanel" id="s-cot">
+      <div class="panel-head"><div><h2>Cotações com fornecedores</h2><div class="desc">Escolha itens e quantidades, o fornecedor preenche os preços, importe e compare</div></div><div class="head-btns"><button class="btn2" onclick="importarCotacao()">↑ Importar resposta</button><button class="btn" onclick="gerarCotacao()">Nova cotação</button></div></div>
+      <div class="tablewrap"><table><thead><tr><th>Cotação</th><th>Data</th><th>Itens</th><th>Respostas</th><th></th></tr></thead><tbody id="tbCotacoes"></tbody></table></div>
+    </div>
+
+    <div class="subpanel" id="s-forn">
+      <div class="panel-head"><div><h2>Fornecedores</h2><div class="desc">Quem vende para você — respostas de cotação criam o cadastro sozinhas</div></div><button class="btn" onclick="openForm('fornecedor')">+ Fornecedor</button></div>
+      <div class="tablewrap"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Risco</th><th>WhatsApp</th><th>Compras</th><th>Total gasto</th><th></th></tr></thead><tbody id="tbFornecedores"></tbody></table></div>
+    </div>
+      <div class="subpanel" id="s-insumos">
+    <div class="panel-head"><div><h2>Insumos</h2><div class="desc">Estoque com alerta e baixa automática</div></div><button class="btn" onclick="openForm('insumo')">+ Insumo</button></div>
+    <div class="hint-box">Quando você registra produção, o estoque dos insumos da receita baixa sozinho.</div>
+    <div class="tablewrap"><table><thead><tr><th>Insumo</th><th>Estoque</th><th>Nível</th><th>Custo unit.</th><th>Situação</th><th></th></tr></thead><tbody id="tbInsumos"></tbody></table></div>
+  </div>
+  </section>
+  <section class="panel" id="p-numeros">
+    <div class="panel-head"><div><h2>Orçamento</h2><div class="desc">Custo e preço de cada peça</div></div><div class="head-btns"><button class="btn2" onclick="publicarCatalogo()">Publicar catálogo</button><button class="btn" onclick="openForm('produto')">+ Produto</button></div></div>
+    <div class="hint-box">O custo puxa os preços dos Insumos. Ajuste mão de obra, markup e taxa.</div>
+    <div class="tablewrap"><table><thead><tr><th>Produto</th><th>Custo</th><th>Sugerido</th><th>Praticado</th><th>Margem</th><th>R$/h</th><th>Prontas</th><th></th></tr></thead><tbody id="tbProdutos"></tbody></table></div>
+    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Custos fixos mensais</h2><div class="desc">Aluguel, energia, assinaturas — alimentam o ponto de equilíbrio no Painel</div></div><button class="btn" onclick="openForm('fixo')">+ Custo fixo</button></div>
+    <div class="tablewrap"><table><thead><tr><th>Custo</th><th>Valor mensal</th><th></th></tr></thead><tbody id="tbFixos"></tbody></table></div>
+  </section>
+  <section class="panel" id="p-ajustes">
+    <nav class="subtabs" role="tablist" aria-label="Ajustes">
+      <button class="active" role="tab" aria-selected="true" data-sub="equipe" onclick="subAba('equipe')">Equipe</button>
+      <button class="" role="tab" aria-selected="false" data-sub="guia" onclick="subAba('guia')">Guia</button>
+    </nav>
+    <div class="subpanel active" id="s-equipe">
+    <div class="panel-head"><div><h2>Equipe</h2><div class="desc" id="equipeDesc">Membros e tarefas da empresa</div></div><div class="head-btns"><button class="btn2" id="btnMinhas" onclick="toggleMinhas()">Só minhas</button><button class="btn2" onclick="gerarConvite()">Convidar</button><button class="btn" onclick="openForm('tarefa')">+ Tarefa</button></div></div>
+    <div id="membrosBox" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px"></div>
+    <div class="kanban">
+      <div class="kb-col" ondragover="event.preventDefault()" ondrop="dropTarefa(event,0)"><h3>A fazer <span class="kb-n" id="kbN0"></span></h3><div id="kb0"></div></div>
+      <div class="kb-col" ondragover="event.preventDefault()" ondrop="dropTarefa(event,1)"><h3>Fazendo <span class="kb-n" id="kbN1"></span></h3><div id="kb1"></div></div>
+      <div class="kb-col" ondragover="event.preventDefault()" ondrop="dropTarefa(event,2)"><h3>Feito <span class="kb-n" id="kbN2"></span></h3><div id="kb2"></div></div>
+    </div>
+    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Produção do mês por membro</h2><div class="desc">Peças e horas registradas por cada um</div></div></div>
+    <div class="chartcard" id="prodMembroBox"></div>
+    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Atividade recente</h2><div class="desc">Quem fez o quê</div></div></div>
+    <div class="chartcard" id="atvBox"></div>
+  </div>
+    <div class="subpanel" id="s-guia">
+    <div class="panel-head"><div><h2>Guia</h2><div class="desc">Como usar cada parte — na ordem certa</div></div></div>
+    <div class="guide-step"><div class="gn">1</div><div><h3>Cadastre insumos, moldes e equipamentos</h3><p>Em <b>Insumos</b>: cada material com estoque atual, mínimo (vira alerta) e custo. Em <b>Moldes</b>: vida útil (gesso ~40, cera ~120) — a produção soma usos sozinha. Em <b>Equipamentos</b>: informe custo e vida útil em horas para a depreciação entrar no preço.</p></div></div>
+    <div class="guide-step"><div class="gn">2</div><div><h3>Monte o orçamento das peças</h3><p>Em <b>Orçamento</b>, crie o produto com a <b>receita de insumos</b>, tempo e equipamento. O app calcula custo, preço sugerido, margem e <b>lucro por hora</b> — arraste o slider de markup para simular. Marque "mostrar no catálogo" e use <b>Publicar catálogo</b> para gerar sua vitrine com link para a bio.</p></div></div>
+    <div class="guide-step"><div class="gn">3</div><div><h3>Produza cronometrando</h3><p>Em <b>Produção</b>, registre com o <b>cronômetro</b> (▶) para ter o tempo real. Ao salvar, o estoque baixa, o molde ganha usos, a peça entra no estoque de prontas e o lote é gerado. Use <b>⟳</b> para repetir produções frequentes. Excluiu errado? <b>Desfazer</b> no aviso.</p></div></div>
+    <div class="guide-step"><div class="gn">4</div><div><h3>Venda com prazo e pagamentos</h3><p>Em <b>Pedidos</b>, ligue a venda ao produto, cliente e <b>canal</b> (a taxa certa entra no lucro). Defina o <b>prazo de entrega</b> — o Painel avisa atrasos e monta o <b>plano de produção</b>. Registre <b>sinal e parcelas</b> ao editar o pedido; use <b>🧾</b> para o recibo e <b>💬</b> para cobrar pelo WhatsApp.</p></div></div>
+    <div class="guide-step"><div class="gn">5</div><div><h3>Compre com cotação</h3><p>Em <b>Compras</b>, a lista do que está baixo se monta sozinha. Use <b>Nova cotação</b> para gerar a planilha (escolhendo itens e quantidades), envie ao fornecedor, <b>importe a resposta</b> e compare os preços — o 🛒 registra a compra com o melhor preço e o custo médio se atualiza. O 📈 no insumo mostra a evolução de preços.</p></div></div>
+    <div class="guide-step"><div class="gn">6</div><div><h3>Trabalhe em equipe</h3><p>Em <b>Equipe</b>, convide pessoas com um código que já define o papel: <b>admin</b> gere tudo, <b>sócio</b> vê o financeiro, <b>empregado</b> só opera. Distribua tarefas no kanban (arraste os cards), comente nelas e acompanhe a atividade e a produção de cada um.</p></div></div>
+    <div class="guide-step"><div class="gn">7</div><div><h3>Feche o mês e proteja os dados</h3><p>No <b>Painel</b>: metas, ponto de equilíbrio, teto MEI e o botão <b>Fechamento</b> (DRE do mês para o contador). O backup mensal é automático; baixe um <b>Backup</b> manual de vez em quando, e use <b>Arquivar ano</b> quando os dados crescerem. A busca 🔍 (atalho <b>/</b>) acha qualquer coisa.</p></div></div>
+    <div class="checklist"><h3>Primeiros passos</h3>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c1"> Cadastrei insumos com preços reais</label>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c2"> Montei o orçamento das minhas peças</label>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c3"> Registrei uma produção cronometrada</label>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c4"> Criei um pedido com prazo e canal</label>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c5"> Gerei e importei uma cotação</label>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c6"> Convidei alguém para a equipe</label>
+      <label><input type="checkbox" onchange="saveCheck()" data-c="c7"> Publiquei o catálogo e salvei um backup</label>
+    </div>
+  </div>
   </section>
 </main>
 

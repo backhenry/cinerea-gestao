@@ -238,3 +238,27 @@
   .fotoup{display:block;border:1px dashed var(--line);border-radius:9px;padding:16px;text-align:center;cursor:pointer;color:var(--smoke);font-size:13px;transition:.15s;text-transform:none;letter-spacing:0}
   .fotoup:hover{border-color:var(--char);color:var(--char)}
   .fotoprev{width:100%;max-width:220px;border-radius:9px;margin-top:10px;border:1px solid var(--line)}
+
+  /* ---- Painel reorganizado ---- */
+  /* Ferramentas raras (backup, arquivar, exportar) recolhidas: elas ocupavam
+     o lugar mais nobre da tela e competiam com o que importa. <details> é
+     nativo — abre com teclado e é lido por leitor de tela sem JS nenhum. */
+  .ferramentas{position:relative}
+  .ferramentas>summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:9px 14px;font-size:13px;color:var(--smoke);user-select:none}
+  .ferramentas>summary::-webkit-details-marker{display:none}
+  .ferramentas>summary:hover{border-color:var(--char);color:var(--char)}
+  .ferramentas[open]>summary{border-color:var(--char);color:var(--char)}
+  .ferramentas-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:15;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:4px;min-width:200px;box-shadow:0 12px 32px rgba(28,26,23,.12)}
+  .ferramentas-menu button{text-align:left;width:100%;border:none;background:none;padding:9px 10px;border-radius:6px;font-size:13px;color:var(--char)}
+  .ferramentas-menu button:hover{background:var(--ash)}
+
+  .dash-numeros{margin-top:22px}
+  .dash-titulo{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--warm);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+
+  /* Gráficos: análise, não operação. Ficam a um clique. */
+  .graficos{margin-top:26px;border-top:1px solid var(--line);padding-top:18px}
+  .graficos>summary{list-style:none;cursor:pointer;font-size:13px;color:var(--smoke);user-select:none;padding:4px 0}
+  .graficos>summary::-webkit-details-marker{display:none}
+  .graficos>summary::before{content:'▸ ';color:var(--ember)}
+  .graficos[open]>summary::before{content:'▾ '}
+  .graficos>summary:hover{color:var(--char)}

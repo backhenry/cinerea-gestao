@@ -174,13 +174,13 @@ function meuPapel(){if(!uid)return'empregado';if(uid===empresaDono)return'dono';
 function pode(cap){const p=meuPapel();if(cap==='gerir')return p==='dono'||p==='admin';if(cap==='fin')return p!=='empregado';return true;}
 function aplicarPapel(){
   const fin=pode('fin'),ger=pode('gerir');
-  const tabOrc=document.querySelector('[data-tab="orcamento"]');if(tabOrc)tabOrc.style.display=fin?'':'none';
+  const tabOrc=document.querySelector('[data-tab="numeros"]');if(tabOrc)tabOrc.style.display=fin?'':'none';
   ['chCusto','chMargem','chRec','chMes','chLph','chSemana','abcBox','topCliBox','chSaz'].forEach(id=>{const el=document.getElementById(id);if(el){const card=el.closest('.chartcard');if(card)card.style.display=fin?'':'none';}});
   const per=document.getElementById('perDash');if(per)per.style.display=fin?'':'none';
   document.querySelectorAll('#p-dashboard .head-btns .btn2').forEach(b=>b.style.display=fin?'':'none');
   const conv=document.querySelector('[onclick="gerarConvite()"]');if(conv)conv.style.display=ger?'':'none';
   const pt=document.querySelector('#p-pedidos table');if(pt)pt.classList.toggle('no-fin',!fin);
-  const pOrc=document.getElementById('p-orcamento');
+  const pOrc=document.getElementById('p-numeros');
   if(!fin&&pOrc&&pOrc.classList.contains('active')){const d=document.querySelector('[data-tab="dashboard"]');if(d)d.click();}
 }
 async function mudarPapel(mUid){
@@ -369,7 +369,7 @@ function seedIfEmpty(){
 // rótulos por ramo: "Moldes" vira "Formas" numa confeitaria, "Gabaritos" numa marcenaria
 function rot(chave,fallback){return (db.rotulos&&db.rotulos[chave])||fallback;}
 function aplicarRotulos(){
-  const t=document.querySelector('[data-tab="moldes"]');if(t)t.textContent=rot('moldes','Moldes');
+  const t=document.querySelector('[data-sub="moldes"]');if(t)t.textContent=rot('moldes','Moldes');
   const h=document.querySelector('#p-moldes h2');if(h)h.textContent=rot('moldes','Moldes');
   document.querySelectorAll('[data-rot-molde]').forEach(el=>el.textContent=rot('molde','Molde'));
 }
@@ -831,27 +831,32 @@ window.saveCheck=saveCheck;
 // e 8 gráficos. O badge da Equipe e os rótulos seguem sempre atualizados.
 const RENDER_ABA={
   dashboard:()=>renderDash(),
-  equip:()=>renderEquip(),
-  moldes:()=>renderMoldes(),
-  insumos:()=>renderInsumos(),
-  compras:()=>{renderCompras();renderComprasHist();renderCotacoes();renderFornecedores();},
-  orcamento:()=>{renderProdutos();renderFixos();},
-  posts:()=>renderPostProdutos(),
-  encomendas:()=>carregarEncomendas(),
-  producao:()=>renderProducao(),
-  pedidos:()=>{renderPedidos();renderClientes();renderCanais();},
-  equipe:()=>{renderEquipe();renderProdMembro();renderAtividade();},
-  guia:()=>renderChecks(),
+  vender:()=>{renderPedidos();renderClientes();renderCanais();renderPostProdutos();},
+  produzir:()=>{renderProducao();renderMoldes();renderEquip();},
+  comprar:()=>{renderCompras();renderComprasHist();renderCotacoes();renderFornecedores();renderInsumos();},
+  numeros:()=>{renderProdutos();renderFixos();},
+  // Encomendas nao entra aqui: e busca de rede, e renderAll roda a cada
+  // salvamento. Ela carrega quando a sub-aba e aberta.
+  ajustes:()=>{renderEquipe();renderProdMembro();renderAtividade();},
 };
 function abaAtiva(){const b=document.querySelector('#tabs button.active');return (b&&b.dataset.tab)||'dashboard';}
+/**
+ * Troca a sub-aba DENTRO do grupo aberto.
+ *
+ * Antes isto varria a página inteira, o que funcionava porque só Compras tinha
+ * sub-abas. Com vários grupos usando o mesmo mecanismo, trocar de sub-aba num
+ * apagaria a seleção dos outros.
+ */
 function subAba(id){
-  document.querySelectorAll('.subtabs button').forEach(b=>{const on=b.dataset.sub===id;b.classList.toggle('active',on);b.setAttribute('aria-selected',on?'true':'false');});
-  document.querySelectorAll('.subpanel').forEach(p=>p.classList.toggle('active',p.id==='s-'+id));
+  const grupo=document.querySelector('.panel.active');
+  if(!grupo)return;
+  grupo.querySelectorAll('.subtabs button').forEach(b=>{const on=b.dataset.sub===id;b.classList.toggle('active',on);b.setAttribute('aria-selected',on?'true':'false');});
+  grupo.querySelectorAll('.subpanel').forEach(p=>p.classList.toggle('active',p.id==='s-'+id));
   renderAll();
 }
 function badgeEquipe(){
   const n=(db.tarefas||[]).filter(t=>t.resp===uid&&(t.status||'aberta')!=='feita').length;
-  const b=document.querySelector('[data-tab="equipe"]');if(b)b.textContent='Equipe'+(n?' ('+n+')':'');
+  const b=document.querySelector('[data-sub="equipe"]');if(b)b.textContent='Equipe'+(n?' ('+n+')':'');
 }
 function renderAll(){
   if(!uid)return;
