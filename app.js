@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, verifyBeforeUpdateEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, arrayUnion, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import * as Core from "./core.js";
 
 // ============================================================
@@ -13,7 +14,7 @@ const firebaseConfig = window.CINEREA_CONFIG || {
 // ============================================================
 
 const isConfigured = firebaseConfig.apiKey !== "COLE_AQUI";
-let app,auth,fdb,uid=null,saveTimer=null;
+let app,auth,fdb,fstore,uid=null,saveTimer=null;
 let eid=null,empresaNome='',empresaDono='',membros={},unsubData=null,unsubMembros=null,unsubFin=null,backupChecado=false;
 let rawOp=null,rawFin=null,dbFinLoaded=false,migrouFin=false,minhasEmpresas={};
 let db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],meta:0,checks:{}};
@@ -70,6 +71,7 @@ else{
   app=initializeApp(firebaseConfig);auth=getAuth(app);
   // cache local persistente: o app funciona offline e sincroniza ao reconectar
   fdb=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
+  fstore=getStorage(app);
   document.getElementById('gateLogin').style.display='block';
   onAuthStateChanged(auth,user=>{
     if(user){uid=user.uid;carregarConta();}
@@ -882,7 +884,7 @@ function openForm(type,id){
   document.getElementById('modalTitle').textContent=(id?'Editar ':'Novo ')+(isP?'produto':FORMS[type].title.toLowerCase());
   const body=document.getElementById('modalBody');const ex=id?db[plural(type)].find(x=>x.id===id):{};
   if(isP){currentForm.recipe=ex.receita?JSON.parse(JSON.stringify(ex.receita)):[];
-    body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">— nenhum —</option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto (URL)</label><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="cole um link de imagem"><div class="hint">Aparece no catálogo público</div></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="loja-bloco"><div class="loja-tit">Loja — o que aparece para quem compra</div><div class="field-row"><div class="field"><label>Linha / coleção</label><input id="f_linha" value="${esc(ex.linha||'')}" placeholder="Coleção Areia"><div class="hint">Agrupa as peças na vitrine</div></div><div class="field"><label>Situação</label><select id="f_situacao"><option value="disponivel" ${ex.situacao!=='embreve'?'selected':''}>À venda</option><option value="embreve" ${ex.situacao==='embreve'?'selected':''}>Em breve</option></select><div class="hint">"Em breve" entra na lista de espera, sem sacola</div></div></div><div class="field"><label>Frase curta</label><input id="f_desc" value="${esc(ex.desc||'')}" maxlength="120" placeholder="Duas mãos em concha sustentam uma taça de areia perfumada."><div class="hint">Aparece embaixo do nome, no cartão</div></div><div class="field"><label>Descrição</label><textarea id="f_longa" rows="4" placeholder="O texto que convence, na tela da peça.">${esc(ex.longa||'')}</textarea></div><div class="field"><label>Ficha técnica</label><textarea id="f_ficha" rows="4" placeholder="Escultura: Gesso · duas mãos&#10;Altura: 22 cm&#10;Repõe-se com: Aura-Sand + pavios">${esc((ex.ficha||[]).map(l=>l.join(': ')).join('\n'))}</textarea><div class="hint">Uma linha por item, no formato <code>rótulo: valor</code></div></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_destaque" ${ex.destaque?'checked':''} style="width:auto"> peça de destaque na vitrine</label></div></div><div class="field"><label>Receita — insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
+    body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">— nenhum —</option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto da peça</label><label class="fotoup">Escolher imagem do computador<input type="file" accept="image/*" onchange="escolherFoto(this)" hidden></label><img id="f_fotoPrev" class="fotoprev" src="${esc(ex.foto||'')}" style="display:${ex.foto?'block':'none'}" alt=""><div class="hint" id="f_fotoStatus">Reduzimos a imagem antes de enviar — foto crua de celular pesa demais para quem vai abrir a loja.</div><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px"></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="loja-bloco"><div class="loja-tit">Loja — o que aparece para quem compra</div><div class="field-row"><div class="field"><label>Linha / coleção</label><input id="f_linha" value="${esc(ex.linha||'')}" placeholder="Coleção Areia"><div class="hint">Agrupa as peças na vitrine</div></div><div class="field"><label>Situação</label><select id="f_situacao"><option value="disponivel" ${ex.situacao!=='embreve'?'selected':''}>À venda</option><option value="embreve" ${ex.situacao==='embreve'?'selected':''}>Em breve</option></select><div class="hint">"Em breve" entra na lista de espera, sem sacola</div></div></div><div class="field"><label>Frase curta</label><input id="f_desc" value="${esc(ex.desc||'')}" maxlength="120" placeholder="Duas mãos em concha sustentam uma taça de areia perfumada."><div class="hint">Aparece embaixo do nome, no cartão</div></div><div class="field"><label>Descrição</label><textarea id="f_longa" rows="4" placeholder="O texto que convence, na tela da peça.">${esc(ex.longa||'')}</textarea></div><div class="field"><label>Ficha técnica</label><textarea id="f_ficha" rows="4" placeholder="Escultura: Gesso · duas mãos&#10;Altura: 22 cm&#10;Repõe-se com: Aura-Sand + pavios">${esc((ex.ficha||[]).map(l=>l.join(': ')).join('\n'))}</textarea><div class="hint">Uma linha por item, no formato <code>rótulo: valor</code></div></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_destaque" ${ex.destaque?'checked':''} style="width:auto"> peça de destaque na vitrine</label></div></div><div class="field"><label>Receita — insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
     renderRecipe();
   } else {
     body.innerHTML=FORMS[type].fields.map(f=>{let inp;const cur=ex[f.k]!==undefined?ex[f.k]:(id?'':(f.def!==undefined?f.def:(f.t==='date'?hoje():'')));if(f.t==='select')inp=`<select id="f_${f.k}">${f.opts.map(o=>`<option ${ex[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;else if(f.t==='selectProd')inp=`<select id="f_${f.k}"><option value="">—</option>${db.produtos.map(p=>`<option value="${p.id}" ${ex[f.k]===p.id?'selected':''}>${esc(p.nome)}</option>`).join('')}</select>`;else if(f.t==='selectMolde')inp=`<select id="f_${f.k}"><option value="">— nenhum —</option>${db.moldes.map(m=>`<option value="${m.id}" ${ex[f.k]===m.id?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>`;else if(f.t==='selectIns')inp=`<select id="f_${f.k}"><option value="">—</option>${db.insumos.map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectCliente')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickCliente(this)"><option value="">—</option>${(db.clientes||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}<option value="__new">➕ Novo cliente…</option></select>`;else if(f.t==='selectCanal')inp=`<select id="f_${f.k}"><option value="">— taxa do produto —</option>${(db.canais||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)} (${Number(c.taxa||0)}%)</option>`).join('')}</select>`;else if(f.t==='selectMembro')inp=`<select id="f_${f.k}"><option value="">—</option>${Object.entries(membros).map(([id,m])=>`<option value="${id}" ${ex[f.k]===id?'selected':''}>${esc(m.nome||'membro')}</option>`).join('')}</select>`;else if(f.t==='selectFornecedor')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickFornecedor(this)"><option value="">—</option>${(db.fornecedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}<option value="__new">➕ Novo fornecedor…</option></select>`;else inp=`<input id="f_${f.k}" type="${f.t}" value="${esc(cur)}">`;return `<div class="field"><label>${f.l}</label>${inp}${f.hint?`<div class="hint">${f.hint}</div>`:''}</div>`;}).join('');
@@ -1620,3 +1622,78 @@ async function recusarEncomenda(id){
 }
 
 Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda});
+
+// ============================================================
+// FOTO DE PRODUTO — envio para o Cloud Storage
+// ============================================================
+
+/**
+ * Reduz a foto ANTES de subir.
+ *
+ * Foto de celular tem 3 a 6 MB. Subir crua custa duas vezes: você paga o
+ * armazenamento e o cliente paga o download — na loja, em dados móveis, com a
+ * peça demorando a aparecer. 1200px de lado maior é mais do que suficiente
+ * para uma vitrine, e a regra do Storage recusa acima de 2 MB de qualquer jeito.
+ */
+function comprimirImagem(file, ladoMax=1200, qualidade=0.82){
+  return new Promise((ok,erro)=>{
+    const img=new Image();
+    img.onload=()=>{
+      const escala=Math.min(1, ladoMax/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');
+      c.width=Math.round(img.width*escala); c.height=Math.round(img.height*escala);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      c.toBlob(b=>b?ok(b):erro(new Error('nao consegui comprimir')),'image/jpeg',qualidade);
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror=()=>erro(new Error('arquivo nao parece ser imagem'));
+    img.src=URL.createObjectURL(file);
+  });
+}
+
+/**
+ * Onde a foto vai morar.
+ *
+ * Se já existe uma foto NOSSA no campo, reescrevemos o mesmo arquivo — assim
+ * trocar a foto não deixa a antiga ocupando espaço pago para sempre. Senão,
+ * nome novo.
+ *
+ * O nome NÃO vem do id do produto de propósito: produto novo ainda não tem id,
+ * e inventar um aqui faria o salvamento achar que é uma edição e procurar um
+ * registro que não existe.
+ */
+function caminhoDaFoto(urlAtual){
+  const m=String(urlAtual||'').match(/\/o\/produtos%2F([^?]+)/);
+  if(m)return 'produtos/'+decodeURIComponent(m[1]);
+  return `produtos/${uidGen()}${uidGen().slice(0,4)}.jpg`;
+}
+
+/** Chamado pelo campo de foto no formulário de produto. */
+async function escolherFoto(input){
+  const file=input.files&&input.files[0];
+  if(!file)return;
+  const aviso=document.getElementById('f_fotoStatus');
+  const campo=document.getElementById('f_foto');
+  const prev=document.getElementById('f_fotoPrev');
+  if(!pode('fin')){if(aviso)aviso.textContent='Sem permissão para enviar fotos.';return;}
+  if(!fstore){if(aviso)aviso.textContent='Storage não iniciado.';return;}
+
+  if(aviso)aviso.textContent='Comprimindo e enviando…';
+  try{
+    const blob=await comprimirImagem(file);
+    const caminho=caminhoDaFoto(campo&&campo.value);
+    await uploadBytes(sRef(fstore,caminho), blob, {contentType:'image/jpeg'});
+    const url=await getDownloadURL(sRef(fstore,caminho));
+    if(campo)campo.value=url;
+    if(prev){prev.src=url;prev.style.display='block';}
+    const kb=Math.round(blob.size/1024);
+    if(aviso)aviso.textContent=`Foto enviada (${kb} KB).`;
+  }catch(e){
+    console.error(e);
+    if(aviso)aviso.textContent='Não consegui enviar: '+((e&&e.message)||'erro');
+  }finally{
+    input.value='';
+  }
+}
+
+Object.assign(window,{escolherFoto});

@@ -233,3 +233,8 @@
   .loja-bloco textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);font-family:'Inter';font-size:14px;color:var(--char);resize:vertical}
   .loja-bloco textarea:focus{outline:none;border-color:var(--char)}
   .loja-bloco code{background:var(--ash);padding:1px 5px;border-radius:4px;font-size:11px}
+
+  /* envio de foto de produto */
+  .fotoup{display:block;border:1px dashed var(--line);border-radius:9px;padding:16px;text-align:center;cursor:pointer;color:var(--smoke);font-size:13px;transition:.15s;text-transform:none;letter-spacing:0}
+  .fotoup:hover{border-color:var(--char);color:var(--char)}
+  .fotoprev{width:100%;max-width:220px;border-radius:9px;margin-top:10px;border:1px solid var(--line)}

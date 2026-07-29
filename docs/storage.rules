@@ -1,0 +1,43 @@
+rules_version = '2';
+
+// Regras do Cloud Storage do projeto `cinerea1`.
+//
+// Publicar: `npx firebase-tools deploy --only storage` (o firebase.json já
+// aponta para este arquivo).
+//
+// Mesma lógica das regras do Firestore: quem é da casa escreve, o mundo lê o
+// que é vitrine. A diferença é que aqui um erro custa dinheiro — o plano Blaze
+// não tem teto rígido, e imagem é o que mais pesa em tráfego.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Espelha `gestores/{uid}` do Firestore: a mesma lista decide quem é da
+    // casa nos dois lugares, para não existirem duas verdades sobre isso.
+    function ehDaCasa() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/gestores/$(request.auth.uid));
+    }
+
+    // Foto de produto: é vitrine, então leitura aberta — o app dos clientes e
+    // a página pública precisam mostrar sem login.
+    match /produtos/{arquivo} {
+      allow read: if true;
+
+      // Escrita só de quem é da casa, e com limites: sem teto de tamanho, um
+      // envio errado de vídeo ou de foto crua de 40 MB viraria conta no fim
+      // do mês. 2 MB é generoso para foto já comprimida.
+      allow write: if ehDaCasa()
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+
+      allow delete: if ehDaCasa();
+    }
+
+    // Nada mais é gravável. Uma pasta esquecida aberta é onde nascem as
+    // surpresas de fatura.
+    match /{caminho=**} {
+      allow read, write: if false;
+    }
+  }
+}
