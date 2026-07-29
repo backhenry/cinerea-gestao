@@ -17,7 +17,7 @@ const isConfigured = firebaseConfig.apiKey !== "COLE_AQUI";
 let app,auth,fdb,fstore,uid=null,saveTimer=null;
 let eid=null,empresaNome='',empresaDono='',membros={},unsubData=null,unsubMembros=null,unsubFin=null,backupChecado=false;
 let rawOp=null,rawFin=null,dbFinLoaded=false,migrouFin=false,minhasEmpresas={};
-let db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],meta:0,checks:{}};
+let db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],colecoes:[],meta:0,checks:{}};
 // dados financeiros vivem num doc separado (empresas/{eid}/fin/dados) — só dono/admin/sócio leem
 const FIN_KEYS=['fixos','meta','meiTeto','ultimoBackup'];
 const PROD_FIN=['preco','markup','taxa','custohora','perda','equip'];
@@ -836,7 +836,7 @@ const RENDER_ABA={
   vender:()=>{renderPedidos();renderClientes();renderCanais();renderPostProdutos();},
   produzir:()=>{renderProducao();renderMoldes();renderEquip();},
   comprar:()=>{renderCompras();renderComprasHist();renderCotacoes();renderFornecedores();renderInsumos();},
-  numeros:()=>{renderProdutos();renderFixos();avisoCatalogo();},
+  numeros:()=>{renderProdutos();renderFixos();renderColecoes();avisoCatalogo();},
   // Encomendas nao entra aqui: e busca de rede, e renderAll roda a cada
   // salvamento. Ela carrega quando a sub-aba e aberta.
   ajustes:()=>{renderEquipe();renderProdMembro();renderAtividade();},
@@ -883,21 +883,26 @@ const FORMS={
   fornecedor:{title:'Fornecedor',fields:[{k:'nome',l:'Nome',t:'text'},{k:'categoria',l:'Categoria de material',t:'text',hint:'Ex.: gesso, essências, embalagens'},{k:'risco',l:'Risco',t:'select',opts:['Baixo','Médio','Alto']},{k:'whats',l:'WhatsApp principal',t:'text',hint:'Só números com DDD — vira link'},{k:'endereco',l:'Endereço',t:'text'},{k:'obs',l:'Observações',t:'text',hint:'Prazo típico, condições, mínimos…'}]},
   fixo:{title:'Custo fixo',fields:[{k:'nome',l:'Nome',t:'text'},{k:'valor',l:'Valor mensal (R$)',t:'number'}]},
 };
-function plural(t){return{equip:'equip',molde:'moldes',insumo:'insumos',produto:'produtos',producao:'producao',pedido:'pedidos',compra:'compras',fixo:'fixos',cliente:'clientes',canal:'canais',tarefa:'tarefas',cotacao:'cotacoes',fornecedor:'fornecedores'}[t];}
-const NOMES_TIPO={equip:'equipamento',molde:'molde',insumo:'insumo',produto:'produto',producao:'produção',pedido:'pedido',compra:'compra',fixo:'custo fixo',cliente:'cliente',canal:'canal',tarefa:'tarefa',cotacao:'cotação',fornecedor:'fornecedor'};
+function plural(t){return{equip:'equip',molde:'moldes',insumo:'insumos',produto:'produtos',producao:'producao',pedido:'pedidos',compra:'compras',fixo:'fixos',cliente:'clientes',canal:'canais',tarefa:'tarefas',cotacao:'cotacoes',fornecedor:'fornecedores',colecao:'colecoes'}[t];}
+const NOMES_TIPO={equip:'equipamento',molde:'molde',insumo:'insumo',produto:'produto',producao:'produção',pedido:'pedido',compra:'compra',fixo:'custo fixo',cliente:'cliente',canal:'canal',tarefa:'tarefa',cotacao:'cotação',fornecedor:'fornecedor',colecao:'coleção'};
 function val(id){const el=document.getElementById(id);return el?el.value:'';}
 function openForm(type,id){
   currentForm={type,id:id||null,recipe:[]};window.currentForm=currentForm;const isP=type==='produto';
   document.getElementById('modalTitle').textContent=(id?'Editar ':'Novo ')+(isP?'produto':FORMS[type].title.toLowerCase());
   const body=document.getElementById('modalBody');const ex=id?db[plural(type)].find(x=>x.id===id):{};
   if(isP){currentForm.recipe=ex.receita?JSON.parse(JSON.stringify(ex.receita)):[];
-    body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">— nenhum —</option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto da peça</label><label class="fotoup">Escolher imagem do computador<input type="file" accept="image/*" onchange="escolherFoto(this)" hidden></label><img id="f_fotoPrev" class="fotoprev" src="${esc(ex.foto||'')}" style="display:${ex.foto?'block':'none'}" alt=""><div class="hint" id="f_fotoStatus">Reduzimos a imagem antes de enviar — foto crua de celular pesa demais para quem vai abrir a loja.</div><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px"></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="loja-bloco"><div class="loja-tit">Loja — o que aparece para quem compra</div><div class="field-row"><div class="field"><label>Linha / coleção</label><input id="f_linha" value="${esc(ex.linha||'')}" placeholder="Coleção Areia"><div class="hint">Agrupa as peças na vitrine</div></div><div class="field"><label>Situação</label><select id="f_situacao"><option value="disponivel" ${ex.situacao!=='embreve'?'selected':''}>À venda</option><option value="embreve" ${ex.situacao==='embreve'?'selected':''}>Em breve</option></select><div class="hint">"Em breve" entra na lista de espera, sem sacola</div></div></div><div class="field"><label>Frase curta</label><input id="f_desc" value="${esc(ex.desc||'')}" maxlength="120" placeholder="Duas mãos em concha sustentam uma taça de areia perfumada."><div class="hint">Aparece embaixo do nome, no cartão</div></div><div class="field"><label>Descrição</label><textarea id="f_longa" rows="4" placeholder="O texto que convence, na tela da peça.">${esc(ex.longa||'')}</textarea></div><div class="field"><label>Ficha técnica</label><textarea id="f_ficha" rows="4" placeholder="Escultura: Gesso · duas mãos&#10;Altura: 22 cm&#10;Repõe-se com: Aura-Sand + pavios">${esc((ex.ficha||[]).map(l=>l.join(': ')).join('\n'))}</textarea><div class="hint">Uma linha por item, no formato <code>rótulo: valor</code></div></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_destaque" ${ex.destaque?'checked':''} style="width:auto"> peça de destaque na vitrine</label></div></div><div class="field"><label>Receita — insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
+    body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">— nenhum —</option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto da peça</label><label class="fotoup">Escolher imagem do computador<input type="file" accept="image/*" onchange="escolherFoto(this)" hidden></label><img id="f_fotoPrev" class="fotoprev" src="${esc(ex.foto||'')}" style="display:${ex.foto?'block':'none'}" alt=""><div class="hint" id="f_fotoStatus">Reduzimos a imagem antes de enviar — foto crua de celular pesa demais para quem vai abrir a loja.</div><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px"></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="loja-bloco"><div class="loja-tit">Loja — o que aparece para quem compra</div><div class="field-row"><div class="field"><label>Coleção</label><select id="f_colecao">${['<option value="">— sem coleção —</option>'].concat(colecoesOrdenadas().map(c=>`<option value="${c.id}" ${ex.colecao===c.id?'selected':''}>${esc(c.nome)}</option>`)).join('')}</select><div class="hint">A seção onde a peça aparece no site e no app</div></div><div class="field"><label>Posição na coleção</label><input id="f_posicao" type="number" value="${ex.posicao||10}"><div class="hint">Menor aparece antes</div></div><div class="field"><label>Situação</label><select id="f_situacao"><option value="disponivel" ${ex.situacao!=='embreve'?'selected':''}>À venda</option><option value="embreve" ${ex.situacao==='embreve'?'selected':''}>Em breve</option></select><div class="hint">"Em breve" entra na lista de espera, sem sacola</div></div></div><div class="field"><label>Frase curta</label><input id="f_desc" value="${esc(ex.desc||'')}" maxlength="120" placeholder="Duas mãos em concha sustentam uma taça de areia perfumada."><div class="hint">Aparece embaixo do nome, no cartão</div></div><div class="field"><label>Descrição</label><textarea id="f_longa" rows="4" placeholder="O texto que convence, na tela da peça.">${esc(ex.longa||'')}</textarea></div><div class="field"><label>Ficha técnica</label><textarea id="f_ficha" rows="4" placeholder="Escultura: Gesso · duas mãos&#10;Altura: 22 cm&#10;Repõe-se com: Aura-Sand + pavios">${esc((ex.ficha||[]).map(l=>l.join(': ')).join('\n'))}</textarea><div class="hint">Uma linha por item, no formato <code>rótulo: valor</code></div></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_destaque" ${ex.destaque?'checked':''} style="width:auto"> peça de destaque na vitrine</label></div></div><div class="field"><label>Receita — insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
     renderRecipe();
   } else {
     body.innerHTML=FORMS[type].fields.map(f=>{let inp;const cur=ex[f.k]!==undefined?ex[f.k]:(id?'':(f.def!==undefined?f.def:(f.t==='date'?hoje():'')));if(f.t==='select')inp=`<select id="f_${f.k}">${f.opts.map(o=>`<option ${ex[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;else if(f.t==='selectProd')inp=`<select id="f_${f.k}"><option value="">—</option>${db.produtos.map(p=>`<option value="${p.id}" ${ex[f.k]===p.id?'selected':''}>${esc(p.nome)}</option>`).join('')}</select>`;else if(f.t==='selectMolde')inp=`<select id="f_${f.k}"><option value="">— nenhum —</option>${db.moldes.map(m=>`<option value="${m.id}" ${ex[f.k]===m.id?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>`;else if(f.t==='selectIns')inp=`<select id="f_${f.k}"><option value="">—</option>${db.insumos.map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectCliente')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickCliente(this)"><option value="">—</option>${(db.clientes||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}<option value="__new">➕ Novo cliente…</option></select>`;else if(f.t==='selectCanal')inp=`<select id="f_${f.k}"><option value="">— taxa do produto —</option>${(db.canais||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)} (${Number(c.taxa||0)}%)</option>`).join('')}</select>`;else if(f.t==='selectMembro')inp=`<select id="f_${f.k}"><option value="">—</option>${Object.entries(membros).map(([id,m])=>`<option value="${id}" ${ex[f.k]===id?'selected':''}>${esc(m.nome||'membro')}</option>`).join('')}</select>`;else if(f.t==='selectFornecedor')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickFornecedor(this)"><option value="">—</option>${(db.fornecedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}<option value="__new">➕ Novo fornecedor…</option></select>`;else inp=`<input id="f_${f.k}" type="${f.t}" value="${esc(cur)}">`;return `<div class="field"><label>${f.l}</label>${inp}${f.hint?`<div class="hint">${f.hint}</div>`:''}</div>`;}).join('');
   }
   if(type==='producao'){const mf=document.getElementById('f_minutos');if(mf){const w=document.createElement('div');w.style.marginTop='6px';w.innerHTML='<button type="button" class="btn2" id="timerBtn" onclick="toggleTimer()">▶ Cronometrar uma peça</button> <span id="timerView" style="font-size:12px;color:var(--warm)"></span>';mf.parentElement.appendChild(w);}}
   if(type==='fornecedor'){currentForm.contatos=ex.contatos?JSON.parse(JSON.stringify(ex.contatos)):[];const box=document.createElement('div');box.className='field';box.innerHTML='<label>Contatos no fornecedor</label><div id="contatosLines"></div><button type="button" class="add-line" onclick="addContatoForn()">+ contato (vendedor, financeiro…)</button>';document.getElementById('modalBody').appendChild(box);renderContatosForn();}
+  if(type==='colecao'){
+    body.innerHTML=`<div class="field"><label>Nome da coleção</label><input id="f_nome" value="${esc(ex.nome||'')}" placeholder="Coleção Areia"></div>
+      <div class="field"><label>Como ela aparece na loja</label><textarea id="f_desc" rows="3" placeholder="A frase que explica a coleção para quem chega.">${esc(ex.desc||'')}</textarea><div class="hint">Aparece no site e no app, acima das peças</div></div>
+      <div class="field"><label>Ordem</label><input id="f_ordem" type="number" value="${ex.ordem||10}"><div class="hint">Menor vem primeiro. Deixe espaço entre os números (10, 20, 30) para encaixar coleções novas sem renumerar tudo.</div></div>`;
+  }
   if(type==='pedido'&&id){const p=db.pedidos.find(x=>x.id===id);if(p){const pago=(p.pagamentos||[]).reduce((s,x)=>s+Number(x.v||0),0);const box=document.createElement('div');box.className='field';box.innerHTML=`<label>Pagamentos (sinal / parcelas)</label><div id="pagList">${(p.pagamentos||[]).map(x=>`<div class="prazo-item"><span>${esc(x.t)}</span><b>${brl(x.v)}</b></div>`).join('')||'<div class="hint">nenhum pagamento registrado</div>'}</div><div style="display:flex;gap:8px;margin-top:8px"><input id="pagVal" type="number" step="0.01" placeholder="valor recebido (R$)" style="flex:1"><button type="button" class="btn2" onclick="addPagamento('${id}')">Registrar</button></div><div class="hint">Recebido: ${brl(pago)} · Falta: ${brl(Math.max(0,Number(p.valor||0)-pago))}</div>`;document.getElementById('modalBody').appendChild(box);}}
   if(type==='tarefa'&&id){const t=db.tarefas.find(x=>x.id===id);if(t){const box=document.createElement('div');box.className='field';box.innerHTML='<label>Comentários</label><div id="comentList">'+((t.coments||[]).map(c=>`<div class="prazo-item"><span><b>${esc((membros[c.u]||{}).nome||'membro')}:</b> ${esc(c.x)}</span><b style="color:var(--warm);font-weight:400">${tempoRel(c.t)}</b></div>`).join('')||'<div class="hint">nenhum comentário ainda</div>')+'</div><div style="display:flex;gap:8px;margin-top:8px"><input id="comentTxt" placeholder="escreva um comentário…" style="flex:1"><button type="button" class="btn2" onclick="addComent(\''+id+'\')">Enviar</button></div>';document.getElementById('modalBody').appendChild(box);}}
   document.getElementById('overlay').classList.add('open');
@@ -968,7 +973,8 @@ function saveForm(){
     gerarCotacaoXlsx(itens,{validade:val('cotValidade')||'',cond:val('cotCond')||'',alvos});
     closeModal();return;
   }
-  if(type==='produto'){obj={nome:val('f_nome'),receita:currentForm.recipe.filter(l=>l.insumo&&l.qtd),minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),markup:val('f_markup'),preco:val('f_preco'),taxa:val('f_taxa'),equip:val('f_equip'),pronto:Number(val('f_pronto')||0),foto:val('f_foto'),publico:!!(document.getElementById('f_publico')||{}).checked,linha:val('f_linha'),situacao:val('f_situacao')||'disponivel',desc:val('f_desc'),longa:val('f_longa'),ficha:parseFicha(val('f_ficha')),destaque:!!(document.getElementById('f_destaque')||{}).checked};
+  if(type==='colecao'){obj={nome:val('f_nome'),desc:val('f_desc'),ordem:Number(val('f_ordem'))||10};}
+  if(type==='produto'){obj={nome:val('f_nome'),receita:currentForm.recipe.filter(l=>l.insumo&&l.qtd),minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),markup:val('f_markup'),preco:val('f_preco'),taxa:val('f_taxa'),equip:val('f_equip'),pronto:Number(val('f_pronto')||0),foto:val('f_foto'),publico:!!(document.getElementById('f_publico')||{}).checked,colecao:val('f_colecao'),posicao:Number(val('f_posicao'))||10,situacao:val('f_situacao')||'disponivel',desc:val('f_desc'),longa:val('f_longa'),ficha:parseFicha(val('f_ficha')),destaque:!!(document.getElementById('f_destaque')||{}).checked};
     // grava a margem de referência do momento em que o preço foi definido —
     // é contra ela que o alerta de "preço defasado" compara depois
     if(num(obj.preco)>0){const ref=precoProduto({...obj,id:id||'tmp'},db);obj.margemRef=ref.margemPct;}
@@ -1003,6 +1009,13 @@ function saveForm(){
   cloudSave();closeModal();renderAll();
 }
 function del(type,id){
+  // Remover a coleção deixaria as peças dela apontando para o nada, e elas
+  // sumiriam da loja sem explicação. Melhor avisar antes.
+  if(type==='colecao'){
+    const usadas=(db.produtos||[]).filter(p=>p.colecao===id);
+    if(usadas.length && !confirm(`${usadas.length} peça(s) estão nesta coleção e ficariam sem seção na loja. Remover mesmo assim?`))return;
+    (db.produtos||[]).forEach(p=>{ if(p.colecao===id) p.colecao=''; });
+  }
   const snap=JSON.parse(JSON.stringify(db)); // p/ desfazer
   const list=plural(type);const o=db[list].find(x=>x.id===id);
   if(type==='producao'&&o)revertProducao(o);
@@ -1032,6 +1045,55 @@ function renderFornecedores(){const tb=document.getElementById('tbFornecedores')
   }).join(''):`<tr><td colspan=7><div class="empty-t">Nenhum fornecedor — importe uma cotação ou cadastre.</div></td></tr>`;}
 function quickCliente(sel){const nome=prompt('Nome do cliente:');if(!nome){sel.value='';return;}const whats=prompt('WhatsApp (opcional, só números com DDD):')||'';const c={id:uidGen(),nome,whats,obs:''};db.clientes=db.clientes||[];db.clientes.push(c);cloudSave();const o=document.createElement('option');o.value=c.id;o.textContent=nome;sel.insertBefore(o,sel.querySelector('option[value="__new"]'));sel.value=c.id;toast('Cliente <b>'+esc(nome)+'</b> cadastrado');}
 /**
+ * As coleções da loja — as seções do site e do app, na ordem em que aparecem.
+ *
+ * Antes isto era texto livre no produto: "Coleção Areia" e "Colecao Areia"
+ * viravam duas seções, e não havia como dizer qual vem primeiro. Virou lista
+ * cadastrada porque a vitrine precisa de ordem, e ordem precisa de dado.
+ */
+function colecoesOrdenadas(){
+  return (db.colecoes||[]).slice().sort((a,b)=>(Number(a.ordem)||0)-(Number(b.ordem)||0));
+}
+
+function renderColecoes(){
+  const box=document.getElementById('colecoesLista');
+  if(!box)return;
+  const cs=colecoesOrdenadas();
+  if(!cs.length){
+    box.innerHTML='<div class="hint-box">Nenhuma coleção ainda. Elas viram as seções da loja, no site e no app — e a ordem daqui é a ordem de lá.<div style="margin-top:10px"><button class="btn" onclick="semearColecoes()">Começar com as coleções da Cinérea</button></div></div>';
+    return;
+  }
+  box.innerHTML=`<div class="tablewrap"><table><thead><tr><th>Ordem</th><th>Coleção</th><th>Como aparece na loja</th><th>Peças</th><th></th></tr></thead><tbody>`+
+    cs.map(c=>{
+      const n=(db.produtos||[]).filter(p=>p.colecao===c.id).length;
+      return `<tr><td data-l="Ordem">${Number(c.ordem)||0}</td>
+        <td data-l="Coleção"><b>${esc(c.nome)}</b></td>
+        <td data-l="Descrição" style="max-width:420px">${esc(c.desc||'—')}</td>
+        <td data-l="Peças">${n}</td>
+        <td data-l=""><div class="row-actions"><button class="btn2" onclick="openForm('colecao','${c.id}')">Editar</button><button class="btn2" onclick="del('colecoes','${c.id}')">Remover</button></div></td></tr>`;
+    }).join('')+'</tbody></table></div>';
+}
+
+/** As oito coleções que o dono já tinha escrito no protótipo da loja. */
+function semearColecoes(){
+  if((db.colecoes||[]).length && !confirm('Já existem coleções. Acrescentar as da Cinérea mesmo assim?'))return;
+  const base=[
+    ['Coleção Areia','Esculturas duráveis que você preenche com areia perfumada. Sem molde, sem cera grudada: monta, acende e repõe. O coração da marca.'],
+    ['O Templo Anatômico','Arte para colecionar — anatomia clássica de domínio público, com o peso da dark academia e do gabinete de curiosidades.'],
+    ['Ritual & Aura','O universo astral e de bem-estar: sal de aura, cristais e óleos, em objetos feitos para o ritual diário.'],
+    ['Velas & Bustos','Bustos e velas de cera tradicional. Alguns recebem areia, outros copo removível — a técnica de cada um está na descrição.'],
+    ['Difusão','Aroma sem chama: difusores de varetas, room spray e queimadores de cera.'],
+    ['Esculturas & Objetos','Esculturas de gesso puro e o altar de fragrância — presença, sem função de vela.'],
+    ['Acessórios','O ritual completo: candelabro, cuidado da vela, porta-incenso e porta-fósforos.'],
+    ['Refis & Consumíveis','O motor do negócio: areia perfumada, pavios, sal e óleos. É o que você repõe — e o que traz o cliente de volta.'],
+  ];
+  db.colecoes=db.colecoes||[];
+  base.forEach(([nome,desc],i)=>db.colecoes.push({id:uidGen(),nome,desc,ordem:(i+1)*10}));
+  cloudSave();renderColecoes();renderProdutos();avisoCatalogo();
+  toast('8 coleções criadas — ajuste a ordem como quiser');
+}
+
+/**
  * Assinatura do que o catálogo publicaria AGORA.
  *
  * O app e o site leem `catalogo/{eid}`, que só muda quando alguém clica em
@@ -1045,12 +1107,21 @@ function assinaturaCatalogo(){
 
 /** O recorte público de cada produto marcado para o catálogo. */
 function itensDoCatalogo(){
+  const ordemCol={}; colecoesOrdenadas().forEach((c,i)=>ordemCol[c.id]=i);
   return db.produtos.filter(p=>p.publico).map(p=>{
     const c=calcCusto(p).total;
     const preco=Number(p.preco)||c*Number(p.markup||3);
+    const col=(db.colecoes||[]).find(x=>x.id===p.colecao);
     return{id:p.id,nome:p.nome,preco:Math.round(preco*100)/100,foto:p.foto||'',
-      linha:p.linha||'',situacao:p.situacao||'disponivel',desc:p.desc||'',longa:p.longa||'',
+      colecao:p.colecao||'', linha:col?col.nome:'', posicao:Number(p.posicao)||10,
+      situacao:p.situacao||'disponivel',desc:p.desc||'',longa:p.longa||'',
       ficha:p.ficha||[],destaque:!!p.destaque,pronto:Number(p.pronto)||0};
+  })
+  // Já sai na ordem em que a loja mostra: a vitrine não precisa saber ordenar,
+  // e site e app ficam iguais sem combinarem nada entre si.
+  .sort((a,b)=>{
+    const ca=ordemCol[a.colecao]??999, cb=ordemCol[b.colecao]??999;
+    return ca!==cb ? ca-cb : (a.posicao-b.posicao);
   });
 }
 
@@ -1072,7 +1143,7 @@ async function publicarCatalogo(){
   if(whats===null)return;
   db.catWhats=whats.trim();cloudSave();
   try{
-    await setDoc(doc(fdb,'catalogo',eid),{itens,nome:empresaNome||'Cinérea',whats:db.catWhats,atualizado:Date.now()});
+    await setDoc(doc(fdb,'catalogo',eid),{itens,colecoes:colecoesOrdenadas().map(c=>({id:c.id,nome:c.nome,desc:c.desc||''})),nome:empresaNome||'Cinérea',whats:db.catWhats,atualizado:Date.now()});
     const url=location.origin+location.pathname.replace(/index\.html$/,'')+'catalogo.html?u='+eid;
     if(navigator.clipboard)navigator.clipboard.writeText(url).catch(()=>{});
     db.catalogoAssinatura=assinaturaCatalogo();cloudSave();avisoCatalogo();
@@ -1662,7 +1733,7 @@ async function recusarEncomenda(id){
   }catch(err){console.error(err);toast('Não consegui atualizar');}
 }
 
-Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo});
+Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes});
 
 // ============================================================
 // FOTO DE PRODUTO — envio para o Cloud Storage
