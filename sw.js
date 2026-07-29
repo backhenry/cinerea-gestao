@@ -1,6 +1,6 @@
 // Service worker da Cinérea Gestão — deixa o app abrir mesmo sem internet.
 // Estratégia: rede primeiro (para pegar atualizações), cache como reserva offline.
-const CACHE = 'cinerea-v16';
+const CACHE = 'cinerea-v17';
 const SHELL = ['./', './index.html', './styles.css', './app.js', './core.js', './catalogo.html', './pedido.html', './cotacao.html', './config.js', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

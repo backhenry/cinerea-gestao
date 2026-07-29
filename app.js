@@ -1012,6 +1012,10 @@ function saveForm(){
   cloudSave();closeModal();renderAll();
 }
 function del(type,id){
+  // Chamar del() com o tipo no plural (o erro natural, porque a lista é
+  // plural) fazia `db[undefined]` estourar sem dizer nada, e o botão parecia
+  // morto. Falhar aqui é feio, mas é visível.
+  if(!plural(type)){console.error('del: tipo desconhecido',type);toast('Não sei remover isso — avise o desenvolvedor');return;}
   // Remover a coleção deixaria as peças dela apontando para o nada, e elas
   // sumiriam da loja sem explicação. Melhor avisar antes.
   if(type==='colecao'){
@@ -1073,7 +1077,7 @@ function renderColecoes(){
         <td data-l="Coleção"><b>${esc(c.nome)}</b></td>
         <td data-l="Descrição" style="max-width:420px">${esc(c.desc||'—')}</td>
         <td data-l="Peças">${n}</td>
-        <td data-l=""><div class="row-actions"><button class="btn2" onclick="openForm('colecao','${c.id}')">Editar</button><button class="btn2" onclick="del('colecoes','${c.id}')">Remover</button></div></td></tr>`;
+        <td data-l=""><div class="row-actions"><button class="btn2" onclick="openForm('colecao','${c.id}')">Editar</button><button class="btn2" onclick="del('colecao','${c.id}')">Remover</button></div></td></tr>`;
     }).join('')+'</tbody></table></div>';
 }
 
