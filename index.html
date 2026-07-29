@@ -62,7 +62,7 @@
   <button role="tab" aria-selected="false" data-tab="vender">Vender</button>
   <button role="tab" aria-selected="false" data-tab="produzir">Produzir</button>
   <button role="tab" aria-selected="false" data-tab="comprar">Comprar</button>
-  <button role="tab" aria-selected="false" data-tab="numeros">Números</button>
+  <button role="tab" aria-selected="false" data-tab="numeros">Peças</button>
   <button role="tab" aria-selected="false" data-tab="ajustes">Ajustes</button>
 </nav>
 
@@ -273,12 +273,16 @@
   </section>
   <section class="panel" id="p-numeros">
     <div id="avisoCatalogo"></div>
-    <div class="panel-head" style="margin-top:22px"><div><h2>Coleções</h2><div class="desc">As seções da loja, no site e no app — a ordem daqui é a ordem de lá</div></div><button class="btn" onclick="openForm('colecao')">+ Coleção</button></div>
-    <div id="colecoesLista"></div>
-    <div class="panel-head"><div><h2>Orçamento</h2><div class="desc">Custo e preço de cada peça</div></div><div class="head-btns"><button class="btn2" onclick="publicarCatalogo()">Publicar catálogo</button><button class="btn" onclick="openForm('produto')">+ Produto</button></div></div>
+
+    
+    
+    <div class="panel-head"><div><h2>Peças</h2><div class="desc">Cadastro de cada peça: custo, preço, foto e o que aparece na loja</div></div><div class="head-btns"><button class="btn2" onclick="publicarCatalogo()">Publicar catálogo</button><button class="btn" onclick="openForm('produto')">+ Peça</button></div></div>
     <div class="hint-box">O custo puxa os preços dos Insumos. Ajuste mão de obra, markup e taxa.</div>
     <div class="tablewrap"><table><thead><tr><th>Produto</th><th>Custo</th><th>Sugerido</th><th>Praticado</th><th>Margem</th><th>R$/h</th><th>Prontas</th><th></th></tr></thead><tbody id="tbProdutos"></tbody></table></div>
-    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Custos fixos mensais</h2><div class="desc">Aluguel, energia, assinaturas — alimentam o ponto de equilíbrio no Painel</div></div><button class="btn" onclick="openForm('fixo')">+ Custo fixo</button></div>
+    
+<div class="panel-head" style="margin-top:34px"><div><h2>Coleções</h2><div class="desc">As seções da loja, no site e no app — a ordem daqui é a ordem de lá</div></div><button class="btn" onclick="openForm('colecao')">+ Coleção</button></div>
+    <div id="colecoesLista"></div>
+<div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Custos fixos mensais</h2><div class="desc">Aluguel, energia, assinaturas — alimentam o ponto de equilíbrio no Painel</div></div><button class="btn" onclick="openForm('fixo')">+ Custo fixo</button></div>
     <div class="tablewrap"><table><thead><tr><th>Custo</th><th>Valor mensal</th><th></th></tr></thead><tbody id="tbFixos"></tbody></table></div>
   </section>
   <section class="panel" id="p-ajustes">
