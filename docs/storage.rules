@@ -2,36 +2,38 @@ rules_version = '2';
 
 // Regras do Cloud Storage do projeto `cinerea1`.
 //
-// Publicar: `npx firebase-tools deploy --only storage` (o firebase.json já
-// aponta para este arquivo).
+// Publicar: `npx firebase-tools deploy --only storage`.
 //
-// Mesma lógica das regras do Firestore: quem é da casa escreve, o mundo lê o
-// que é vitrine. A diferença é que aqui um erro custa dinheiro — o plano Blaze
-// não tem teto rígido, e imagem é o que mais pesa em tráfego.
+// SEM CONSULTA ENTRE SERVIÇOS, e isso é deliberado.
+//
+// A primeira versão perguntava ao Firestore se quem envia está em `gestores`.
+// É mais preciso, e não funcionou: essa ponte exige uma permissão IAM que a
+// documentação diz ser pedida "ao salvar as regras pela primeira vez" — e que
+// nunca chegou a ser concedida. O sintoma foi `storage/unauthorized` sem pista
+// nenhuma, e o emulador não reproduz porque não exige a permissão.
+//
+// O preço de abrir mão dela: qualquer conta autenticada pode enviar imagem
+// dentro da PRÓPRIA pasta. Não pode sobrescrever a de ninguém, não pode passar
+// de 2 MB e não pode enviar o que não for imagem. O App Check fecha o resto,
+// garantindo que a requisição venha mesmo dos nossos apps.
 
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Espelha `gestores/{uid}` do Firestore: a mesma lista decide quem é da
-    // casa nos dois lugares, para não existirem duas verdades sobre isso.
-    function ehDaCasa() {
-      return request.auth != null
-        && firestore.exists(/databases/(default)/documents/gestores/$(request.auth.uid));
-    }
-
-    // Foto de produto: é vitrine, então leitura aberta — o app dos clientes e
-    // a página pública precisam mostrar sem login.
-    match /produtos/{arquivo} {
+    // Foto de produto. O `dono` no caminho é o uid de quem enviou: cada um
+    // escreve só na própria pasta, e um cliente não alcança a foto da loja.
+    match /produtos/{dono}/{arquivo} {
+      // Leitura aberta: é vitrine. O app e o site mostram sem login.
       allow read: if true;
 
-      // Escrita só de quem é da casa, e com limites: sem teto de tamanho, um
-      // envio errado de vídeo ou de foto crua de 40 MB viraria conta no fim
-      // do mês. 2 MB é generoso para foto já comprimida.
-      allow write: if ehDaCasa()
+      allow write: if request.auth != null
+        && request.auth.uid == dono
+        // Sem teto, um envio errado de vídeo ou de foto crua de 40 MB vira
+        // conta no fim do mês — o plano Blaze não tem limite rígido.
         && request.resource.size < 2 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
 
-      allow delete: if ehDaCasa();
+      allow delete: if request.auth != null && request.auth.uid == dono;
     }
 
     // Nada mais é gravável. Uma pasta esquecida aberta é onde nascem as

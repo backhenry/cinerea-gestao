@@ -1782,9 +1782,18 @@ function comprimirImagem(file, ladoMax=1200, qualidade=0.82){
  * registro que não existe.
  */
 function caminhoDaFoto(urlAtual){
-  const m=String(urlAtual||'').match(/\/o\/produtos%2F([^?]+)/);
-  if(m)return 'produtos/'+decodeURIComponent(m[1]);
-  return `produtos/${uidGen()}${uidGen().slice(0,4)}.jpg`;
+  // O uid entra no CAMINHO porque é assim que a regra do Storage confere quem
+  // pode escrever: cada um só grava dentro da própria pasta. Antes a regra
+  // perguntava ao Firestore quem era da casa, e essa ponte exigia uma permissão
+  // que nunca foi concedida — dava `storage/unauthorized` sem dizer por quê.
+  const m=String(urlAtual||'').match(/\/o\/(produtos%2F[^?]+)/);
+  if(m){
+    const caminho=decodeURIComponent(m[1]);
+    // Só reaproveita o arquivo se ele já estiver na pasta certa. Foto antiga,
+    // do formato sem uid, seria recusada — melhor gravar uma nova.
+    if(caminho.startsWith(`produtos/${uid}/`))return caminho;
+  }
+  return `produtos/${uid}/${uidGen()}${uidGen().slice(0,4)}.jpg`;
 }
 
 /** Chamado pelo campo de foto no formulário de produto. */
