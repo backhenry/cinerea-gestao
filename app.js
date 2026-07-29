@@ -892,6 +892,8 @@ function plural(t){return{equip:'equip',molde:'moldes',insumo:'insumos',produto:
 const NOMES_TIPO={equip:'equipamento',molde:'molde',insumo:'insumo',produto:'produto',producao:'produção',pedido:'pedido',compra:'compra',fixo:'custo fixo',cliente:'cliente',canal:'canal',tarefa:'tarefa',cotacao:'cotação',fornecedor:'fornecedor',colecao:'coleção'};
 function val(id){const el=document.getElementById(id);return el?el.value:'';}
 function openForm(type,id){
+  const rodape=document.querySelector('.modal-foot');
+  if(rodape)rodape.style.display='';   // a revisão de publicação o esconde
   currentForm={type,id:id||null,recipe:[]};window.currentForm=currentForm;const isP=type==='produto';
   // "Novo compra" e "Novo coleção" saíam errados desde sempre: o artigo era
   // fixo. Cada formulário diz o próprio gênero.
@@ -968,7 +970,7 @@ function revertCompra(o){
 function saveForm(){
   const type=currentForm.type,id=currentForm.id;let obj={};
   if(type==='perfil'){salvarPerfil();return;}
-  if(type==='cotacaoView'){closeModal();return;}
+  if(type==='cotacaoView'||type==='publicar'){closeModal();return;}
   if(type==='cotacaoSel'){
     const itens=[];document.querySelectorAll('[data-cot]').forEach(ch=>{if(!ch.checked)return;const iid=ch.getAttribute('data-cot');const q=Number((document.getElementById('cotq_'+iid)||{}).value||0);if(q>0)itens.push({insumo:iid,qtd:Math.round(q*100)/100});});
     if(!itens.length){toast('Marque ao menos um item e informe a quantidade.');return;}
@@ -1138,41 +1140,39 @@ function avisoCatalogo(){
   if(!box)return;
   const mudou=db.produtos.some(p=>p.publico) && db.catalogoAssinatura!==assinaturaCatalogo();
   box.innerHTML = mudou
-    ? '<div class="hint-box" style="border-left-color:var(--ember)">A loja está <b>desatualizada</b>: há mudanças em produtos que ainda não foram publicadas. O app e o site continuam mostrando o que foi publicado da última vez.<div style="margin-top:10px"><button class="btn" onclick="publicarCatalogo()">Publicar catálogo agora</button></div></div>'
+    ? '<div class="hint-box" style="border-left-color:var(--ember)">A loja está <b>desatualizada</b>: há mudanças em produtos que ainda não foram publicadas. O app e o site continuam mostrando o que foi publicado da última vez.<div style="margin-top:10px"><button class="btn" onclick="revisarPublicacao()">Revisar e publicar</button></div></div>'
     : (db.catalogoAssinatura ? '<div class="hint">Loja em dia com o cadastro.</div>' : '');
 }
 
+/**
+ * Envia a vitrine. Só o envio: quem revisa e confirma é `revisarPublicacao`.
+ *
+ * O erro SOBE em vez de virar toast. Antes ele era engolido aqui e a mensagem
+ * na tela era um chute fixo sobre regras do Firestore — o dono foi mexer em
+ * regra que estava certa por causa disso.
+ */
 async function publicarCatalogo(){
-  if(!pode('fin')){toast('Sem permissão');return;}
-  // O Firestore recusa `undefined` em qualquer campo, e um produto sem nome ou
-  // sem id chegaria assim. Limpar aqui evita um erro que nao explica nada.
+  if(!pode('fin'))throw new Error('Sem permissão para publicar');
+  if(!eid)throw new Error('Empresa não carregada — recarregue a página');
+
+  // O Firestore recusa `undefined` sem explicar qual campo. Limpar antes.
   const itens=itensDoCatalogo().map(i=>{
     const limpo={}; for(const k in i) if(i[k]!==undefined) limpo[k]=i[k];
     return limpo;
   });
-  if(!itens.length){toast('Marque "mostrar no catálogo" em algum produto primeiro');return;}
-  const whats=prompt('WhatsApp para encomendas no catálogo (só números com DDD, vazio = sem botão):',db.catWhats||'');
-  if(whats===null)return;
-  db.catWhats=whats.trim();cloudSave();
-  try{
-    await setDoc(doc(fdb,'catalogo',eid),{itens,colecoes:colecoesOrdenadas().map(c=>({id:c.id||'',nome:c.nome||'',desc:c.desc||''})),nome:empresaNome||'Cinérea',whats:db.catWhats,atualizado:Date.now()});
-    const url=location.origin+location.pathname.replace(/index\.html$/,'')+'catalogo.html?u='+eid;
-    if(navigator.clipboard)navigator.clipboard.writeText(url).catch(()=>{});
-    db.catalogoAssinatura=assinaturaCatalogo();cloudSave();avisoCatalogo();
-    toast('Catálogo publicado — link copiado! '+itens.length+' peça(s)');
-  }catch(e){
-    console.error('publicarCatalogo:',e);
-    // A mensagem antiga chutava sempre "atualize as regras", mesmo quando a
-    // causa era outra — e chute vira caça ao fantasma. Agora ela diz o que o
-    // Firebase disse.
-    const cod=(e&&e.code)||'';
-    const dica = cod==='permission-denied'
-      ? 'sem permissão para publicar — confira se você é membro da empresa'
-      : /invalid|undefined|Unsupported/i.test(String(e&&e.message))
-        ? 'algum campo do produto está vazio de um jeito que o Firestore recusa'
-        : (e&&e.message)||'erro desconhecido';
-    toast('Não consegui publicar: '+esc(dica));
-  }
+  if(!itens.length)throw new Error('Nenhuma peça marcada para o catálogo');
+
+  await setDoc(doc(fdb,'catalogo',eid),{
+    itens,
+    colecoes:colecoesOrdenadas().map(c=>({id:c.id||'',nome:c.nome||'',desc:c.desc||''})),
+    nome:empresaNome||'Cinérea',
+    whats:db.catWhats||'',
+    atualizado:Date.now(),
+  });
+
+  db.catalogoAssinatura=assinaturaCatalogo();
+  cloudSave();
+  toast('Loja publicada — '+itens.length+' peça(s)');
 }
 function closeModal(){
   if(timerInt){clearInterval(timerInt);timerInt=null;}timerT0=null;
@@ -1842,3 +1842,88 @@ async function escolherFoto(input){
 }
 
 Object.assign(window,{escolherFoto});
+
+// ============================================================
+// PUBLICAR A LOJA — revisar antes de mandar
+// ============================================================
+
+/**
+ * O que está errado ou faltando em cada peça que iria para a loja.
+ *
+ * Nada aqui impede a publicação: são escolhas do dono, não erros. Mas peça sem
+ * foto aparece como um símbolo cinza na vitrine, e peça sem coleção fica fora
+ * de todas as seções — sumindo do site sem explicação. Melhor ver antes.
+ */
+function pendenciasDaLoja(){
+  const p=[];
+  const publicas=(db.produtos||[]).filter(x=>x.publico);
+  publicas.forEach(x=>{
+    const c=calcCusto(x).total;
+    const preco=Number(x.preco)||c*Number(x.markup||3);
+    if(!x.foto) p.push([x.nome||'(sem nome)','sem foto — aparece só com o símbolo da marca']);
+    if(!x.colecao) p.push([x.nome||'(sem nome)','sem coleção — fica fora das seções do site']);
+    if(!preco) p.push([x.nome||'(sem nome)','sem preço — aparece como R$ 0']);
+    if(!x.nome) p.push(['(peça sem nome)','o cliente vê o campo vazio']);
+  });
+  return p;
+}
+
+function revisarPublicacao(){
+  if(!pode('fin')){toast('Sem permissão');return;}
+  const publicas=(db.produtos||[]).filter(x=>x.publico);
+  if(!publicas.length){toast('Marque "mostrar no catálogo" em alguma peça primeiro');return;}
+
+  const cols=colecoesOrdenadas();
+  const porColecao=cols.map(c=>[c.nome,publicas.filter(x=>x.colecao===c.id).length]).filter(([,n])=>n);
+  const soltas=publicas.filter(x=>!x.colecao).length;
+  const pend=pendenciasDaLoja();
+
+  currentForm={type:'publicar',id:null,recipe:[]};window.currentForm=currentForm;
+  document.getElementById('modalTitle').textContent='Publicar a loja';
+  document.getElementById('modalBody').innerHTML=`
+    <div class="hint-box">Isto atualiza a vitrine no <b>site</b> e no <b>app</b> ao mesmo tempo. Quem já estiver com a loja aberta vê a mudança ao recarregar.</div>
+
+    <div class="field" style="margin-top:16px">
+      <label>O que vai subir</label>
+      <div id="pagList">
+        ${porColecao.map(([n,q])=>`<div class="prazo-item"><span>${esc(n)}</span><b>${q} peça${q>1?'s':''}</b></div>`).join('')}
+        ${soltas?`<div class="prazo-item"><span style="color:var(--ember)">Sem coleção</span><b>${soltas}</b></div>`:''}
+      </div>
+      <div class="hint">${publicas.length} peça(s) no total, em ${porColecao.length} coleção(ões)</div>
+    </div>
+
+    ${pend.length?`<div class="field"><label>Vale conferir antes</label><div id="pendList">
+      ${pend.map(([n,m])=>`<div class="prazo-item"><span>${esc(n)}</span><span style="color:var(--warm);font-size:12px">${esc(m)}</span></div>`).join('')}
+    </div><div class="hint">Nada disso impede publicar — só muda o que o cliente vê.</div></div>`:''}
+
+    <div class="field">
+      <label>WhatsApp para encomendas</label>
+      <input id="f_whats" value="${esc(db.catWhats||'')}" placeholder="31999998888">
+      <div class="hint">Só números com DDD. Vazio esconde o botão de encomendar na loja.</div>
+    </div>
+
+    <button class="btn" style="width:100%" onclick="confirmarPublicacao()">Publicar agora</button>
+    <div class="hint" id="pubStatus" style="margin-top:10px"></div>`;
+  // Esta tela não salva nada — o rodapé padrão "Cancelar / Salvar" só
+  // confundiria. O fechar fica no × do canto e no próprio fluxo.
+  const rodape=document.querySelector('.modal-foot');
+  if(rodape)rodape.style.display='none';
+  document.getElementById('overlay').classList.add('open');
+}
+
+async function confirmarPublicacao(){
+  const st=document.getElementById('pubStatus');
+  const whats=(document.getElementById('f_whats')||{}).value||'';
+  db.catWhats=String(whats).replace(/\D/g,'');
+  st.textContent='Publicando…';
+  try{
+    await publicarCatalogo();
+    st.innerHTML='Publicado. <a href="https://cinerea.com.br/loja/" target="_blank" rel="noopener" style="color:var(--ember)">Ver a loja →</a>';
+    avisoCatalogo();
+  }catch(e){
+    console.error('confirmarPublicacao:',e);
+    st.innerHTML='<span style="color:var(--ember)">'+esc((e&&e.message)||'não consegui publicar')+'</span>';
+  }
+}
+
+Object.assign(window,{revisarPublicacao,confirmarPublicacao});
