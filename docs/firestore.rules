@@ -181,12 +181,16 @@ service cloud.firestore {
     match /vitrines/{tagUid} {
       allow read: if true;
 
+      // A senha do wi-fi PASSA por aqui, e isso é decisão consciente do dono
+      // (jul/2026). A regra anterior a proibia, porque numa página ela vira
+      // endereço que se encaminha por mensagem — mas a Apple não implementa o
+      // registro `vnd.wfa.wsc`, então SEM a senha na página um convidado de
+      // iPhone não consegue conectar de jeito nenhum. Entre proteger a senha e
+      // ter o tipo "wi-fi" funcionando em metade dos celulares, o dono escolheu
+      // funcionar. É o equivalente ao cartão com a senha ao lado da porta:
+      // quem tem o link vê a senha, tenha ou não tocado na peça.
       allow write: if request.auth != null
-        && exists(/databases/$(database)/documents/clientes/$(request.auth.uid)/pecas/$(tagUid))
-        // Senha de wi-fi NÃO passa por aqui. No chip ela exige encostar o
-        // celular; numa página, vira endereço que se compartilha. O app manda
-        // só o nome da rede, e quem quiser conectar encosta na peça.
-        && !('senha' in request.resource.data);
+        && exists(/databases/$(database)/documents/clientes/$(request.auth.uid)/pecas/$(tagUid));
 
       allow delete: if request.auth != null
         && exists(/databases/$(database)/documents/clientes/$(request.auth.uid)/pecas/$(tagUid));

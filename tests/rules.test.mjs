@@ -253,14 +253,17 @@ test('quem NÃO tem a peça não mexe na vitrine dela', async () => {
   }));
 });
 
-test('senha de wi-fi NÃO entra na vitrine, nem vinda do dono', async () => {
-  // No chip a senha exige encostar o celular; numa página pública, vira
-  // endereço que se manda por mensagem. São exposições diferentes.
-  await assertFails(fs('ana').doc(`vitrines/${TAG}`).set({
+test('senha de wi-fi ENTRA na vitrine — decisão do dono', async () => {
+  // A regra anterior a proibia. A Apple não implementa o registro de wi-fi do
+  // NFC, então sem a senha na página um convidado de iPhone não conecta de
+  // jeito nenhum. O dono escolheu funcionar, sabendo que quem tem o link vê a
+  // senha sem ter tocado na peça (jul/2026).
+  await assertSucceeds(fs('ana').doc(`vitrines/${TAG}`).set({
     tipo: 'wifi', titulo: 'Rede de wi-fi', dados: 'CasaDaAna', senha: 'segredo123',
   }));
-  await assertSucceeds(fs('ana').doc(`vitrines/${TAG}`).set({
-    tipo: 'wifi', titulo: 'Rede de wi-fi', dados: 'CasaDaAna',
+  // e continua valendo que só o dono da peça publica
+  await assertFails(fs('bruno').doc(`vitrines/${TAG}`).set({
+    tipo: 'wifi', titulo: 'Rede de wi-fi', dados: 'CasaDoBruno', senha: 'x',
   }));
 });
 
