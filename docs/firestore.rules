@@ -168,6 +168,30 @@ service cloud.firestore {
       }
     }
 
+    // A vitrine pública de uma peça: o que o convidado vê ao encostar.
+    //
+    // Existe porque o conteúdo "de verdade" mora em `clientes/{uid}/pecas/`, que
+    // é privado — o convidado não lê nada de lá, e não deve mesmo. Aqui fica só
+    // o recorte que a peça mostra ao mundo.
+    //
+    // Escreve quem É DONO da peça: a regra confere se existe `pecas/{tagUid}`
+    // dentro da conta de quem está escrevendo. Sem isso, qualquer pessoa
+    // logada poderia trocar o conteúdo da peça alheia sabendo só o UID do chip
+    // — que se lê encostando o celular.
+    match /vitrines/{tagUid} {
+      allow read: if true;
+
+      allow write: if request.auth != null
+        && exists(/databases/$(database)/documents/clientes/$(request.auth.uid)/pecas/$(tagUid))
+        // Senha de wi-fi NÃO passa por aqui. No chip ela exige encostar o
+        // celular; numa página, vira endereço que se compartilha. O app manda
+        // só o nome da rede, e quem quiser conectar encosta na peça.
+        && !('senha' in request.resource.data);
+
+      allow delete: if request.auth != null
+        && exists(/databases/$(database)/documents/clientes/$(request.auth.uid)/pecas/$(tagUid));
+    }
+
     // Encomendas feitas pela loja do app.
     //
     // NÃO são pedidos: são PEDIDOS DE COMPRA, esperando a casa aceitar. Sem

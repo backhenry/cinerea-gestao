@@ -6,12 +6,17 @@ import test from 'node:test';
 
 let env;
 const fs = u => env.authenticatedContext(u).firestore();
+// O contexto SEM LOGIN precisa nascer antes de qualquer outro Firestore ser
+// usado: criado no meio da corrida, estoura com "Firestore has already been
+// started and its settings can no longer be changed".
+let semLogin;
 
 test.before(async () => {
   env = await initializeTestEnvironment({
     projectId: 'demo-cinerea',
     firestore: { rules: readFileSync('docs/firestore.rules', 'utf8') },
   });
+  semLogin = env.unauthenticatedContext().firestore();
   await env.withSecurityRulesDisabled(async ctx => {
     const d = ctx.firestore();
     await d.doc('empresas/E1').set({ nome: 'Cinérea', dono: 'dono1', dados: {} });
@@ -21,6 +26,13 @@ test.before(async () => {
     await d.doc('empresas/E1/membros/emp1').set({ nome: 'Empregado', papel: 'empregado' });
     await d.doc('empresas/E1/fin/dados').set({ meta: 1000, fixos: [] });
     await d.doc('convites/CODEMP').set({ empresaId: 'E1', papel: 'empregado' });
+    // Peça e vitrine da Ana, para os testes de `vitrines/` no fim do arquivo.
+    // Semeado AQUI porque `withSecurityRulesDisabled` no meio da corrida estoura
+    // com "Firestore has already been started".
+    await d.doc('clientes/ana/pecas/04A2B3C4D5').set({ nome: 'Vela da sala' });
+    await d.doc('vitrines/04A2B3C4D5').set({
+      tipo: 'link', titulo: 'Playlist', dados: 'https://exemplo.com',
+    });
   });
 });
 test.after(async () => { await env.cleanup(); });
@@ -215,3 +227,44 @@ test('cliente do app não enxerga a gestão, e a gestão não enxerga as peças'
 
 test('subcoleção não declarada em clientes/ falha fechado', () =>
   assertFails(fs('ana').doc('clientes/ana/rascunhos/x').set({ a: 1 })));
+
+// ── vitrines/ ─────────────────────────────────────────────────────────────
+// A página que o convidado vê ao encostar o celular na peça. Estes testes
+// vieram do repo do app (tests/regras.test.mjs) quando as duas cópias das
+// regras divergiram: o bloco de `vitrines` estava publicado em produção e o CI
+// daqui não o conhecia — ou seja, guardava uma regra que não estava no ar.
+const TAG = '04A2B3C4D5';
+
+test('qualquer um lê a vitrine de uma peça, até sem login', () =>
+  assertSucceeds(semLogin.doc(`vitrines/${TAG}`).get()));
+
+test('o dono da peça publica a vitrine dela', () =>
+  assertSucceeds(fs('ana').doc(`vitrines/${TAG}`).set({
+    tipo: 'recado', titulo: 'Recado', dados: 'bem-vindo',
+  })));
+
+test('quem NÃO tem a peça não mexe na vitrine dela', async () => {
+  // Bruno sabe o UID do chip — basta encostar o celular. Só isso não basta.
+  await assertFails(fs('bruno').doc(`vitrines/${TAG}`).set({
+    tipo: 'link', titulo: 'Sequestrada', dados: 'https://golpe.com',
+  }));
+  await assertFails(semLogin.doc(`vitrines/${TAG}`).set({
+    tipo: 'link', titulo: 'Sequestrada', dados: 'https://golpe.com',
+  }));
+});
+
+test('senha de wi-fi NÃO entra na vitrine, nem vinda do dono', async () => {
+  // No chip a senha exige encostar o celular; numa página pública, vira
+  // endereço que se manda por mensagem. São exposições diferentes.
+  await assertFails(fs('ana').doc(`vitrines/${TAG}`).set({
+    tipo: 'wifi', titulo: 'Rede de wi-fi', dados: 'CasaDaAna', senha: 'segredo123',
+  }));
+  await assertSucceeds(fs('ana').doc(`vitrines/${TAG}`).set({
+    tipo: 'wifi', titulo: 'Rede de wi-fi', dados: 'CasaDaAna',
+  }));
+});
+
+test('o dono apaga a própria vitrine; estranho não', async () => {
+  await assertFails(fs('bruno').doc(`vitrines/${TAG}`).delete());
+  await assertSucceeds(fs('ana').doc(`vitrines/${TAG}`).delete());
+});
