@@ -267,6 +267,14 @@ test('senha de wi-fi ENTRA na vitrine — decisão do dono', async () => {
   }));
 });
 
+test('sem a peça na conta, nem o dono anterior apaga a vitrine', async () => {
+  // É ISTO que obriga `passarAdiante` a apagar a vitrine ANTES do registro:
+  // invertendo a ordem, quem dá a peça de presente perde para sempre a
+  // permissão de limpar a própria página — que continua no ar com o que ele
+  // deixou ali, hoje inclusive a senha do wi-fi de casa.
+  await assertFails(fs('ana').doc('vitrines/SEMDONO01').delete());
+});
+
 test('o dono apaga a própria vitrine; estranho não', async () => {
   await assertFails(fs('bruno').doc(`vitrines/${TAG}`).delete());
   await assertSucceeds(fs('ana').doc(`vitrines/${TAG}`).delete());
