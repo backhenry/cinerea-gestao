@@ -1669,7 +1669,58 @@ async function carregarEncomendas(){
     renderEncomendas();
   }catch(e){
     console.error(e);
-    box.innerHTML='<div class="hint-box">Não consegui buscar. Publique as regras do Firestore (docs/firestore.rules) e confira se você está em <code>gestores</code>.</div>';
+    box.innerHTML='<div class="hint">Não consegui buscar. Descobrindo por quê…</div>';
+    box.innerHTML='<div class="hint-box">'+await porQueFalhouEncomendas(e)+'</div>';
+  }
+}
+
+/**
+ * Por que a busca das encomendas falhou — de verdade, não por palpite.
+ *
+ * O texto anterior era fixo: mandava publicar as regras e conferir `gestores`
+ * para QUALQUER falha, inclusive falta de rede. E mandava mexer nas regras, que
+ * já estavam publicadas — ou seja, apontava para o lugar errado com confiança.
+ *
+ * Dá para saber. Duas coisas ajudam:
+ *
+ * 1. Listar `encomendas` SEM filtro exige `ehDaCasa()`. O Firestore não avalia
+ *    "só as minhas" documento por documento numa consulta de coleção — por isso
+ *    o app do cliente consegue (ele consulta `where clienteUid == uid`) e a
+ *    gestão, que lista tudo, não.
+ * 2. A regra deixa cada um LER o próprio documento em `gestores`. Então basta
+ *    perguntar se ele existe, em vez de sugerir que talvez não exista.
+ */
+async function porQueFalhouEncomendas(e){
+  const cod=e?.code||e?.name||'erro';
+  const cabeca='<strong>Não consegui buscar as encomendas.</strong><br>'
+    +'<code>'+esc(cod)+'</code> — '+esc(e?.message||'sem mensagem')+'<br><br>';
+
+  if(cod!=='permission-denied'){
+    return cabeca+'Não é recusa de permissão, então não é regra nem <code>gestores</code>. '
+      +'<code>unavailable</code> ou <code>deadline-exceeded</code> é rede; '
+      +'<code>failed-precondition</code> costuma ser índice faltando.';
+  }
+
+  const u=auth.currentUser;
+  if(!u) return cabeca+'Esta aba não está autenticada. Saia e entre de novo.';
+
+  try{
+    const meu=await getDoc(doc(fdb,'gestores',u.uid));
+    if(meu.exists()){
+      return cabeca+'Você <strong>está</strong> em <code>gestores</code>, então não é isso. '
+        +'As regras publicadas devem estar atrás de <code>docs/firestore.rules</code> — '
+        +'publique com <code>npx firebase-tools deploy --only firestore:rules</code>.';
+    }
+    return cabeca+'Confirmado: <strong>você não está em <code>gestores</code></strong>, e listar '
+      +'todas as encomendas exige isso.<br><br>Crie no Console do Firebase o documento '
+      +'<code>gestores/'+esc(u.uid)+'</code> — qualquer campo serve (ex.: <code>nome</code>). '
+      +'Nenhum app escreve nessa coleção, de propósito: é ela que decide quem é da casa.'
+      +'<br><br>A encomenda do cliente provavelmente <strong>foi salva</strong>; o que falta é '
+      +'permissão para ela ser listada aqui.';
+  }catch(err){
+    return cabeca+'Não consegui nem ler o meu próprio <code>gestores/'+esc(u.uid)+'</code> '
+      +'('+esc(err?.code||'erro')+'). Aí sim as regras publicadas estão atrás de '
+      +'<code>docs/firestore.rules</code>.';
   }
 }
 
