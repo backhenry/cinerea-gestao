@@ -58,6 +58,20 @@ jobs:
             exit 1
           fi
           printf '%s' "$CINEREA_CONFIG_JS" > config.js
+          # O config.js e o UNICO arquivo que este fluxo publica sem conferir, e
+          # o unico capaz de derrubar a gestao inteira: uma virgula esquecida no
+          # secret vira pagina em branco, sem erro visivel para ninguem.
+          # Falhar aqui e infinitamente melhor que publicar quebrado.
+          if ! node --check config.js; then
+            echo "::error::config.js do secret CINEREA_CONFIG_JS tem erro de sintaxe — o deploy foi interrompido ANTES de publicar. Confira virgulas e aspas."
+            exit 1
+          fi
+          # E precisa mesmo definir a configuracao: um arquivo valido porem vazio
+          # passaria no --check e deixaria a gestao sem Firebase.
+          if ! grep -q 'window.CINEREA_CONFIG' config.js; then
+            echo "::error::config.js nao define window.CINEREA_CONFIG."
+            exit 1
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
