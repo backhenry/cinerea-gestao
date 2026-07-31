@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, verifyBeforeUpdateEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, arrayUnion, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
 import * as Core from "./core.js";
 
 // ============================================================
@@ -68,7 +69,38 @@ Object.assign(window,{doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,de
 
 if(!isConfigured){document.getElementById('gateSetup').style.display='block';}
 else{
-  app=initializeApp(firebaseConfig);auth=getAuth(app);
+  app=initializeApp(firebaseConfig);
+
+  // APP CHECK — prova ao Firebase que a requisicao veio DESTE site, e nao de um
+  // script qualquer com a chave web (que e publica e vai em todo HTML).
+  //
+  // Vem logo depois do initializeApp e ANTES dos servicos: o token precisa
+  // existir quando a primeira chamada sair.
+  //
+  // A chave do reCAPTCHA fica no config.js, que esta fora do Git — nao porque
+  // seja segredo (chave de SITE do reCAPTCHA e publica por natureza), e sim
+  // para o repositorio publico nao carregar configuracao de ambiente.
+  //
+  // Sem a chave, o bloco nao roda e nada quebra: App Check so barra alguma
+  // coisa quando a IMPOSICAO e ligada no Console, e ela comeca desligada. E o
+  // primeiro servico a impor deve ser o Cloud Storage — e o unico que a gestao
+  // usa, e a lacuna que a regra do Storage nao consegue fechar sozinha, porque
+  // ela nao tem como saber quem e da casa sem consultar o Firestore.
+  const chaveRecaptcha=(window.CINEREA_CONFIG||{}).recaptchaSiteKey;
+  if(chaveRecaptcha){
+    try{
+      initializeAppCheck(app,{
+        provider:new ReCaptchaV3Provider(chaveRecaptcha),
+        isTokenAutoRefreshEnabled:true,
+      });
+    }catch(e){
+      // Falhar aqui nao pode derrubar a gestao: sem imposicao ligada, o app
+      // funciona igual — so nao envia o atestado.
+      console.warn('App Check nao iniciou:',e);
+    }
+  }
+
+  auth=getAuth(app);
   // cache local persistente: o app funciona offline e sincroniza ao reconectar
   fdb=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
   fstore=getStorage(app);

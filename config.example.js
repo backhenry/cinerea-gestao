@@ -10,5 +10,12 @@ window.CINEREA_CONFIG = {
   projectId: "seu-projeto",
   storageBucket: "seu-projeto.appspot.com",
   messagingSenderId: "000000000000",
-  appId: "1:000000000000:web:abc123"
+  appId: "1:000000000000:web:abc123",
+
+  // Chave de SITE do reCAPTCHA v3, usada pelo App Check.
+  // Pegue em: Firebase Console -> App Check -> seu app web.
+  // É pública (vai no HTML de qualquer página que use reCAPTCHA) — o que NUNCA
+  // se põe aqui é a chave SECRETA do reCAPTCHA, que fica só no Console.
+  // Sem esta linha, o App Check simplesmente não inicia e nada quebra.
+  recaptchaSiteKey: ""
 };
