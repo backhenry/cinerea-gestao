@@ -235,6 +235,17 @@ test('subcoleção não declarada em clientes/ falha fechado', () =>
 // daqui não o conhecia — ou seja, guardava uma regra que não estava no ar.
 const TAG = '04A2B3C4D5';
 
+test('NINGUÉM lista peças nem vitrines — só lê por id', async () => {
+  // Era a corrente inteira: enumerar os tagUid sem login, criar uma conta
+  // comum, registrar as peças alheias na própria conta e assim ganhar
+  // permissão de reescrever a vitrine pública de cada peça vendida.
+  for (const quem of [semLogin, fs('bruno')]) {
+    await assertFails(quem.collection('pecas').get());
+    await assertFails(quem.collection('vitrines').get());
+  }
+  await assertSucceeds(semLogin.doc(`pecas/${TAG}`).get());
+});
+
 test('qualquer um lê a vitrine de uma peça, até sem login', () =>
   assertSucceeds(semLogin.doc(`vitrines/${TAG}`).get()));
 

@@ -59,8 +59,20 @@ service cloud.firestore {
     // pessoal aqui — modelo, número de série e data de fabricação.
     // Escrita só de quem é da casa: é isto que impede um cliente de forjar
     // procedência para uma peça que a Cinérea não fez.
+    // LEITURA POR ID, NUNCA POR LISTA.
+    //
+    // `read` cobre `get` e `list` juntos, e com `list` liberado qualquer pessoa
+    // sem login enumera TODOS os tagUid já registrados. Isso quebra a premissa
+    // do sistema inteiro: a de que conhecer o UID de um chip significa ter
+    // encostado na peça. Com a lista aberta, formava-se uma corrente —
+    // enumerar as peças, criar uma conta comum, registrá-las na conta própria
+    // (a regra permite qualquer id na subcoleção do cliente) e assim ganhar
+    // permissão de reescrever a vitrine pública de cada peça vendida.
+    //
+    // Nada no projeto lista estas coleções: app, site e gestão buscam por id.
     match /pecas/{tagUid} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if false;
       allow create, update: if ehDaCasa();
       allow delete: if false;
     }
@@ -179,7 +191,11 @@ service cloud.firestore {
     // logada poderia trocar o conteúdo da peça alheia sabendo só o UID do chip
     // — que se lê encostando o celular.
     match /vitrines/{tagUid} {
-      allow read: if true;
+      // Por id, nunca por lista — o mesmo motivo de `pecas`: com a lista aberta
+      // qualquer um enumera os chips existentes e a premissa de que conhecer o
+      // UID significa ter tocado na peça deixa de valer.
+      allow get: if true;
+      allow list: if false;
 
       // A senha do wi-fi PASSA por aqui, e isso é decisão consciente do dono
       // (jul/2026). A regra anterior a proibia, porque numa página ela vira
