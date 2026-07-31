@@ -389,7 +389,21 @@ const {uidGen,brl,esc,num,insumoStatus,moldeStatus,validar,saldoPedido,custoMedi
 const hoje=()=>Core.hoje();
 function toast(msg){const t=document.getElementById('toast');t.innerHTML=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2600);}
 function toastUndo(msg,snap){undoState=snap;const t=document.getElementById('toast');t.innerHTML=msg+' <button onclick="doUndo()" style="background:none;border:none;color:#e8a;text-decoration:underline;cursor:pointer;font-size:13px;margin-left:6px">Desfazer</button>';t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),7000);}
-function doUndo(){if(!undoState)return;db=undoState;undoState=null;cloudSave();renderAll();toast('Desfeito ✓');}
+// Desfazer a exclusão de um cupom traz o cadastro de volta, mas o documento
+// já saiu do ar: restaurar aqui sem repor lá deixaria o cupom "existindo" na
+// gestão e morto na loja, que é a mesma discordância pela outra ponta.
+let cupomApagadoNoUndo=null;
+function doUndo(){
+  if(!undoState)return;
+  db=undoState;undoState=null;cloudSave();renderAll();
+  const voltou=cupomApagadoNoUndo;cupomApagadoNoUndo=null;
+  if(voltou){
+    const c=(db.cupons||[]).find(x=>x.codigo===voltou);
+    if(c) sincronizarCupom(c,null)
+      .catch(e=>{console.error(e);toast('Desfeito aqui, mas o cupom <b>continua fora do ar</b>. Use "Conferir o que está no ar".');});
+  }
+  toast('Desfeito ✓');
+}
 
 // A semente agora vem do ramo escolhido no onboarding (criarEmpresa).
 // Aqui só garantimos os canais de venda, que servem a qualquer negócio.
@@ -1039,6 +1053,10 @@ function saveForm(){
     // story funcionar quando o cliente digita em minúscula no celular.
     obj.codigo=normalizarCupom(obj.codigo);
     if(!obj.codigo){toast('O código só pode ter letras, números e hífen.');return;}
+    // Guardado antes de o cadastro ser sobrescrito: se o código mudou, o
+    // documento velho precisa sair do ar, senão o código antigo continua
+    // valendo e ainda paga comissão.
+    currentForm.codigoAntigo = id ? ((db.cupons||[]).find(x=>x.id===id)||{}).codigo : null;
     const rep=(db.cupons||[]).find(c=>c.codigo===obj.codigo&&c.id!==id);
     if(rep){toast('Já existe um cupom <b>'+esc(obj.codigo)+'</b>.');return;}
     if(!obj.vendedorId){toast('Escolha de quem é a comissão deste cupom.');return;}
@@ -1073,6 +1091,15 @@ function saveForm(){
     if(id){const i=db[list].findIndex(x=>x.id===id);db[list][i]={...db[list][i],...obj};}
     else{obj.id=uidGen();obj.por=uid;db[list].push(obj);}
   }
+  // O cupom vai para o ar NA HORA. Sem isto, salvar aqui e a loja continuar com
+  // o valor velho é o mesmo problema de apagar e continuar valendo.
+  if(type==='cupom'){
+    const salvo=(db.cupons||[]).find(x=>x.codigo===obj.codigo)||obj;
+    const antigo=currentForm.codigoAntigo;
+    sincronizarCupom(salvo,antigo)
+      .then(()=>toast('Cupom <b>'+esc(salvo.codigo)+'</b> no ar'))
+      .catch(e=>{console.error(e);toast('Salvei aqui, mas <b>não consegui atualizar a loja</b>. Use "Conferir o que está no ar".');});
+  }
   // registro de atividade (sem valores — visível a todos os papéis)
   if(type==='producao'&&!id){const pr=db.produtos.find(x=>x.id===obj.produto);logAtv('registrou produção de '+(obj.qtd||'?')+' × '+(pr?pr.nome:'peça'));}
   else logAtv((id?'editou ':'criou ')+(NOMES_TIPO[type]||type)+(obj.nome?' "'+obj.nome+'"':obj.titulo?' "'+obj.titulo+'"':''));
@@ -1091,10 +1118,18 @@ function del(type,id){
     (db.produtos||[]).forEach(p=>{ if(p.colecao===id) p.colecao=''; });
   }
   const snap=JSON.parse(JSON.stringify(db)); // p/ desfazer
+  cupomApagadoNoUndo=null;   // a marca é do desfazer DESTA exclusão, não da anterior
   const list=plural(type);const o=db[list].find(x=>x.id===id);
   if(type==='producao'&&o)revertProducao(o);
   if(type==='pedido'&&o)revertPedido(o);
   if(type==='compra'&&o)revertCompra(o);
+  // Apagar aqui TEM de apagar no ar. Enquanto isto não existia, o cupom
+  // apagado continuava dando desconto na loja, para sempre.
+  if(type==='cupom'&&o&&o.codigo){
+    cupomApagadoNoUndo=o.codigo;
+    apagarCupomDoAr(o.codigo)
+      .catch(e=>{console.error(e);toast('Removido daqui, mas <b>ainda está no ar</b>. Use "Conferir o que está no ar".');});
+  }
   db[list]=db[list].filter(x=>x.id!==id);
   logAtv('excluiu '+(NOMES_TIPO[type]||type)+(o&&(o.nome||o.titulo)?' "'+(o.nome||o.titulo)+'"':''));
   cloudSave();renderAll();
@@ -2014,7 +2049,7 @@ function renderCupons(){
 
   const box=document.getElementById('cuponsAviso');
   if(box) box.innerHTML=cs.length
-    ? '<div class="hint-box" style="margin-bottom:10px">Cupom criado aqui <b>ainda não vale</b> na loja: publicar é o que copia o desconto para o site e o app. Comissão e chave Pix nunca saem daqui.</div>'
+    ? '<div class="hint-box" style="margin-bottom:10px">Salvar, desligar e apagar valem <b>na hora</b> no site e no app. Se algum salvamento avisar que a rede falhou, <b>Conferir o que está no ar</b> acerta os dois lados e remove o que sobrou. Comissão e chave Pix nunca saem daqui.</div>'
     : '';
 }
 
@@ -2035,35 +2070,94 @@ function renderComissoes(){
 }
 
 /**
- * Publica o recorte público dos cupons, um documento por código.
- *
- * Nada de comissão, nada de Pix: sobe só o que a loja precisa para mostrar o
- * desconto. É o mesmo desenho do catálogo — o cadastro rico fica aqui, o
- * recorte público vai para fora.
+ * O RECORTE PÚBLICO de um cupom: só o que a loja precisa para mostrar o
+ * desconto. Comissão e chave Pix não sobem, porque não são da conta de quem
+ * compra.
  */
-async function publicarCupons(){
-  if(!pode('gerir')){toast('Só dono e admin publicam cupons');return;}
-  const cs=db.cupons||[];
-  if(!cs.length){toast('Nenhum cupom para publicar.');return;}
-  if(!confirm(`Publicar ${cs.length} cupom(ns)? Eles passam a valer na loja do site e do app.`))return;
-  let ok=0,falhou=0;
-  for(const c of cs){
-    try{
-      await setDoc(doc(fdb,'cupons',c.codigo),{
-        // `vendedor` sobe só como identificador, para a encomenda saber a quem
-        // atribuir. Nome, comissão e Pix ficam aqui dentro.
-        vendedor:c.vendedorId||'',
-        tipo:c.tipo==='valor'?'valor':'percentual',
-        valor:Number(c.valor)||0,
-        ativo:c.ativo!=='desligado',
-        minimo:Number(c.minimo)||0,
-        ...(c.ate?{ate:new Date(c.ate+'T23:59:59').getTime()}:{}),
-        atualizadoEm:Date.now(),
-      });
-      ok++;
-    }catch(e){console.error('cupom',c.codigo,e);falhou++;}
+function recortePublico(c){
+  return {
+    // `vendedor` sobe só como identificador, para a encomenda saber a quem
+    // atribuir. Nome, comissão e Pix ficam neste cadastro.
+    vendedor:c.vendedorId||'',
+    tipo:c.tipo==='valor'?'valor':'percentual',
+    valor:Number(c.valor)||0,
+    ativo:c.ativo!=='desligado',
+    minimo:Number(c.minimo)||0,
+    ...(c.ate?{ate:new Date(c.ate+'T23:59:59').getTime()}:{}),
+    atualizadoEm:Date.now(),
+  };
+}
+
+/**
+ * O cupom vai e volta SOZINHO, ao salvar e ao apagar.
+ *
+ * Antes havia só um botão de publicar, e ele só ESCREVIA. Apagar um cupom aqui
+ * deixava o documento vivo no servidor dando desconto para sempre: o cadastro
+ * dizia uma coisa e a loja fazia outra. Desligar tinha o mesmo problema, e
+ * renomear o código deixava o código velho valendo — inclusive pagando
+ * comissão.
+ *
+ * Agora salvar e apagar mexem no servidor na hora. Se a rede falhar, o aviso
+ * aparece e o botão "Conferir o que está no ar" conserta. O que não pode
+ * existir é o servidor ficar errado em silêncio.
+ */
+async function sincronizarCupom(c,codigoAntigo){
+  // Renomear cria um documento novo, então o antigo TEM de sair. Primeiro
+  // escreve o novo: se a remoção falhar, sobra um cupom a mais (que o conserto
+  // apaga), e não um cupom a menos no meio de uma campanha.
+  await setDoc(doc(fdb,'cupons',c.codigo),recortePublico(c));
+  if(codigoAntigo&&codigoAntigo!==c.codigo){
+    await deleteDoc(doc(fdb,'cupons',codigoAntigo));
   }
-  toast(falhou?`${ok} publicado(s), ${falhou} falhou(aram) — veja o console`:`${ok} cupom(ns) no ar`);
+}
+
+/**
+ * Confere o que está no ar contra este cadastro e acerta os dois lados: sobe o
+ * que falta, atualiza o que mudou e APAGA o que já não existe aqui.
+ *
+ * É o conserto para quando a rede falhou no meio de um salvamento, e é o único
+ * lugar que enxerga cupom órfão: aquele que ficou no servidor sem corresponder
+ * a nada neste cadastro.
+ */
+async function apagarCupomDoAr(codigo){
+  if(!codigo)return;
+  await deleteDoc(doc(fdb,'cupons',codigo));
+}
+
+async function publicarCupons(){
+  if(!pode('gerir')){toast('Só dono e admin mexem nos cupons');return;}
+  const cs=db.cupons||[];
+  let noAr=[];
+  try{
+    const snap=await getDocs(collection(fdb,'cupons'));
+    noAr=snap.docs.map(d=>d.id);
+  }catch(e){
+    console.error(e);
+    toast('Não consegui ler o que está no ar. Se a regra de <b>cupons</b> ainda não foi publicada, é isso.');
+    return;
+  }
+  const daqui=cs.map(c=>c.codigo);
+  const orfaos=noAr.filter(id=>!daqui.includes(id));
+
+  if(!cs.length&&!orfaos.length){toast('Nada a acertar — o ar está igual a este cadastro.');return;}
+  const aviso=[cs.length?`${cs.length} cupom(ns) deste cadastro sobem ou são atualizados`:'',
+               orfaos.length?`${orfaos.length} sai(em) do ar por não existir(em) mais aqui: ${orfaos.join(', ')}`:'']
+              .filter(Boolean).join('\n');
+  if(!confirm(aviso+'\n\nAcertar agora?'))return;
+
+  let ok=0,fora=0,falhou=0;
+  for(const c of cs){
+    try{ await setDoc(doc(fdb,'cupons',c.codigo),recortePublico(c)); ok++; }
+    catch(e){ console.error('cupom',c.codigo,e); falhou++; }
+  }
+  for(const id of orfaos){
+    try{ await deleteDoc(doc(fdb,'cupons',id)); fora++; }
+    catch(e){ console.error('órfão',id,e); falhou++; }
+  }
+  toast(falhou
+    ? `${ok} no ar, ${fora} removido(s), ${falhou} falhou(aram) — veja o console`
+    : `Acertado: ${ok} no ar${fora?`, ${fora} removido(s)`:''}`);
+  renderCupons();
 }
 
 Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes,publicarCupons,renderVendedores,renderCupons,renderComissoes});

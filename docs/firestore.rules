@@ -163,9 +163,14 @@ service cloud.firestore {
     // conta de quem compra — ela vive no cadastro da gestão, junto com o resto.
     // Quem escreve é só a casa, e é isso que impede alguém de criar
     // "DESCONTO90" e se auto-conceder comissão.
+    // A CASA lista; o público, não. A gestão precisa enxergar o que está no ar
+    // para apagar o que já não existe no cadastro dela — sem isso, um cupom
+    // apagado lá continuava valendo aqui, dando desconto para sempre. Para
+    // quem não é da casa, `list` continua fechado, que é o que impede baixar a
+    // coleção inteira e usar o maior desconto que existir.
     match /cupons/{codigo} {
       allow get: if true;
-      allow list: if false;
+      allow list: if ehDaCasa();
       allow write: if ehDaCasa();
     }
 
