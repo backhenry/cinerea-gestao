@@ -882,7 +882,7 @@ const RENDER_ABA={
   vender:()=>{renderPedidos();renderClientes();renderCanais();renderPostProdutos();renderVendedores();renderCupons();renderComissoes();},
   produzir:()=>{renderProducao();renderMoldes();renderEquip();},
   comprar:()=>{renderCompras();renderComprasHist();renderCotacoes();renderFornecedores();renderInsumos();},
-  numeros:()=>{renderProdutos();renderFixos();renderColecoes();avisoCatalogo();},
+  numeros:()=>{renderProdutos();renderFixos();renderColecoes();renderBanner();avisoCatalogo();},
   // Encomendas nao entra aqui: e busca de rede, e renderAll roda a cada
   // salvamento. Ela carrega quando a sub-aba e aberta.
   ajustes:()=>{renderEquipe();renderProdMembro();renderAtividade();},
@@ -933,6 +933,14 @@ const FORMS={
   compra:{title:'Compra',fem:true,fields:[{k:'data',l:'Data',t:'date'},{k:'insumo',l:'Insumo',t:'selectIns'},{k:'qtd',l:'Quantidade comprada',t:'number'},{k:'valor',l:'Valor total pago (R$)',t:'number',hint:'Recalcula o custo médio do insumo. Vazio = só dá entrada no estoque'},{k:'fornecedorId',l:'Fornecedor',t:'selectFornecedor'}]},
   fornecedor:{title:'Fornecedor',fields:[{k:'nome',l:'Nome',t:'text'},{k:'categoria',l:'Categoria de material',t:'text',hint:'Ex.: gesso, essências, embalagens'},{k:'risco',l:'Risco',t:'select',opts:['Baixo','Médio','Alto']},{k:'whats',l:'WhatsApp principal',t:'text',hint:'Só números com DDD — vira link'},{k:'endereco',l:'Endereço',t:'text'},{k:'obs',l:'Observações',t:'text',hint:'Prazo típico, condições, mínimos…'}]},
   fixo:{title:'Custo fixo',fields:[{k:'nome',l:'Nome',t:'text'},{k:'valor',l:'Valor mensal (R$)',t:'number'}]},
+  banner:{title:'Banner da loja',fields:[
+    {k:'ativo',l:'Situação',t:'select',opts:['ligado','desligado']},
+    {k:'titulo',l:'Chamada',t:'text',hint:'Curta e direta — "Frete grátis até domingo"'},
+    {k:'texto',l:'Detalhe',t:'text',hint:'Opcional — a condição, em uma linha'},
+    {k:'cupom',l:'Cupom para divulgar',t:'text',hint:'Opcional. Aparece destacado, e quem tocar já entra com ele na sacola'},
+    {k:'ate',l:'Até',t:'date',def:'',hint:'Opcional. Passou a data, o banner some sozinho da loja'},
+    {k:'cor',l:'Cor do banner',t:'select',opts:['brasa','carvão','areia']},
+  ]},
   vendedor:{title:'Vendedor',fields:[
     {k:'nome',l:'Nome',t:'text'},
     {k:'whats',l:'WhatsApp',t:'text',hint:'Só números com DDD — vira link para combinar o pagamento'},
@@ -966,6 +974,7 @@ function openForm(type,id){
     body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">— nenhum —</option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto da peça</label><label class="fotoup">Escolher imagem do computador<input type="file" accept="image/*" onchange="escolherFoto(this)" hidden></label><img id="f_fotoPrev" class="fotoprev" src="${esc(ex.foto||'')}" style="display:${ex.foto?'block':'none'}" alt=""><div class="hint" id="f_fotoStatus">Reduzimos a imagem antes de enviar — foto crua de celular pesa demais para quem vai abrir a loja.</div><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px"></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="loja-bloco"><div class="loja-tit">Loja — o que aparece para quem compra</div><div class="field-row"><div class="field"><label>Coleção</label><select id="f_colecao">${['<option value="">— sem coleção —</option>'].concat(colecoesOrdenadas().map(c=>`<option value="${c.id}" ${ex.colecao===c.id?'selected':''}>${esc(c.nome)}</option>`)).join('')}</select><div class="hint">A seção onde a peça aparece no site e no app</div></div><div class="field"><label>Posição na coleção</label><input id="f_posicao" type="number" value="${ex.posicao||10}"><div class="hint">Menor aparece antes</div></div><div class="field"><label>Situação</label><select id="f_situacao"><option value="disponivel" ${ex.situacao!=='embreve'?'selected':''}>À venda</option><option value="embreve" ${ex.situacao==='embreve'?'selected':''}>Em breve</option></select><div class="hint">"Em breve" entra na lista de espera, sem sacola</div></div></div><div class="field"><label>Frase curta</label><input id="f_desc" value="${esc(ex.desc||'')}" maxlength="120" placeholder="Duas mãos em concha sustentam uma taça de areia perfumada."><div class="hint">Aparece embaixo do nome, no cartão</div></div><div class="field"><label>Descrição</label><textarea id="f_longa" rows="4" placeholder="O texto que convence, na tela da peça.">${esc(ex.longa||'')}</textarea></div><div class="field"><label>Ficha técnica</label><textarea id="f_ficha" rows="4" placeholder="Escultura: Gesso · duas mãos&#10;Altura: 22 cm&#10;Repõe-se com: Aura-Sand + pavios">${esc((ex.ficha||[]).map(l=>l.join(': ')).join('\n'))}</textarea><div class="hint">Uma linha por item, no formato <code>rótulo: valor</code></div></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_destaque" ${ex.destaque?'checked':''} style="width:auto"> peça de destaque na vitrine</label></div></div><div class="field"><label>Receita — insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
     renderRecipe();
   } else {
+    if(type==='banner') ex = db.banner || {};
     body.innerHTML=FORMS[type].fields.map(f=>{let inp;const cur=ex[f.k]!==undefined?ex[f.k]:(id?'':(f.def!==undefined?f.def:(f.t==='date'?hoje():'')));if(f.t==='select')inp=`<select id="f_${f.k}">${f.opts.map(o=>`<option ${ex[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;else if(f.t==='selectProd')inp=`<select id="f_${f.k}"><option value="">—</option>${db.produtos.map(p=>`<option value="${p.id}" ${ex[f.k]===p.id?'selected':''}>${esc(p.nome)}</option>`).join('')}</select>`;else if(f.t==='selectMolde')inp=`<select id="f_${f.k}"><option value="">— nenhum —</option>${db.moldes.map(m=>`<option value="${m.id}" ${ex[f.k]===m.id?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>`;else if(f.t==='selectIns')inp=`<select id="f_${f.k}"><option value="">—</option>${db.insumos.map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectCliente')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickCliente(this)"><option value="">—</option>${(db.clientes||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}<option value="__new">➕ Novo cliente…</option></select>`;else if(f.t==='selectCanal')inp=`<select id="f_${f.k}"><option value="">— taxa do produto —</option>${(db.canais||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)} (${Number(c.taxa||0)}%)</option>`).join('')}</select>`;else if(f.t==='selectMembro')inp=`<select id="f_${f.k}"><option value="">—</option>${Object.entries(membros).map(([id,m])=>`<option value="${id}" ${ex[f.k]===id?'selected':''}>${esc(m.nome||'membro')}</option>`).join('')}</select>`;else if(f.t==='selectVendedor')inp=`<select id="f_${f.k}"><option value="">—</option>${(db.vendedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectFornecedor')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickFornecedor(this)"><option value="">—</option>${(db.fornecedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}<option value="__new">➕ Novo fornecedor…</option></select>`;else inp=`<input id="f_${f.k}" type="${f.t}" value="${esc(cur)}">`;return `<div class="field"><label>${f.l}</label>${inp}${f.hint?`<div class="hint">${f.hint}</div>`:''}</div>`;}).join('');
   }
   if(type==='producao'){const mf=document.getElementById('f_minutos');if(mf){const w=document.createElement('div');w.style.marginTop='6px';w.innerHTML='<button type="button" class="btn2" id="timerBtn" onclick="toggleTimer()">▶ Cronometrar uma peça</button> <span id="timerView" style="font-size:12px;color:var(--warm)"></span>';mf.parentElement.appendChild(w);}}
@@ -1039,6 +1048,20 @@ function saveForm(){
     const alvos=[];document.querySelectorAll('[data-alvo]').forEach(ch=>{if(ch.checked)alvos.push(ch.getAttribute('data-alvo'));});
     gerarCotacaoXlsx(itens,{validade:val('cotValidade')||'',cond:val('cotCond')||'',alvos});
     closeModal();return;
+  }
+  // O banner é UM só, então não vira lista: mora direto no `db`. Uma loja com
+  // cinco promoções competindo no alto não é promoção, é ruído.
+  if(type==='banner'){
+    db.banner={
+      ativo:val('f_ativo')||'ligado', titulo:val('f_titulo').trim(),
+      texto:val('f_texto').trim(), cupom:normalizarCupom(val('f_cupom')),
+      ate:val('f_ate')||'', cor:val('f_cor')||'brasa',
+    };
+    if(!db.banner.titulo){toast('Escreva a chamada do banner.');return;}
+    logAtv('editou o banner da loja');
+    cloudSave();closeModal();renderAll();
+    toast('Banner salvo. <b>Publique a loja</b> para ele entrar no ar.');
+    return;
   }
   if(type==='colecao'){obj={nome:val('f_nome'),desc:val('f_desc'),ordem:Number(val('f_ordem'))||10};}
   if(type==='produto'){obj={nome:val('f_nome'),receita:currentForm.recipe.filter(l=>l.insumo&&l.qtd),minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),markup:val('f_markup'),preco:val('f_preco'),taxa:val('f_taxa'),equip:val('f_equip'),pronto:Number(val('f_pronto')||0),foto:val('f_foto'),publico:!!(document.getElementById('f_publico')||{}).checked,colecao:val('f_colecao'),posicao:Number(val('f_posicao'))||10,situacao:val('f_situacao')||'disponivel',desc:val('f_desc'),longa:val('f_longa'),ficha:parseFicha(val('f_ficha')),destaque:!!(document.getElementById('f_destaque')||{}).checked};
@@ -1210,8 +1233,53 @@ function semearColecoes(){
  * valor velho — sem nenhum sinal de que isso aconteceu. Comparar esta
  * assinatura com a da última publicação transforma esse silêncio em aviso.
  */
+/**
+ * O recorte do banner que vai para a loja, ou `null` se não há o que mostrar.
+ *
+ * VENCIDO NÃO SOBE. Promoção que continua no ar depois de acabar é pior que
+ * promoção nenhuma: ou a casa honra o que não queria, ou desmente o próprio
+ * site na frente do cliente. A loja confere a data de novo ao desenhar, porque
+ * o catálogo publicado hoje continua no ar amanhã.
+ */
+function bannerPublicavel(){
+  const b = db.banner;
+  if(!b || b.ativo === 'desligado' || !b.titulo) return null;
+  if(b.ate && hoje() > b.ate) return null;
+  return {
+    titulo: String(b.titulo).slice(0,90),
+    texto: String(b.texto||'').slice(0,140),
+    cupom: normalizarCupom(b.cupom||''),
+    ate: b.ate || '',
+    cor: ['brasa','carvão','areia'].includes(b.cor) ? b.cor : 'brasa',
+  };
+}
+
+function renderBanner(){
+  const box = document.getElementById('bannerPreview');
+  if(!box) return;
+  const b = db.banner;
+  if(!b || !b.titulo){
+    box.innerHTML = '<div class="hint-box">Nenhum banner. Ele aparece no alto da loja, no site, e serve para anunciar frete grátis, um cupom da semana ou uma coleção nova.</div>';
+    return;
+  }
+  const vencido = b.ate && hoje() > b.ate;
+  const desligado = b.ativo === 'desligado';
+  const situacao = desligado ? '<span class="pill low">desligado</span>'
+    : vencido ? '<span class="pill warn">venceu em '+esc(b.ate)+'</span>'
+    : '<span class="pill ok">no ar</span>';
+  box.innerHTML = `<div class="chartcard">
+    <h3>${esc(b.titulo)} ${situacao}</h3>
+    ${b.texto?`<div class="hint" style="margin-top:6px">${esc(b.texto)}</div>`:''}
+    ${b.cupom?`<div class="hint" style="margin-top:6px">Cupom divulgado: <b>${esc(b.cupom)}</b></div>`:''}
+    ${b.ate&&!vencido?`<div class="hint" style="margin-top:6px">Sai do ar em ${esc(b.ate)}</div>`:''}
+    ${(desligado||vencido)?'<div class="hint-box" style="margin-top:10px">Neste estado ele <b>não sobe</b> quando você publicar a loja, e sai do ar se já estava lá.</div>':''}
+  </div>`;
+}
+
 function assinaturaCatalogo(){
-  return JSON.stringify(itensDoCatalogo());
+  // O banner entra na assinatura: sem isso, mudar só o banner deixava o aviso
+  // de "catálogo desatualizado" calado, e a promoção nunca chegava na loja.
+  return JSON.stringify([itensDoCatalogo(), bannerPublicavel()]);
 }
 
 /** O recorte público de cada produto marcado para o catálogo. */
@@ -1273,6 +1341,9 @@ async function publicarCatalogo(){
     colecoes:colecoesOrdenadas().map(c=>({id:c.id||'',nome:c.nome||'',desc:c.desc||''})),
     nome:empresaNome||'Cinérea',
     whats:db.catWhats||'',
+    // O banner viaja com o catálogo de propósito: é dado da loja, e um segundo
+    // botão de publicar seria mais uma coisa para esquecer de apertar.
+    ...(bannerPublicavel() ? {banner:bannerPublicavel()} : {}),
     atualizado:Date.now(),
   });
 
@@ -2168,7 +2239,7 @@ async function publicarCupons(){
   renderCupons();
 }
 
-Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes,publicarCupons,renderVendedores,renderCupons,renderComissoes});
+Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes,renderBanner,publicarCupons,renderVendedores,renderCupons,renderComissoes});
 
 // ============================================================
 // FOTO DE PRODUTO — envio para o Cloud Storage

@@ -256,7 +256,37 @@ service cloud.firestore {
         && (!exists(/databases/$(database)/documents/vitrines/$(tagUid))
             || !('dono' in resource.data)
             || resource.data.dono == request.auth.uid)
-        && request.resource.data.keys().hasOnly(['dono','tipo','titulo','dados','senha','itens','atualizadoEm'])
+        && request.resource.data.keys().hasOnly(['dono','tipo','titulo','dados','senha','itens','atualizadoEm','estilo'])
+        // `estilo` é a aparência que o dono escolheu para a página dele: cor de
+        // acento, base clara ou escura, e um nome. Tudo texto curto, e nenhum
+        // deles é endereço — logo, nada aqui vira link, e o filtro de esquema da
+        // página do convidado não precisa se preocupar com este campo.
+        //
+        // A regra confere CHAVES E TAMANHO, e não formato: validar `#rrggbb`
+        // aqui seria repetir no idioma errado o que o painel já faz. O que
+        // importa para a casa é que ninguém enfie 1 MB de texto num documento de
+        // leitura pública, e isso os tetos garantem.
+        && (!('estilo' in request.resource.data) || (
+             request.resource.data.estilo is map
+             && request.resource.data.estilo.keys().hasOnly(['cor','fundo','marca','logo','logoTam'])
+             // `logo` é o endereço da imagem no nosso Storage. O teto de 300 é
+             // o bastante para a URL assinada do Firebase e curto o bastante
+             // para não virar depósito de texto. Quem confere se o endereço é
+             // MESMO nosso é a página do convidado: regra não faz casamento de
+             // prefixo de forma confiável, e um `startsWith` aqui daria falsa
+             // sensação de trava.
+             && request.resource.data.estilo.get('logo','') is string
+             && request.resource.data.estilo.get('logo','').size() <= 300
+             && request.resource.data.estilo.get('logoTam',0) is number
+             && request.resource.data.estilo.get('logoTam',0) >= 0
+             && request.resource.data.estilo.get('logoTam',0) <= 200
+             && request.resource.data.estilo.get('cor','') is string
+             && request.resource.data.estilo.get('cor','').size() <= 7
+             && request.resource.data.estilo.get('fundo','') is string
+             && request.resource.data.estilo.get('fundo','').size() <= 8
+             && request.resource.data.estilo.get('marca','') is string
+             && request.resource.data.estilo.get('marca','').size() <= 40
+           ))
         // `itens` é a lista do tipo "Meus links". A regra limita a QUANTIDADE;
         // o conteúdo de cada item ela não consegue percorrer — regra não itera
         // lista. O que segura o resto é o teto de 1 MB por documento e o fato
