@@ -312,6 +312,7 @@
   <section class="panel" id="p-ajustes">
     <nav class="subtabs" role="tablist" aria-label="Ajustes">
       <button class="active" role="tab" aria-selected="true" data-sub="equipe" onclick="subAba('equipe')">Equipe</button>
+      <button class="" role="tab" aria-selected="false" data-sub="usuarios" onclick="subAba('usuarios')">Usuários</button>
       <button class="" role="tab" aria-selected="false" data-sub="guia" onclick="subAba('guia')">Guia</button>
     </nav>
     <div class="subpanel active" id="s-equipe">
@@ -326,6 +327,15 @@
     <div class="chartcard" id="prodMembroBox"></div>
     <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Atividade recente</h2><div class="desc">Quem fez o quê</div></div></div>
     <div class="chartcard" id="atvBox"></div>
+  </div>
+    <div class="subpanel" id="s-usuarios">
+    <div class="panel-head">
+      <div><h2>Usuários</h2><div class="desc">Quem pode entrar na gestão. Cadastre o e-mail e o papel; a pessoa cria a própria senha</div></div>
+      <div class="head-btns"><button class="btn2" onclick="conferirAcessos()">Conferir o que está no ar</button><button class="btn" onclick="openForm('acesso')">+ Usuário</button></div>
+    </div>
+    <div id="acessosAviso"></div>
+    <div class="tablewrap"><table><thead><tr><th>E-mail</th><th>Nome</th><th>Papel</th><th>Situação</th><th></th></tr></thead><tbody id="tbAcessos"></tbody></table></div>
+    <div id="acessosGuia"></div>
   </div>
     <div class="subpanel" id="s-guia">
     <div class="panel-head"><div><h2>Guia</h2><div class="desc">Como usar cada parte — na ordem certa</div></div></div>

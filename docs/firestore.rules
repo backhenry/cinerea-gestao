@@ -102,6 +102,18 @@ service cloud.firestore {
               && get(/databases/$(database)/documents/convites/$(request.resource.data.codigo)).data.empresaId == eid
               && request.resource.data.get('papel','empregado')
                  == get(/databases/$(database)/documents/convites/$(request.resource.data.codigo)).data.get('papel','empregado'))
+          // Entrar por AUTORIZAÇÃO DE E-MAIL.
+          //
+          // `email_verified` é exigido, e não é excesso de zelo: o Firebase não
+          // confere o e-mail no cadastro por senha. Sem esta linha, quem
+          // descobrisse que fulano@empresa.com foi convidado criava uma conta
+          // com esse endereço e entrava no lugar dele — num sistema que mostra
+          // faturamento, margem e a base de clientes.
+          || (request.auth.token.email_verified == true
+              && exists(/databases/$(database)/documents/acessos/$(request.auth.token.email.lower()))
+              && get(/databases/$(database)/documents/acessos/$(request.auth.token.email.lower())).data.empresaId == eid
+              && request.resource.data.get('papel','empregado')
+                 == get(/databases/$(database)/documents/acessos/$(request.auth.token.email.lower())).data.get('papel','empregado'))
         );
         // cada um só edita o próprio NOME; papel é com o gestor
         allow update: if request.auth != null && (
@@ -134,6 +146,31 @@ service cloud.firestore {
       match /diag/{d} {
         allow read, write: if ehMembro(eid);
       }
+    }
+
+    // Acesso por E-MAIL. O id do documento é o e-mail em minúsculas.
+    //
+    // POR QUE ISTO EXISTE, e por que não é "cadastrar o usuário": criar conta de
+    // outra pessoa exige o Admin SDK num servidor, que este projeto não tem —
+    // e fazer isso pelo navegador desconectaria quem está cadastrando da própria
+    // sessão. Então o que se cadastra é a AUTORIZAÇÃO: a casa diz que aquele
+    // e-mail pode entrar e com que papel, e a pessoa cria a própria senha.
+    //
+    // Melhor que o código de convite em duas coisas: não há código para vazar
+    // ou repassar, e o acesso fica preso a uma pessoa identificada.
+    //
+    // `list` liberado para quem é da casa, pelo mesmo motivo dos cupons: sem
+    // enxergar o que está no ar, não há como apagar autorização órfã. O preço,
+    // dito com todas as letras: num futuro com várias empresas, isso exporia os
+    // e-mails da equipe de uma para a outra. Hoje a casa é uma só.
+    match /acessos/{email} {
+      allow get: if request.auth != null
+        && (request.auth.token.email.lower() == email
+            || ehGestor(resource.data.empresaId));
+      allow list: if ehDaCasa();
+      allow write: if request.auth != null
+        && ehGestor(request.resource.data.empresaId);
+      allow delete: if request.auth != null && ehGestor(resource.data.empresaId);
     }
 
     // Convites: o código (id do doc) é o segredo; só gestor cria

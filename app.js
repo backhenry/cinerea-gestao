@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, verifyBeforeUpdateEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, verifyBeforeUpdateEmail, sendEmailVerification } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, arrayUnion, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
@@ -18,14 +18,14 @@ const isConfigured = firebaseConfig.apiKey !== "COLE_AQUI";
 let app,auth,fdb,fstore,uid=null,saveTimer=null;
 let eid=null,empresaNome='',empresaDono='',membros={},unsubData=null,unsubMembros=null,unsubFin=null,backupChecado=false;
 let rawOp=null,rawFin=null,dbFinLoaded=false,migrouFin=false,minhasEmpresas={};
-let db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],colecoes:[],meta:0,checks:{}};
+let db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],colecoes:[],meta:0,checks:{}};
 // dados financeiros vivem num doc separado (empresas/{eid}/fin/dados) — só dono/admin/sócio leem
 const FIN_KEYS=['fixos','meta','meiTeto','ultimoBackup'];
 const PROD_FIN=['preco','markup','taxa','custohora','perda','equip'];
 function rebuildDb(){
   limparMemo();
   const base=JSON.parse(JSON.stringify(rawOp||{}));
-  db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],meta:0,checks:{},...base};
+  db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],meta:0,checks:{},...base};
   if(rawFin){
     FIN_KEYS.forEach(k=>{if(rawFin[k]!==undefined)db[k]=rawFin[k];});
     const pf=rawFin.prodFin||{};db.produtos.forEach(p=>Object.assign(p,pf[p.id]||{}));
@@ -122,9 +122,64 @@ async function carregarConta(){
     minhasEmpresas=pdata.minhasEmpresas||{};
     if(pdata.empresaId){eid=pdata.empresaId;iniciarEmpresa();}
     else if(pdata.dados&&pdata.dados.insumos){await criarEmpresa('Cinérea',pdata.dados);} // migração automática do modelo antigo
+    else if(await entrarPorEmail()){/* entrou pela autorização do e-mail */}
     else{mostrarOnboarding('');}
   }catch(e){console.error(e);mostrarOnboarding('Erro ao carregar sua conta. Publique as novas regras do Firestore (docs/firestore.rules) e recarregue.');}
 }
+/**
+ * Entrar pela AUTORIZAÇÃO DE E-MAIL, sem código nenhum.
+ *
+ * A casa cadastrou o e-mail em Usuários; aqui a pessoa apenas cria a conta com
+ * esse endereço e cai dentro da empresa, com o papel definido lá.
+ *
+ * O e-mail precisa estar CONFIRMADO, e a regra do servidor exige o mesmo. Sem
+ * isso, quem soubesse o endereço convidado criava uma conta com ele e entrava
+ * no lugar da pessoa. Quando falta confirmar, esta função não trava em silêncio:
+ * ela oferece reenviar o link.
+ */
+async function entrarPorEmail(){
+  const u = auth.currentUser;
+  const email = (u && u.email || '').trim().toLowerCase();
+  if(!email) return false;
+  let a;
+  try{ a = await getDoc(doc(fdb,'acessos',email)); }
+  catch(e){ console.error(e); return false; }
+  if(!a.exists()) return false;
+
+  if(!u.emailVerified){
+    mostrarOnboarding('');
+    const box = document.getElementById('gateEmpErr');
+    box.innerHTML = 'Falta <b>confirmar seu e-mail</b>. Abra o link que enviamos para '
+      + esc(email) + ' e recarregue esta página. '
+      + '<button class="swap" id="reenviar" style="margin-top:8px">Reenviar o link</button>';
+    const bt = document.getElementById('reenviar');
+    if(bt) bt.onclick = async () => {
+      bt.disabled = true;
+      try{ await sendEmailVerification(u); bt.textContent = 'Enviado — confira sua caixa'; }
+      catch(e){ console.error(e); bt.textContent = 'Não consegui enviar agora'; }
+    };
+    return true;   // tratado: não cai no onboarding genérico
+  }
+
+  const e2 = a.data().empresaId;
+  try{
+    await setDoc(doc(fdb,'empresas',e2,'membros',uid), {
+      nome: nomePadrao(), papel: a.data().papel || 'empregado',
+      // O e-mail fica no documento de membro para a tela de Usuários conseguir
+      // casar "quem foi autorizado" com "quem já entrou".
+      email, entrou: Date.now(),
+    });
+    minhasEmpresas[e2] = 'Empresa';
+    await setDoc(doc(fdb,'usuarios',uid), {empresaId:e2, minhasEmpresas:{[e2]:'Empresa'}}, {merge:true});
+    eid = e2; iniciarEmpresa();
+    return true;
+  }catch(e){
+    console.error(e);
+    mostrarOnboarding('Seu e-mail está autorizado, mas não consegui concluir a entrada. Avise quem administra.');
+    return true;
+  }
+}
+
 function mostrarOnboarding(msg){
   document.getElementById('gate').style.display='flex';
   document.getElementById('gateLogin').style.display='none';
@@ -349,7 +404,7 @@ async function checkBackup(){
 }
 let authMode='login';
 function toggleAuth(){authMode=authMode==='login'?'signup':'login';document.getElementById('gBtn').textContent=authMode==='login'?'Entrar':'Criar conta';document.getElementById('swapLbl').textContent=authMode==='login'?'Criar agora':'Já tenho conta';document.getElementById('gateErr').textContent='';}
-async function doAuth(){const em=document.getElementById('gEmail').value,pw=document.getElementById('gPass').value,err=document.getElementById('gateErr');try{if(authMode==='signup')await createUserWithEmailAndPassword(auth,em,pw);else await signInWithEmailAndPassword(auth,em,pw);}catch(e){const m={'auth/invalid-email':'E-mail inválido.','auth/weak-password':'Senha curta (mín. 6).','auth/email-already-in-use':'E-mail já cadastrado — entre.','auth/invalid-credential':'E-mail ou senha incorretos.'};err.textContent=m[e.code]||'Erro: '+e.code;}}
+async function doAuth(){const em=document.getElementById('gEmail').value,pw=document.getElementById('gPass').value,err=document.getElementById('gateErr');try{if(authMode==='signup'){const c=await createUserWithEmailAndPassword(auth,em,pw);try{await sendEmailVerification(c.user);}catch(e){console.error(e);}}else await signInWithEmailAndPassword(auth,em,pw);}catch(e){const m={'auth/invalid-email':'E-mail inválido.','auth/weak-password':'Senha curta (mín. 6).','auth/email-already-in-use':'E-mail já cadastrado — entre.','auth/invalid-credential':'E-mail ou senha incorretos.'};err.textContent=m[e.code]||'Erro: '+e.code;}}
 function doLogout(){if(auth)signOut(auth);}
 function subscribe(){
   if(unsubData)unsubData();if(unsubFin)unsubFin();
@@ -885,7 +940,7 @@ const RENDER_ABA={
   numeros:()=>{renderProdutos();renderFixos();renderColecoes();renderBanner();avisoCatalogo();},
   // Encomendas nao entra aqui: e busca de rede, e renderAll roda a cada
   // salvamento. Ela carrega quando a sub-aba e aberta.
-  ajustes:()=>{renderEquipe();renderProdMembro();renderAtividade();},
+  ajustes:()=>{renderEquipe();renderProdMembro();renderAtividade();renderAcessos();},
 };
 function abaAtiva(){const b=document.querySelector('#tabs button.active');return (b&&b.dataset.tab)||'dashboard';}
 /**
@@ -933,6 +988,12 @@ const FORMS={
   compra:{title:'Compra',fem:true,fields:[{k:'data',l:'Data',t:'date'},{k:'insumo',l:'Insumo',t:'selectIns'},{k:'qtd',l:'Quantidade comprada',t:'number'},{k:'valor',l:'Valor total pago (R$)',t:'number',hint:'Recalcula o custo médio do insumo. Vazio = só dá entrada no estoque'},{k:'fornecedorId',l:'Fornecedor',t:'selectFornecedor'}]},
   fornecedor:{title:'Fornecedor',fields:[{k:'nome',l:'Nome',t:'text'},{k:'categoria',l:'Categoria de material',t:'text',hint:'Ex.: gesso, essências, embalagens'},{k:'risco',l:'Risco',t:'select',opts:['Baixo','Médio','Alto']},{k:'whats',l:'WhatsApp principal',t:'text',hint:'Só números com DDD — vira link'},{k:'endereco',l:'Endereço',t:'text'},{k:'obs',l:'Observações',t:'text',hint:'Prazo típico, condições, mínimos…'}]},
   fixo:{title:'Custo fixo',fields:[{k:'nome',l:'Nome',t:'text'},{k:'valor',l:'Valor mensal (R$)',t:'number'}]},
+  acesso:{title:'Usuário',fields:[
+    {k:'email',l:'E-mail',t:'text',hint:'O mesmo que a pessoa vai usar para entrar. Ela cria a própria senha'},
+    {k:'nome',l:'Nome',t:'text',hint:'Só para você saber de quem é — a pessoa pode trocar depois'},
+    {k:'papel',l:'Papel',t:'select',opts:['empregado','socio','admin']},
+    {k:'obs',l:'Observação',t:'text',hint:'Opcional'},
+  ]},
   banner:{title:'Banner da loja',fields:[
     {k:'ativo',l:'Situação',t:'select',opts:['ligado','desligado']},
     {k:'titulo',l:'Chamada',t:'text',hint:'Curta e direta — "Frete grátis até domingo"'},
@@ -958,8 +1019,8 @@ const FORMS={
     {k:'ativo',l:'Situação',t:'select',opts:['ativo','desligado']},
   ]},
 };
-function plural(t){return{equip:'equip',molde:'moldes',insumo:'insumos',produto:'produtos',producao:'producao',pedido:'pedidos',compra:'compras',fixo:'fixos',cliente:'clientes',canal:'canais',tarefa:'tarefas',cotacao:'cotacoes',fornecedor:'fornecedores',colecao:'colecoes',vendedor:'vendedores',cupom:'cupons'}[t];}
-const NOMES_TIPO={equip:'equipamento',molde:'molde',insumo:'insumo',produto:'produto',producao:'produção',pedido:'pedido',compra:'compra',fixo:'custo fixo',cliente:'cliente',canal:'canal',tarefa:'tarefa',cotacao:'cotação',fornecedor:'fornecedor',colecao:'coleção',vendedor:'vendedor',cupom:'cupom'};
+function plural(t){return{equip:'equip',molde:'moldes',insumo:'insumos',produto:'produtos',producao:'producao',pedido:'pedidos',compra:'compras',fixo:'fixos',cliente:'clientes',canal:'canais',tarefa:'tarefas',cotacao:'cotacoes',fornecedor:'fornecedores',colecao:'colecoes',vendedor:'vendedores',cupom:'cupons',acesso:'acessos'}[t];}
+const NOMES_TIPO={equip:'equipamento',molde:'molde',insumo:'insumo',produto:'produto',producao:'produção',pedido:'pedido',compra:'compra',fixo:'custo fixo',cliente:'cliente',canal:'canal',tarefa:'tarefa',cotacao:'cotação',fornecedor:'fornecedor',colecao:'coleção',vendedor:'vendedor',cupom:'cupom',acesso:'usuário'};
 function val(id){const el=document.getElementById(id);return el?el.value:'';}
 function openForm(type,id){
   const rodape=document.querySelector('.modal-foot');
@@ -1070,6 +1131,9 @@ function saveForm(){
     if(num(obj.preco)>0){const ref=precoProduto({...obj,id:id||'tmp'},db);obj.margemRef=ref.margemPct;}
     else delete obj.margemRef;}
   else{FORMS[type].fields.forEach(f=>obj[f.k]=val('f_'+f.k));if(type==='fornecedor')obj.contatos=(currentForm.contatos||[]).filter(c=>c.nome&&c.nome.trim());if(!obj[FORMS[type].fields[0].k]){toast('Preencha o primeiro campo.');return;}}
+  if(type==='acesso'){
+    currentForm.emailAntigo = id ? ((db.acessos||[]).find(x=>x.id===id)||{}).email : null;
+  }
   if(type==='cupom'){
     // O código é o ID do documento no Firestore, e id do Firestore diferencia
     // maiúscula de minúscula. Normalizar aqui é o que faz o cupom impresso num
@@ -1086,6 +1150,16 @@ function saveForm(){
     const v=Number(obj.valor)||0;
     if(v<=0){toast('O desconto precisa ser maior que zero.');return;}
     if(obj.tipo==='percentual'&&v>100){toast('Desconto percentual acima de 100% deixaria o total negativo.');return;}
+  }
+  if(type==='acesso'){
+    obj.email = String(obj.email||'').trim().toLowerCase();
+    // O e-mail é o ID do documento no Firestore, então normalizar não é enfeite:
+    // "Maria@X.com" e "maria@x.com" virariam duas autorizações, e a regra
+    // procura pela minúscula.
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(obj.email)){toast('E-mail inválido.');return;}
+    const rep=(db.acessos||[]).find(a=>a.email===obj.email && a.id!==id);
+    if(rep){toast('Esse e-mail já está cadastrado.');return;}
+    if(!PAPEIS.includes(obj.papel)){obj.papel='empregado';}
   }
   if(type==='vendedor'){
     const c=Number(obj.comissao)||0;
@@ -1116,6 +1190,12 @@ function saveForm(){
   }
   // O cupom vai para o ar NA HORA. Sem isto, salvar aqui e a loja continuar com
   // o valor velho é o mesmo problema de apagar e continuar valendo.
+  if(type==='acesso'){
+    const salvo=(db.acessos||[]).find(x=>x.email===obj.email)||obj;
+    sincronizarAcesso(salvo,currentForm.emailAntigo)
+      .then(()=>toast('<b>'+esc(salvo.email)+'</b> pode entrar como '+PAPEL_LABEL[salvo.papel]))
+      .catch(e=>{console.error(e);toast('Salvei aqui, mas <b>não consegui liberar o acesso</b>. Use "Conferir o que está no ar".');});
+  }
   if(type==='cupom'){
     const salvo=(db.cupons||[]).find(x=>x.codigo===obj.codigo)||obj;
     const antigo=currentForm.codigoAntigo;
@@ -1148,6 +1228,12 @@ function del(type,id){
   if(type==='compra'&&o)revertCompra(o);
   // Apagar aqui TEM de apagar no ar. Enquanto isto não existia, o cupom
   // apagado continuava dando desconto na loja, para sempre.
+  if(type==='acesso'&&o&&o.email){
+    // Retirar o acesso aqui TEM de retirar no servidor, senão a pessoa continua
+    // podendo entrar — e o cadastro diria que não.
+    deleteDoc(doc(fdb,'acessos',o.email))
+      .catch(e=>{console.error(e);toast('Removido daqui, mas <b>a autorização continua no ar</b>. Use "Conferir o que está no ar".');});
+  }
   if(type==='cupom'&&o&&o.codigo){
     cupomApagadoNoUndo=o.codigo;
     apagarCupomDoAr(o.codigo)
@@ -1653,7 +1739,7 @@ function verPrecos(insId){
 }
 function exportJSON(){if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}dl('cinerea-backup-'+hoje()+'.json',JSON.stringify(db,null,2),'application/json');toast('Backup salvo — guarde este arquivo');}
 function importJSON(){
-  if(!pode('gerir')){toast('Só dono e admin restauram backups');return;}const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||typeof d!=='object'||!Array.isArray(d.insumos))throw 0;if(!confirm('Substituir TODOS os dados atuais pelos do arquivo de backup?'))return;db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],meta:0,checks:{},...d};cloudSave();renderAll();toast('Dados restaurados do backup');}catch(e){toast('Arquivo inválido — use um backup gerado pelo app');}};r.readAsText(f);};inp.click();}
+  if(!pode('gerir')){toast('Só dono e admin restauram backups');return;}const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||typeof d!=='object'||!Array.isArray(d.insumos))throw 0;if(!confirm('Substituir TODOS os dados atuais pelos do arquivo de backup?'))return;db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],meta:0,checks:{},...d};cloudSave();renderAll();toast('Dados restaurados do backup');}catch(e){toast('Arquivo inválido — use um backup gerado pelo app');}};r.readAsText(f);};inp.click();}
 function exportCompras(){
   const low=db.insumos.filter(i=>insumoStatus(i)!=='ok');
   if(!low.length){toast('Nada para comprar');return;}
@@ -2043,6 +2129,117 @@ async function recusarEncomenda(id){
 // aqui, porque não são da conta de quem compra.
 // ===========================================================================
 
+/* =========================================================================
+ * USUÁRIOS: quem pode entrar na gestão
+ *
+ * NÃO EXISTE "criar a conta da pessoa" aqui, e vale explicar por quê: criar
+ * conta de terceiro exige o Admin SDK num servidor, que este projeto não tem, e
+ * fazer isso pelo navegador desconectaria quem está cadastrando da própria
+ * sessão. Então o que se cadastra é a AUTORIZAÇÃO: a casa diz que aquele e-mail
+ * entra e com que papel, e a pessoa cria a própria senha na tela de entrada.
+ *
+ * É melhor que o código de convite que já existia em duas coisas: não há código
+ * para vazar ou repassar, e o acesso fica preso a uma pessoa identificada.
+ * ========================================================================= */
+
+async function sincronizarAcesso(a, emailAntigo){
+  // Escreve o novo primeiro: se apagar o antigo falhar, sobra uma autorização a
+  // mais (que o conserto remove), e não uma pessoa trancada do lado de fora.
+  await setDoc(doc(fdb,'acessos',a.email), { empresaId: eid, papel: a.papel || 'empregado' });
+  if(emailAntigo && emailAntigo !== a.email){
+    await deleteDoc(doc(fdb,'acessos',emailAntigo));
+  }
+}
+
+/** Quem já entrou de fato: casa a autorização com os membros da empresa. */
+function membroDoEmail(email){
+  return Object.entries(membros).find(([,m]) =>
+    String(m.email||'').toLowerCase() === String(email||'').toLowerCase());
+}
+
+function renderAcessos(){
+  const tb = document.getElementById('tbAcessos');
+  if(!tb) return;
+  const ger = pode('gerir');
+  const lista = db.acessos || [];
+
+  tb.innerHTML = lista.length ? lista.map(a => {
+    const par = membroDoEmail(a.email);
+    const situacao = par
+      ? '<span class="pill ok">entrou</span>'
+      : '<span class="pill warn">aguardando</span>';
+    // O papel que vale é o do documento de membro, se a pessoa já entrou: se
+    // alguém trocou o papel aqui depois, o de lá é o que o servidor aplica.
+    const papelReal = par ? (par[1].papel || 'empregado') : a.papel;
+    const divergiu = par && papelReal !== a.papel;
+    return `<tr>
+      <td>${esc(a.email)}${a.obs?`<div style="font-size:11px;color:var(--warm)">${esc(a.obs)}</div>`:''}</td>
+      <td>${esc(par ? (par[1].nome || a.nome || '') : (a.nome||'—'))}</td>
+      <td>${esc(PAPEL_LABEL[a.papel]||a.papel)}${divergiu?`<div style="font-size:11px;color:var(--ember)">na empresa está como ${esc(PAPEL_LABEL[papelReal]||papelReal)}</div>`:''}</td>
+      <td>${situacao}</td>
+      <td>${ger?rowActions('acesso',a.id):''}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan=5><div class="empty-t">Ninguém cadastrado além de você. Cadastre o e-mail de quem vai usar a gestão.</div></td></tr>`;
+
+  const aviso = document.getElementById('acessosAviso');
+  if(aviso) aviso.innerHTML = ger ? '' :
+    '<div class="hint-box" style="margin-bottom:10px">Só dono e admin mexem aqui.</div>';
+
+  const guia = document.getElementById('acessosGuia');
+  if(guia) guia.innerHTML = `<div class="hint-box" style="margin-top:16px">
+    <b>Como a pessoa entra.</b> Você cadastra o e-mail aqui; ela abre
+    <b>gestao.cinerea.com.br</b>, toca em "Criar agora" e cria a senha dela com
+    esse mesmo e-mail. O sistema reconhece a autorização e ela entra direto na
+    empresa, com o papel que você definiu — sem código nenhum para passar.
+    <br><br>
+    <b>Ela precisa confirmar o e-mail.</b> O Firebase manda um link ao criar a
+    conta, e enquanto ela não clicar, a entrada é recusada. Isso existe porque
+    sem confirmação qualquer pessoa que soubesse o endereço convidado criaria uma
+    conta com ele e entraria no lugar dela — num sistema que mostra faturamento,
+    margem e a base de clientes.
+    <br><br>
+    <b>Papéis.</b> ${esc(PAPEL_LABEL.empregado)} não vê o financeiro nem a aba
+    Peças. ${esc(PAPEL_LABEL.socio)} vê. ${esc(PAPEL_LABEL.admin)} vê e também
+    convida, publica e mexe nos papéis.
+  </div>`;
+}
+
+/**
+ * Conserto, igual ao dos cupons: relê o que está no ar e acerta os dois lados.
+ * Existe para quando a rede falhar no meio de um salvamento.
+ */
+async function conferirAcessos(){
+  if(!pode('gerir')){toast('Só dono e admin mexem em usuários');return;}
+  const lista = db.acessos || [];
+  let noAr = [];
+  try{
+    const snap = await getDocs(collection(fdb,'acessos'));
+    noAr = snap.docs.filter(d => d.data().empresaId === eid).map(d => d.id);
+  }catch(e){
+    console.error(e);
+    toast('Não consegui ler o que está no ar. Se a regra de <b>acessos</b> ainda não foi publicada, é isso.');
+    return;
+  }
+  const daqui = lista.map(a => a.email);
+  const orfaos = noAr.filter(e => !daqui.includes(e));
+  if(!lista.length && !orfaos.length){toast('Nada a acertar.');return;}
+  const aviso = [lista.length?`${lista.length} autorização(ões) sobem ou são atualizadas`:'',
+                 orfaos.length?`${orfaos.length} sai(em) do ar: ${orfaos.join(', ')}`:'']
+                .filter(Boolean).join('\n');
+  if(!confirm(aviso+'\n\nAcertar agora?'))return;
+  let ok=0,fora=0,falhou=0;
+  for(const a of lista){
+    try{ await setDoc(doc(fdb,'acessos',a.email),{empresaId:eid,papel:a.papel||'empregado'}); ok++; }
+    catch(e){ console.error(e); falhou++; }
+  }
+  for(const e of orfaos){
+    try{ await deleteDoc(doc(fdb,'acessos',e)); fora++; }
+    catch(err){ console.error(err); falhou++; }
+  }
+  toast(falhou?`${ok} no ar, ${fora} removida(s), ${falhou} falhou(aram)`:`Acertado: ${ok} no ar${fora?`, ${fora} removida(s)`:''}`);
+  renderAcessos();
+}
+
 function normalizarCupom(bruto){
   return String(bruto||'').normalize('NFD').replace(/[^A-Za-z0-9-]/g,'').toUpperCase().slice(0,24);
 }
@@ -2239,7 +2436,7 @@ async function publicarCupons(){
   renderCupons();
 }
 
-Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes,renderBanner,publicarCupons,renderVendedores,renderCupons,renderComissoes});
+Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes,renderBanner,renderAcessos,conferirAcessos,publicarCupons,renderVendedores,renderCupons,renderComissoes});
 
 // ============================================================
 // FOTO DE PRODUTO — envio para o Cloud Storage
