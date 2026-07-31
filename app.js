@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, verifyBeforeUpdateEmail, sendEmailVerification } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, verifyBeforeUpdateEmail, sendEmailVerification, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, arrayUnion, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
@@ -105,6 +105,10 @@ else{
   fdb=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
   fstore=getStorage(app);
   document.getElementById('gateLogin').style.display='block';
+  // Se a pessoa chegou clicando no convite, autentica ANTES de o observador
+  // decidir a tela: senão ela vê a tela de entrar por um instante e acha que o
+  // link não funcionou.
+  entrarPorLink().catch(e=>console.error(e));
   onAuthStateChanged(auth,user=>{
     if(user){uid=user.uid;carregarConta();}
     else{uid=null;eid=null;if(unsubData)unsubData();if(unsubMembros)unsubMembros();
@@ -1192,8 +1196,17 @@ function saveForm(){
   // o valor velho é o mesmo problema de apagar e continuar valendo.
   if(type==='acesso'){
     const salvo=(db.acessos||[]).find(x=>x.email===obj.email)||obj;
+    const novo = !id;
     sincronizarAcesso(salvo,currentForm.emailAntigo)
-      .then(()=>toast('<b>'+esc(salvo.email)+'</b> pode entrar como '+PAPEL_LABEL[salvo.papel]))
+      .then(()=>{
+        // Oferecer na hora, e não só deixar o botão na linha: cadastrar sem
+        // avisar a pessoa foi exatamente o buraco da primeira versão.
+        if(novo && confirm('Autorização criada. Enviar o convite por e-mail para '+salvo.email+' agora?')){
+          convidarPorEmail(salvo.email);
+        } else {
+          toast('<b>'+esc(salvo.email)+'</b> autorizado. Toque no ✉ para convidar.');
+        }
+      })
       .catch(e=>{console.error(e);toast('Salvei aqui, mas <b>não consegui liberar o acesso</b>. Use "Conferir o que está no ar".');});
   }
   if(type==='cupom'){
@@ -2142,6 +2155,80 @@ async function recusarEncomenda(id){
  * para vazar ou repassar, e o acesso fica preso a uma pessoa identificada.
  * ========================================================================= */
 
+/**
+ * CONVITE POR E-MAIL DE VERDADE.
+ *
+ * Cadastrar a autorização não avisa ninguém — foi o buraco da primeira versão:
+ * o cadastro dizia "aguardando" e a pessoa nunca soube que precisava fazer algo.
+ *
+ * `sendSignInLinkToEmail` é a única forma de o navegador mandar e-mail para um
+ * endereço qualquer com o SDK do Firebase. E resolve dois problemas de uma vez:
+ * a pessoa entra clicando no link, sem inventar senha, e o e-mail sai
+ * CONFIRMADO por construção — quem clicou provou que tem a caixa. A regra exige
+ * `email_verified`, então isso deixou de ser uma etapa extra.
+ *
+ * EXIGE UM INTERRUPTOR NO CONSOLE: Authentication > Sign-in method > "Email
+ * link (passwordless sign-in)" ligado. Sem ele o envio falha com
+ * `auth/operation-not-allowed`, e o recado abaixo diz isso com todas as letras
+ * em vez de "erro ao enviar".
+ */
+async function convidarPorEmail(email){
+  const alvo = String(email||'').trim().toLowerCase();
+  if(!alvo) return;
+  if(!pode('gerir')){toast('Só dono e admin convidam');return;}
+  try{
+    await sendSignInLinkToEmail(auth, alvo, {
+      // Volta para esta mesma página; o `entrarPorLink` lá embaixo reconhece.
+      url: location.origin + location.pathname,
+      handleCodeInApp: true,
+    });
+    // Guardado para quando a pessoa abrir o link NESTE aparelho. Se ela abrir
+    // em outro, o código pergunta o e-mail — que é o caminho previsto.
+    try{ localStorage.setItem('cinereaConvite', alvo); }catch(e){}
+    toast('Convite enviado para <b>'+esc(alvo)+'</b>');
+  }catch(e){
+    console.error(e);
+    const m = {
+      'auth/operation-not-allowed':
+        'Falta ligar <b>Email link (passwordless sign-in)</b> no Console do Firebase, em Authentication &gt; Sign-in method.',
+      'auth/unauthorized-continue-uri':
+        'O domínio desta página não está autorizado no Firebase, em Authentication &gt; Settings &gt; Authorized domains.',
+      'auth/invalid-email': 'E-mail inválido.',
+    };
+    toast(m[e.code] || ('Não consegui enviar: '+e.code));
+  }
+}
+
+/**
+ * A outra ponta: a pessoa clicou no link do convite e voltou para cá.
+ *
+ * Roda antes de qualquer decisão de tela. Se o e-mail não estiver guardado
+ * (link aberto em outro aparelho, que é o caso comum), pergunta — o Firebase
+ * exige o endereço para fechar a autenticação, e é ele que impede que um link
+ * interceptado sirva para outra pessoa.
+ */
+async function entrarPorLink(){
+  if(!auth || !isSignInWithEmailLink(auth, location.href)) return false;
+  let email = '';
+  try{ email = localStorage.getItem('cinereaConvite') || ''; }catch(e){}
+  if(!email) email = prompt('Confirme o e-mail que recebeu o convite:') || '';
+  email = email.trim().toLowerCase();
+  if(!email) return false;
+  try{
+    await signInWithEmailLink(auth, email, location.href);
+    try{ localStorage.removeItem('cinereaConvite'); }catch(e){}
+    // Tira o código do endereço para um F5 não tentar reusar um link já gasto.
+    history.replaceState(null, '', location.pathname);
+    return true;
+  }catch(e){
+    console.error(e);
+    alert(e.code === 'auth/invalid-action-code'
+      ? 'Este convite já foi usado ou expirou. Peça outro a quem administra.'
+      : 'Não consegui entrar com este link: ' + e.code);
+    return false;
+  }
+}
+
 async function sincronizarAcesso(a, emailAntigo){
   // Escreve o novo primeiro: se apagar o antigo falhar, sobra uma autorização a
   // mais (que o conserto remove), e não uma pessoa trancada do lado de fora.
@@ -2177,7 +2264,11 @@ function renderAcessos(){
       <td>${esc(par ? (par[1].nome || a.nome || '') : (a.nome||'—'))}</td>
       <td>${esc(PAPEL_LABEL[a.papel]||a.papel)}${divergiu?`<div style="font-size:11px;color:var(--ember)">na empresa está como ${esc(PAPEL_LABEL[papelReal]||papelReal)}</div>`:''}</td>
       <td>${situacao}</td>
-      <td>${ger?rowActions('acesso',a.id):''}</td>
+      <td>${ger?`<div class="row-actions">
+        ${par?'':`<button class="icon-btn" title="Enviar convite por e-mail" onclick="convidarPorEmail('${esc(a.email)}')">✉</button>`}
+        <button class="icon-btn" onclick="openForm('acesso','${a.id}')">✎</button>
+        <button class="icon-btn" onclick="del('acesso','${a.id}')">🗑</button>
+      </div>`:''}</td>
     </tr>`;
   }).join('') : `<tr><td colspan=5><div class="empty-t">Ninguém cadastrado além de você. Cadastre o e-mail de quem vai usar a gestão.</div></td></tr>`;
 
@@ -2187,16 +2278,24 @@ function renderAcessos(){
 
   const guia = document.getElementById('acessosGuia');
   if(guia) guia.innerHTML = `<div class="hint-box" style="margin-top:16px">
-    <b>Como a pessoa entra.</b> Você cadastra o e-mail aqui; ela abre
-    <b>gestao.cinerea.com.br</b>, toca em "Criar agora" e cria a senha dela com
-    esse mesmo e-mail. O sistema reconhece a autorização e ela entra direto na
-    empresa, com o papel que você definiu — sem código nenhum para passar.
+    <b>Cadastrar não avisa ninguém.</b> Depois de cadastrar, toque no <b>✉</b> da
+    linha para mandar o convite. A pessoa recebe um e-mail com um link, clica, e
+    entra direto na empresa com o papel que você definiu — sem inventar senha e
+    sem código para passar.
     <br><br>
-    <b>Ela precisa confirmar o e-mail.</b> O Firebase manda um link ao criar a
-    conta, e enquanto ela não clicar, a entrada é recusada. Isso existe porque
-    sem confirmação qualquer pessoa que soubesse o endereço convidado criaria uma
-    conta com ele e entraria no lugar dela — num sistema que mostra faturamento,
-    margem e a base de clientes.
+    <b>Por que o link, e não uma senha.</b> Quem clica no link prova que tem
+    aquela caixa de e-mail. Sem essa prova, qualquer pessoa que soubesse o
+    endereço convidado criaria uma conta com ele e entraria no lugar dela — num
+    sistema que mostra faturamento, margem e a base de clientes. O servidor
+    recusa quem não confirmou.
+    <br><br>
+    <b>E a senha dela?</b> Entrando pelo link ela não precisa de uma. Se quiser
+    definir uma para as próximas vezes, é só usar "Esqueci a senha" na tela de
+    entrada, com o mesmo e-mail.
+    <br><br>
+    <b>Se o envio falhar</b> dizendo que falta ligar algo: é o interruptor
+    <b>Email link (passwordless sign-in)</b>, no Console do Firebase, em
+    Authentication &gt; Sign-in method. Uma vez só.
     <br><br>
     <b>Papéis.</b> ${esc(PAPEL_LABEL.empregado)} não vê o financeiro nem a aba
     Peças. ${esc(PAPEL_LABEL.socio)} vê. ${esc(PAPEL_LABEL.admin)} vê e também
@@ -2436,7 +2535,7 @@ async function publicarCupons(){
   renderCupons();
 }
 
-Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes,renderBanner,renderAcessos,conferirAcessos,publicarCupons,renderVendedores,renderCupons,renderComissoes});
+Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes,renderBanner,renderAcessos,conferirAcessos,convidarPorEmail,publicarCupons,renderVendedores,renderCupons,renderComissoes});
 
 // ============================================================
 // FOTO DE PRODUTO — envio para o Cloud Storage
