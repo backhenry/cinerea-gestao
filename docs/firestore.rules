@@ -152,7 +152,11 @@ service cloud.firestore {
     // Portal do cliente: doc com o MÍNIMO do pedido (item, valor, saldo, etapa).
     // O token no id é o segredo — quem tem o link lê; só membros escrevem.
     match /portal/{token} {
-      allow read: if true;
+      // Por id, nunca por lista. O token no id é o segredo — e com `list`
+      // liberado qualquer um baixava TODOS os portais, isto é, os dados de
+      // pedido de todos os clientes, sem login e sem conhecer token nenhum.
+      allow get: if true;
+      allow list: if false;
       allow write: if request.auth != null && ehMembro(request.resource.data.empresaId);
       allow delete: if request.auth != null && ehMembro(resource.data.empresaId);
     }
@@ -162,7 +166,10 @@ service cloud.firestore {
     // resposta, com formato e tamanho limitados — nunca ler as dos outros,
     // nem alterar ou apagar o que já foi enviado.
     match /rfq/{token} {
-      allow read: if true;
+      // Mesmo caso do portal: o token é o segredo, e listar entregava todas as
+      // cotações — com quais fornecedores a casa negocia e o que pediu a eles.
+      allow get: if true;
+      allow list: if false;
       allow write: if request.auth != null && ehMembro(request.resource.data.empresaId);
 
       match /respostas/{r} {
@@ -205,11 +212,40 @@ service cloud.firestore {
       // ter o tipo "wi-fi" funcionando em metade dos celulares, o dono escolheu
       // funcionar. É o equivalente ao cartão com a senha ao lado da porta:
       // quem tem o link vê a senha, tenha ou não tocado na peça.
+      // FORMATO E TAMANHO LIMITADOS. Sem isto, quem tem uma peça podia gravar
+      // um documento de até 1 MB com campos quaisquer, numa coleção de leitura
+      // pública — lixo hospedado no domínio da marca, e conta no fim do mês,
+      // porque o Blaze não tem teto rígido de gasto.
+      // QUEM CHEGOU PRIMEIRO MANDA. Conhecer o UID do chip basta para registrar
+      // a peça na própria conta — e conhecer o UID é só ter encostado o celular
+      // nela uma vez, numa festa. Sem esta trava, o convidado de ontem
+      // reescrevia hoje a página da peça que está na sua sala.
+      // Publicar de novo exige ser quem publicou. Ao passar a peça adiante o
+      // app apaga a vitrine antes de soltar a peça, e aí o novo dono publica a
+      // dele — a passagem continua funcionando.
+      // `!('dono' in resource.data)`: vitrines criadas antes desta regra não
+      // têm o campo, e não podem ficar impossíveis de atualizar.
       allow write: if request.auth != null
-        && exists(/databases/$(database)/documents/clientes/$(request.auth.uid)/pecas/$(tagUid));
+        && exists(/databases/$(database)/documents/clientes/$(request.auth.uid)/pecas/$(tagUid))
+        && request.resource.data.dono == request.auth.uid
+        && (!exists(/databases/$(database)/documents/vitrines/$(tagUid))
+            || !('dono' in resource.data)
+            || resource.data.dono == request.auth.uid)
+        && request.resource.data.keys().hasOnly(['dono','tipo','titulo','dados','senha','atualizadoEm'])
+        && request.resource.data.tipo is string
+        && request.resource.data.tipo.size() <= 20
+        && request.resource.data.titulo is string
+        && request.resource.data.titulo.size() <= 40
+        && request.resource.data.dados is string
+        && request.resource.data.dados.size() <= 600
+        && (!('senha' in request.resource.data)
+            || (request.resource.data.senha is string && request.resource.data.senha.size() <= 80));
 
+      // Apagar também é de quem publicou — senão a trava acima se contornaria
+      // apagando a vitrine alheia e publicando outra por cima.
       allow delete: if request.auth != null
-        && exists(/databases/$(database)/documents/clientes/$(request.auth.uid)/pecas/$(tagUid));
+        && exists(/databases/$(database)/documents/clientes/$(request.auth.uid)/pecas/$(tagUid))
+        && (!('dono' in resource.data) || resource.data.dono == request.auth.uid);
     }
 
     // Encomendas feitas pela loja do app.
@@ -222,12 +258,25 @@ service cloud.firestore {
     // gestão recalcula pelo próprio cadastro na hora de aceitar. Enquanto o
     // servidor não existe, é isso que impede um preço adulterado de virar venda.
     match /encomendas/{id} {
+      // O TAMANHO É LIMITADO, e não só o número de itens. Antes, `endereco` e
+      // `recado` podiam vir com centenas de milhares de caracteres: qualquer
+      // conta engordava a base da casa até o limite de 1 MB por documento, e a
+      // conta chegava para o dono.
       allow create: if request.auth != null
         && request.resource.data.clienteUid == request.auth.uid
         && request.resource.data.situacao == 'nova'
+        && request.resource.data.keys().hasOnly(['clienteUid','clienteNome','clienteEmail',
+             'clienteTelefone','endereco','recado','itens','totalVisto','situacao','criadaEm'])
         && request.resource.data.itens is list
         && request.resource.data.itens.size() > 0
-        && request.resource.data.itens.size() <= 30;
+        && request.resource.data.itens.size() <= 30
+        && request.resource.data.get('clienteNome','').size() <= 120
+        && request.resource.data.get('clienteEmail','').size() <= 160
+        && request.resource.data.get('clienteTelefone','').size() <= 20
+        && request.resource.data.get('endereco','').size() <= 400
+        && request.resource.data.get('recado','').size() <= 500
+        && request.resource.data.totalVisto is number
+        && request.resource.data.totalVisto >= 0;
 
       // O cliente lê as próprias (consultando por clienteUid); a casa lê todas.
       allow read: if request.auth != null

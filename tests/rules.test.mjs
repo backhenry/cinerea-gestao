@@ -31,7 +31,7 @@ test.before(async () => {
     // com "Firestore has already been started".
     await d.doc('clientes/ana/pecas/04A2B3C4D5').set({ nome: 'Vela da sala' });
     await d.doc('vitrines/04A2B3C4D5').set({
-      tipo: 'link', titulo: 'Playlist', dados: 'https://exemplo.com',
+      dono: 'ana', tipo: 'link', titulo: 'Playlist', dados: 'https://exemplo.com',
     });
   });
 });
@@ -235,6 +235,46 @@ test('subcoleção não declarada em clientes/ falha fechado', () =>
 // daqui não o conhecia — ou seja, guardava uma regra que não estava no ar.
 const TAG = '04A2B3C4D5';
 
+test('NINGUÉM lista portal nem rfq — dados de cliente e de fornecedor', async () => {
+  // Mesma falha das peças, em coleções mais sensíveis: o token no id é o
+  // segredo, e listar entregava todos os portais (dados de pedido de cada
+  // cliente) e todas as cotações (com quem a casa negocia e o que pediu).
+  for (const quem of [semLogin, fs('bruno')]) {
+    await assertFails(quem.collection('portal').get());
+    await assertFails(quem.collection('rfq').get());
+  }
+});
+
+test('vitrine recusa campo estranho e texto gigante', async () => {
+  // Sem limite, quem tem uma peça gravava 1 MB de lixo numa coleção de leitura
+  // pública — e a conta chega para o dono, porque o Blaze não tem teto.
+  await assertFails(fs('ana').doc(`vitrines/${TAG}`).set({
+    dono: 'ana', tipo: 'recado', titulo: 'Recado', dados: 'oi', invadido: 'campo que ninguém previu',
+  }));
+  await assertFails(fs('ana').doc(`vitrines/${TAG}`).set({
+    dono: 'ana', tipo: 'recado', titulo: 'Recado', dados: 'x'.repeat(5000),
+  }));
+  await assertSucceeds(fs('ana').doc(`vitrines/${TAG}`).set({
+    dono: 'ana', tipo: 'recado', titulo: 'Recado', dados: 'no tamanho certo',
+  }));
+});
+
+test('encomenda recusa endereço e recado gigantes, e campo estranho', async () => {
+  const base = {
+    clienteUid: 'ana', clienteNome: 'Ana', clienteEmail: 'a@b.c',
+    clienteTelefone: '11999999999', endereco: 'Rua X, 1', recado: '',
+    itens: [{ id: 'p1', nome: 'Apolo', preco: 200, qtd: 1 }],
+    totalVisto: 200, situacao: 'nova',
+  };
+  await assertSucceeds(fs('ana').collection('encomendas').doc('e1').set(base));
+  await assertFails(fs('ana').collection('encomendas').doc('e2')
+    .set({ ...base, endereco: 'x'.repeat(2000) }));
+  await assertFails(fs('ana').collection('encomendas').doc('e3')
+    .set({ ...base, recado: 'x'.repeat(2000) }));
+  await assertFails(fs('ana').collection('encomendas').doc('e4')
+    .set({ ...base, contrabando: 'campo que ninguém previu' }));
+});
+
 test('NINGUÉM lista peças nem vitrines — só lê por id', async () => {
   // Era a corrente inteira: enumerar os tagUid sem login, criar uma conta
   // comum, registrar as peças alheias na própria conta e assim ganhar
@@ -251,7 +291,7 @@ test('qualquer um lê a vitrine de uma peça, até sem login', () =>
 
 test('o dono da peça publica a vitrine dela', () =>
   assertSucceeds(fs('ana').doc(`vitrines/${TAG}`).set({
-    tipo: 'recado', titulo: 'Recado', dados: 'bem-vindo',
+    dono: 'ana', tipo: 'recado', titulo: 'Recado', dados: 'bem-vindo',
   })));
 
 test('quem NÃO tem a peça não mexe na vitrine dela', async () => {
@@ -270,7 +310,7 @@ test('senha de wi-fi ENTRA na vitrine — decisão do dono', async () => {
   // jeito nenhum. O dono escolheu funcionar, sabendo que quem tem o link vê a
   // senha sem ter tocado na peça (jul/2026).
   await assertSucceeds(fs('ana').doc(`vitrines/${TAG}`).set({
-    tipo: 'wifi', titulo: 'Rede de wi-fi', dados: 'CasaDaAna', senha: 'segredo123',
+    dono: 'ana', tipo: 'wifi', titulo: 'Rede de wi-fi', dados: 'CasaDaAna', senha: 'segredo123',
   }));
   // e continua valendo que só o dono da peça publica
   await assertFails(fs('bruno').doc(`vitrines/${TAG}`).set({
@@ -285,6 +325,29 @@ test('sem a peça na conta, nem o dono anterior apaga a vitrine', async () => {
   // deixou ali, hoje inclusive a senha do wi-fi de casa.
   await assertFails(fs('ana').doc('vitrines/SEMDONO01').delete());
 });
+
+test('quem publicou primeiro manda: outro nao sobrescreve nem apaga', async () => {
+  // Conhecer o UID do chip basta para registrar a peca na propria conta — e
+  // conhecer o UID e so ter encostado o celular na peca uma vez, numa festa.
+  // Sem esta trava, o convidado de ontem reescrevia hoje a pagina da peca.
+  await env.withSecurityRulesDisabled(async ctx => {
+    await ctx.firestore().doc(`clientes/bruno/pecas/${TAG}`).set({ nome: 'roubada' });
+  });
+  await assertFails(fs('bruno').doc(`vitrines/${TAG}`).set({
+    dono: 'bruno', tipo: 'link', titulo: 'Link', dados: 'https://golpe.com',
+  }));
+  // nem apagando para publicar por cima
+  await assertFails(fs('bruno').doc(`vitrines/${TAG}`).delete());
+  // e quem publicou continua podendo trocar
+  await assertSucceeds(fs('ana').doc(`vitrines/${TAG}`).set({
+    dono: 'ana', tipo: 'recado', titulo: 'Recado', dados: 'trocado por quem publicou',
+  }));
+});
+
+test('ninguem publica em nome de outro', () =>
+  assertFails(fs('ana').doc(`vitrines/${TAG}`).set({
+    dono: 'bruno', tipo: 'recado', titulo: 'Recado', dados: 'assinado por outro',
+  })));
 
 test('o dono apaga a própria vitrine; estranho não', async () => {
   await assertFails(fs('bruno').doc(`vitrines/${TAG}`).delete());
