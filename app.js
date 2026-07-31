@@ -1124,7 +1124,13 @@ function itensDoCatalogo(){
     return{id:p.id,nome:p.nome,preco:Math.round(preco*100)/100,foto:p.foto||'',
       colecao:p.colecao||'', linha:col?col.nome:'', posicao:Number(p.posicao)||10,
       situacao:p.situacao||'disponivel',desc:p.desc||'',longa:p.longa||'',
-      ficha:p.ficha||[],destaque:!!p.destaque,pronto:Number(p.pronto)||0};
+      // FICHA VAI COMO TEXTO, uma linha por item. O Firestore recusa array
+      // dentro de array, e `itens` já é array — então nada aqui dentro pode
+      // ser lista. A ficha era array de pares: dois níveis de aninhamento.
+      // Mapa preservaria a estrutura, mas o Firestore não garante a ordem das
+      // chaves, e ficha técnica fora de ordem não serve. Texto preserva.
+      ficha:(p.ficha||[]).map(l=>Array.isArray(l)?l.join(': '):String(l)).join('\n'),
+      destaque:!!p.destaque,pronto:Number(p.pronto)||0};
   })
   // Já sai na ordem em que a loja mostra: a vitrine não precisa saber ordenar,
   // e site e app ficam iguais sem combinarem nada entre si.
