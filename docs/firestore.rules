@@ -149,6 +149,26 @@ service cloud.firestore {
       allow write: if ehMembro(cid);
     }
 
+    // Cupom de vendedor. O id do documento É o código.
+    //
+    // `get` aberto de propósito: o cupom NASCE para ser divulgado, e quem
+    // digita o código está justamente provando que o recebeu. Mas `list` é
+    // fechado — com listagem liberada, qualquer pessoa baixava a coleção
+    // inteira e usava o maior desconto que existisse, sem nunca ter visto o
+    // anúncio de vendedor nenhum. É a mesma distinção de `pecas`, `portal`,
+    // `rfq` e `vitrines`: ler um documento não é consultar uma coleção.
+    //
+    // O documento aqui é o RECORTE PÚBLICO: só o que o cliente precisa para ver
+    // o desconto na tela. A comissão do vendedor não entra, porque não é da
+    // conta de quem compra — ela vive no cadastro da gestão, junto com o resto.
+    // Quem escreve é só a casa, e é isso que impede alguém de criar
+    // "DESCONTO90" e se auto-conceder comissão.
+    match /cupons/{codigo} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if ehDaCasa();
+    }
+
     // Portal do cliente: doc com o MÍNIMO do pedido (item, valor, saldo, etapa).
     // O token no id é o segredo — quem tem o link lê; só membros escrevem.
     match /portal/{token} {
@@ -273,7 +293,14 @@ service cloud.firestore {
         && request.resource.data.clienteUid == request.auth.uid
         && request.resource.data.situacao == 'nova'
         && request.resource.data.keys().hasOnly(['clienteUid','clienteNome','clienteEmail',
-             'clienteTelefone','endereco','recado','itens','totalVisto','situacao','criadaEm'])
+             'clienteTelefone','endereco','recado','itens','totalVisto','situacao','criadaEm',
+             'cupom'])
+        // O CÓDIGO do cupom, e só. O desconto NÃO vem do cliente: se viesse,
+        // alguém mandaria "desconto: 300" e a casa pagaria comissão por cima
+        // disso. A gestão lê `cupons/{codigo}` e refaz a conta antes de aceitar,
+        // exatamente como já faz com o preço em `totalVisto`.
+        && request.resource.data.get('cupom','') is string
+        && request.resource.data.get('cupom','').size() <= 24
         && request.resource.data.itens is list
         && request.resource.data.itens.size() > 0
         && request.resource.data.itens.size() <= 30

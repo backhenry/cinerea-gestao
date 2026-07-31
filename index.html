@@ -107,6 +107,7 @@
     <nav class="subtabs" role="tablist" aria-label="Seções de venda">
       <button class="active" role="tab" aria-selected="true" data-sub="pedidos" onclick="subAba('pedidos')">Pedidos</button>
       <button class="" role="tab" aria-selected="false" data-sub="encomendas" onclick="subAba('encomendas');carregarEncomendas()">Encomendas</button>
+      <button class="" role="tab" aria-selected="false" data-sub="vendedores" onclick="subAba('vendedores')">Vendedores</button>
       <button class="" role="tab" aria-selected="false" data-sub="posts" onclick="subAba('posts')">Posts</button>
     </nav>
     <div class="subpanel active" id="s-pedidos">
@@ -124,6 +125,22 @@
       <div class="head-btns"><button class="btn2" onclick="carregarEncomendas()">Atualizar</button></div>
     </div>
     <div id="encList"></div>
+  </div>
+    <div class="subpanel" id="s-vendedores">
+    <div class="panel-head">
+      <div><h2>Vendedores</h2><div class="desc">Quem divulga a Cinérea. Cada um tem cupom próprio — é por ele que a venda é atribuída e a comissão calculada</div></div>
+      <button class="btn" onclick="openForm('vendedor')">+ Vendedor</button>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th>Vendedor</th><th>Contato</th><th>Comissão</th><th>Vendas</th><th class="money">Vendido</th><th class="money">A pagar</th><th></th></tr></thead><tbody id="tbVendedores"></tbody></table></div>
+
+    <div class="panel-head" style="margin-top:32px">
+      <div><h2 style="font-size:20px">Cupons</h2><div class="desc">O desconto que o cliente digita. Publicar é o que faz o cupom passar a valer no site e no app</div></div>
+      <div class="head-btns"><button class="btn2" onclick="publicarCupons()">Publicar cupons</button><button class="btn" onclick="openForm('cupom')">+ Cupom</button></div>
+    </div>
+    <div id="cuponsAviso"></div>
+    <div class="tablewrap"><table><thead><tr><th>Código</th><th>Vendedor</th><th>Desconto</th><th>Regras</th><th>Situação</th><th>Usos</th><th></th></tr></thead><tbody id="tbCupons"></tbody></table></div>
+
+    <div id="comissoes"></div>
   </div>
     <div class="subpanel" id="s-posts">
     <div class="panel-head">

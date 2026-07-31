@@ -18,14 +18,14 @@ const isConfigured = firebaseConfig.apiKey !== "COLE_AQUI";
 let app,auth,fdb,fstore,uid=null,saveTimer=null;
 let eid=null,empresaNome='',empresaDono='',membros={},unsubData=null,unsubMembros=null,unsubFin=null,backupChecado=false;
 let rawOp=null,rawFin=null,dbFinLoaded=false,migrouFin=false,minhasEmpresas={};
-let db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],colecoes:[],meta:0,checks:{}};
+let db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],colecoes:[],meta:0,checks:{}};
 // dados financeiros vivem num doc separado (empresas/{eid}/fin/dados) — só dono/admin/sócio leem
 const FIN_KEYS=['fixos','meta','meiTeto','ultimoBackup'];
 const PROD_FIN=['preco','markup','taxa','custohora','perda','equip'];
 function rebuildDb(){
   limparMemo();
   const base=JSON.parse(JSON.stringify(rawOp||{}));
-  db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],meta:0,checks:{},...base};
+  db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],meta:0,checks:{},...base};
   if(rawFin){
     FIN_KEYS.forEach(k=>{if(rawFin[k]!==undefined)db[k]=rawFin[k];});
     const pf=rawFin.prodFin||{};db.produtos.forEach(p=>Object.assign(p,pf[p.id]||{}));
@@ -865,7 +865,7 @@ window.saveCheck=saveCheck;
 // e 8 gráficos. O badge da Equipe e os rótulos seguem sempre atualizados.
 const RENDER_ABA={
   dashboard:()=>renderDash(),
-  vender:()=>{renderPedidos();renderClientes();renderCanais();renderPostProdutos();},
+  vender:()=>{renderPedidos();renderClientes();renderCanais();renderPostProdutos();renderVendedores();renderCupons();renderComissoes();},
   produzir:()=>{renderProducao();renderMoldes();renderEquip();},
   comprar:()=>{renderCompras();renderComprasHist();renderCotacoes();renderFornecedores();renderInsumos();},
   numeros:()=>{renderProdutos();renderFixos();renderColecoes();avisoCatalogo();},
@@ -912,16 +912,32 @@ const FORMS={
   molde:{title:'Molde',fields:[{k:'nome',l:'Nome',t:'text'},{k:'material',l:'Material',t:'select',opts:['gesso','cera']},{k:'usos',l:'Usos já feitos',t:'number'},{k:'vida',l:'Vida útil (peças)',t:'number',hint:'Gesso ≈40, cera ≈120'}]},
   insumo:{title:'Insumo',fields:[{k:'nome',l:'Nome',t:'text'},{k:'unidade',l:'Unidade',t:'select',opts:['kg','g','L','ml','un']},{k:'estoque',l:'Estoque atual',t:'number'},{k:'minimo',l:'Estoque mínimo',t:'number'},{k:'custo',l:'Custo por unidade (R$)',t:'number'}]},
   producao:{title:'Produção',fields:[{k:'data',l:'Data',t:'date'},{k:'produto',l:'Produto',t:'selectProd'},{k:'qtd',l:'Quantidade',t:'number',def:1},{k:'minutos',l:'Tempo por peça (min)',t:'number',hint:'Sua maior linha de custo'},{k:'variacao',l:'Variação / fragrância',t:'text',hint:'Opcional — ex.: lavanda'},{k:'molde',l:'Molde usado',t:'selectMolde'}]},
-  pedido:{title:'Pedido',fields:[{k:'data',l:'Data',t:'date'},{k:'clienteId',l:'Cliente',t:'selectCliente'},{k:'produto',l:'Produto',t:'selectProd',hint:'Ligue ao produto para ver o lucro e baixar o estoque pronto'},{k:'qtd',l:'Quantidade',t:'number',def:1},{k:'variacao',l:'Variação / fragrância',t:'text'},{k:'item',l:'Descrição livre',t:'text',hint:'Use se não for um produto cadastrado'},{k:'canal',l:'Canal de venda',t:'selectCanal',hint:'Define a taxa usada no lucro'},{k:'prazo',l:'Entregar até',t:'date',def:'',hint:'Opcional — aparece no Painel'},{k:'valor',l:'Valor (R$)',t:'number',hint:'Vazio = preço praticado × quantidade'},{k:'frete',l:'Frete/embalagem (R$)',t:'number',def:'',hint:'Custo de envio — desconta do lucro'},{k:'situacao',l:'Situação',t:'select',opts:['Pendente','Pago','Em produção','Entregue','Cancelado']}]},
+  pedido:{title:'Pedido',fields:[{k:'data',l:'Data',t:'date'},{k:'clienteId',l:'Cliente',t:'selectCliente'},{k:'produto',l:'Produto',t:'selectProd',hint:'Ligue ao produto para ver o lucro e baixar o estoque pronto'},{k:'qtd',l:'Quantidade',t:'number',def:1},{k:'variacao',l:'Variação / fragrância',t:'text'},{k:'item',l:'Descrição livre',t:'text',hint:'Use se não for um produto cadastrado'},{k:'canal',l:'Canal de venda',t:'selectCanal',hint:'Define a taxa usada no lucro'},{k:'prazo',l:'Entregar até',t:'date',def:'',hint:'Opcional — aparece no Painel'},{k:'valor',l:'Valor (R$)',t:'number',hint:'Vazio = preço praticado × quantidade'},{k:'frete',l:'Frete/embalagem (R$)',t:'number',def:'',hint:'Custo de envio — desconta do lucro'},{k:'cupom',l:'Cupom usado',t:'text',hint:'O código que o cliente informou. É por ele que a comissão do vendedor é calculada'},{k:'situacao',l:'Situação',t:'select',opts:['Pendente','Pago','Em produção','Entregue','Cancelado']}]},
   cliente:{title:'Cliente',fields:[{k:'nome',l:'Nome',t:'text'},{k:'whats',l:'WhatsApp',t:'text',hint:'Só números com DDD — vira link para conversar'},{k:'obs',l:'Observações',t:'text',hint:'Preferências, endereço…'}]},
   canal:{title:'Canal de venda',fields:[{k:'nome',l:'Nome',t:'text'},{k:'taxa',l:'Taxa (%)',t:'number',def:0,hint:'Ex.: marketplace 12, Pix 0'}]},
   tarefa:{title:'Tarefa',fem:true,fields:[{k:'titulo',l:'Tarefa',t:'text'},{k:'desc',l:'Detalhes',t:'text',hint:'Opcional'},{k:'resp',l:'Responsável',t:'selectMembro'},{k:'prazo',l:'Prazo',t:'date',def:''},{k:'status',l:'Situação',t:'select',opts:['aberta','fazendo','feita']}]},
   compra:{title:'Compra',fem:true,fields:[{k:'data',l:'Data',t:'date'},{k:'insumo',l:'Insumo',t:'selectIns'},{k:'qtd',l:'Quantidade comprada',t:'number'},{k:'valor',l:'Valor total pago (R$)',t:'number',hint:'Recalcula o custo médio do insumo. Vazio = só dá entrada no estoque'},{k:'fornecedorId',l:'Fornecedor',t:'selectFornecedor'}]},
   fornecedor:{title:'Fornecedor',fields:[{k:'nome',l:'Nome',t:'text'},{k:'categoria',l:'Categoria de material',t:'text',hint:'Ex.: gesso, essências, embalagens'},{k:'risco',l:'Risco',t:'select',opts:['Baixo','Médio','Alto']},{k:'whats',l:'WhatsApp principal',t:'text',hint:'Só números com DDD — vira link'},{k:'endereco',l:'Endereço',t:'text'},{k:'obs',l:'Observações',t:'text',hint:'Prazo típico, condições, mínimos…'}]},
   fixo:{title:'Custo fixo',fields:[{k:'nome',l:'Nome',t:'text'},{k:'valor',l:'Valor mensal (R$)',t:'number'}]},
+  vendedor:{title:'Vendedor',fields:[
+    {k:'nome',l:'Nome',t:'text'},
+    {k:'whats',l:'WhatsApp',t:'text',hint:'Só números com DDD — vira link para combinar o pagamento'},
+    {k:'comissao',l:'Comissão (%)',t:'number',def:10,hint:'Sobre o valor efetivamente cobrado, já com o desconto do cupom aplicado'},
+    {k:'chavePix',l:'Chave Pix',t:'text',hint:'Para onde a comissão vai'},
+    {k:'obs',l:'Observações',t:'text',hint:'Onde divulga, o que foi combinado…'},
+  ]},
+  cupom:{title:'Cupom',fields:[
+    {k:'codigo',l:'Código',t:'text',hint:'O que o cliente digita. Vira maiúscula e sem acento sozinho — MARIA10, FEIRA-2026'},
+    {k:'vendedorId',l:'Vendedor',t:'selectVendedor',hint:'De quem é a comissão desta venda'},
+    {k:'tipo',l:'Tipo de desconto',t:'select',opts:['percentual','valor']},
+    {k:'valor',l:'Valor do desconto',t:'number',hint:'10 = 10% se for percentual, ou R$ 10 se for valor fixo'},
+    {k:'minimo',l:'Valor mínimo do pedido (R$)',t:'number',def:'',hint:'Opcional — abaixo disso o cupom não vale'},
+    {k:'ate',l:'Vale até',t:'date',def:'',hint:'Opcional — vazio não vence'},
+    {k:'ativo',l:'Situação',t:'select',opts:['ativo','desligado']},
+  ]},
 };
-function plural(t){return{equip:'equip',molde:'moldes',insumo:'insumos',produto:'produtos',producao:'producao',pedido:'pedidos',compra:'compras',fixo:'fixos',cliente:'clientes',canal:'canais',tarefa:'tarefas',cotacao:'cotacoes',fornecedor:'fornecedores',colecao:'colecoes'}[t];}
-const NOMES_TIPO={equip:'equipamento',molde:'molde',insumo:'insumo',produto:'produto',producao:'produção',pedido:'pedido',compra:'compra',fixo:'custo fixo',cliente:'cliente',canal:'canal',tarefa:'tarefa',cotacao:'cotação',fornecedor:'fornecedor',colecao:'coleção'};
+function plural(t){return{equip:'equip',molde:'moldes',insumo:'insumos',produto:'produtos',producao:'producao',pedido:'pedidos',compra:'compras',fixo:'fixos',cliente:'clientes',canal:'canais',tarefa:'tarefas',cotacao:'cotacoes',fornecedor:'fornecedores',colecao:'colecoes',vendedor:'vendedores',cupom:'cupons'}[t];}
+const NOMES_TIPO={equip:'equipamento',molde:'molde',insumo:'insumo',produto:'produto',producao:'produção',pedido:'pedido',compra:'compra',fixo:'custo fixo',cliente:'cliente',canal:'canal',tarefa:'tarefa',cotacao:'cotação',fornecedor:'fornecedor',colecao:'coleção',vendedor:'vendedor',cupom:'cupom'};
 function val(id){const el=document.getElementById(id);return el?el.value:'';}
 function openForm(type,id){
   const rodape=document.querySelector('.modal-foot');
@@ -936,7 +952,7 @@ function openForm(type,id){
     body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">— nenhum —</option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto da peça</label><label class="fotoup">Escolher imagem do computador<input type="file" accept="image/*" onchange="escolherFoto(this)" hidden></label><img id="f_fotoPrev" class="fotoprev" src="${esc(ex.foto||'')}" style="display:${ex.foto?'block':'none'}" alt=""><div class="hint" id="f_fotoStatus">Reduzimos a imagem antes de enviar — foto crua de celular pesa demais para quem vai abrir a loja.</div><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px"></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="loja-bloco"><div class="loja-tit">Loja — o que aparece para quem compra</div><div class="field-row"><div class="field"><label>Coleção</label><select id="f_colecao">${['<option value="">— sem coleção —</option>'].concat(colecoesOrdenadas().map(c=>`<option value="${c.id}" ${ex.colecao===c.id?'selected':''}>${esc(c.nome)}</option>`)).join('')}</select><div class="hint">A seção onde a peça aparece no site e no app</div></div><div class="field"><label>Posição na coleção</label><input id="f_posicao" type="number" value="${ex.posicao||10}"><div class="hint">Menor aparece antes</div></div><div class="field"><label>Situação</label><select id="f_situacao"><option value="disponivel" ${ex.situacao!=='embreve'?'selected':''}>À venda</option><option value="embreve" ${ex.situacao==='embreve'?'selected':''}>Em breve</option></select><div class="hint">"Em breve" entra na lista de espera, sem sacola</div></div></div><div class="field"><label>Frase curta</label><input id="f_desc" value="${esc(ex.desc||'')}" maxlength="120" placeholder="Duas mãos em concha sustentam uma taça de areia perfumada."><div class="hint">Aparece embaixo do nome, no cartão</div></div><div class="field"><label>Descrição</label><textarea id="f_longa" rows="4" placeholder="O texto que convence, na tela da peça.">${esc(ex.longa||'')}</textarea></div><div class="field"><label>Ficha técnica</label><textarea id="f_ficha" rows="4" placeholder="Escultura: Gesso · duas mãos&#10;Altura: 22 cm&#10;Repõe-se com: Aura-Sand + pavios">${esc((ex.ficha||[]).map(l=>l.join(': ')).join('\n'))}</textarea><div class="hint">Uma linha por item, no formato <code>rótulo: valor</code></div></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_destaque" ${ex.destaque?'checked':''} style="width:auto"> peça de destaque na vitrine</label></div></div><div class="field"><label>Receita — insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
     renderRecipe();
   } else {
-    body.innerHTML=FORMS[type].fields.map(f=>{let inp;const cur=ex[f.k]!==undefined?ex[f.k]:(id?'':(f.def!==undefined?f.def:(f.t==='date'?hoje():'')));if(f.t==='select')inp=`<select id="f_${f.k}">${f.opts.map(o=>`<option ${ex[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;else if(f.t==='selectProd')inp=`<select id="f_${f.k}"><option value="">—</option>${db.produtos.map(p=>`<option value="${p.id}" ${ex[f.k]===p.id?'selected':''}>${esc(p.nome)}</option>`).join('')}</select>`;else if(f.t==='selectMolde')inp=`<select id="f_${f.k}"><option value="">— nenhum —</option>${db.moldes.map(m=>`<option value="${m.id}" ${ex[f.k]===m.id?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>`;else if(f.t==='selectIns')inp=`<select id="f_${f.k}"><option value="">—</option>${db.insumos.map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectCliente')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickCliente(this)"><option value="">—</option>${(db.clientes||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}<option value="__new">➕ Novo cliente…</option></select>`;else if(f.t==='selectCanal')inp=`<select id="f_${f.k}"><option value="">— taxa do produto —</option>${(db.canais||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)} (${Number(c.taxa||0)}%)</option>`).join('')}</select>`;else if(f.t==='selectMembro')inp=`<select id="f_${f.k}"><option value="">—</option>${Object.entries(membros).map(([id,m])=>`<option value="${id}" ${ex[f.k]===id?'selected':''}>${esc(m.nome||'membro')}</option>`).join('')}</select>`;else if(f.t==='selectFornecedor')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickFornecedor(this)"><option value="">—</option>${(db.fornecedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}<option value="__new">➕ Novo fornecedor…</option></select>`;else inp=`<input id="f_${f.k}" type="${f.t}" value="${esc(cur)}">`;return `<div class="field"><label>${f.l}</label>${inp}${f.hint?`<div class="hint">${f.hint}</div>`:''}</div>`;}).join('');
+    body.innerHTML=FORMS[type].fields.map(f=>{let inp;const cur=ex[f.k]!==undefined?ex[f.k]:(id?'':(f.def!==undefined?f.def:(f.t==='date'?hoje():'')));if(f.t==='select')inp=`<select id="f_${f.k}">${f.opts.map(o=>`<option ${ex[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;else if(f.t==='selectProd')inp=`<select id="f_${f.k}"><option value="">—</option>${db.produtos.map(p=>`<option value="${p.id}" ${ex[f.k]===p.id?'selected':''}>${esc(p.nome)}</option>`).join('')}</select>`;else if(f.t==='selectMolde')inp=`<select id="f_${f.k}"><option value="">— nenhum —</option>${db.moldes.map(m=>`<option value="${m.id}" ${ex[f.k]===m.id?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>`;else if(f.t==='selectIns')inp=`<select id="f_${f.k}"><option value="">—</option>${db.insumos.map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectCliente')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickCliente(this)"><option value="">—</option>${(db.clientes||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}<option value="__new">➕ Novo cliente…</option></select>`;else if(f.t==='selectCanal')inp=`<select id="f_${f.k}"><option value="">— taxa do produto —</option>${(db.canais||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)} (${Number(c.taxa||0)}%)</option>`).join('')}</select>`;else if(f.t==='selectMembro')inp=`<select id="f_${f.k}"><option value="">—</option>${Object.entries(membros).map(([id,m])=>`<option value="${id}" ${ex[f.k]===id?'selected':''}>${esc(m.nome||'membro')}</option>`).join('')}</select>`;else if(f.t==='selectVendedor')inp=`<select id="f_${f.k}"><option value="">—</option>${(db.vendedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectFornecedor')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickFornecedor(this)"><option value="">—</option>${(db.fornecedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}<option value="__new">➕ Novo fornecedor…</option></select>`;else inp=`<input id="f_${f.k}" type="${f.t}" value="${esc(cur)}">`;return `<div class="field"><label>${f.l}</label>${inp}${f.hint?`<div class="hint">${f.hint}</div>`:''}</div>`;}).join('');
   }
   if(type==='producao'){const mf=document.getElementById('f_minutos');if(mf){const w=document.createElement('div');w.style.marginTop='6px';w.innerHTML='<button type="button" class="btn2" id="timerBtn" onclick="toggleTimer()">▶ Cronometrar uma peça</button> <span id="timerView" style="font-size:12px;color:var(--warm)"></span>';mf.parentElement.appendChild(w);}}
   if(type==='fornecedor'){currentForm.contatos=ex.contatos?JSON.parse(JSON.stringify(ex.contatos)):[];const box=document.createElement('div');box.className='field';box.innerHTML='<label>Contatos no fornecedor</label><div id="contatosLines"></div><button type="button" class="add-line" onclick="addContatoForn()">+ contato (vendedor, financeiro…)</button>';document.getElementById('modalBody').appendChild(box);renderContatosForn();}
@@ -1017,6 +1033,23 @@ function saveForm(){
     if(num(obj.preco)>0){const ref=precoProduto({...obj,id:id||'tmp'},db);obj.margemRef=ref.margemPct;}
     else delete obj.margemRef;}
   else{FORMS[type].fields.forEach(f=>obj[f.k]=val('f_'+f.k));if(type==='fornecedor')obj.contatos=(currentForm.contatos||[]).filter(c=>c.nome&&c.nome.trim());if(!obj[FORMS[type].fields[0].k]){toast('Preencha o primeiro campo.');return;}}
+  if(type==='cupom'){
+    // O código é o ID do documento no Firestore, e id do Firestore diferencia
+    // maiúscula de minúscula. Normalizar aqui é o que faz o cupom impresso num
+    // story funcionar quando o cliente digita em minúscula no celular.
+    obj.codigo=normalizarCupom(obj.codigo);
+    if(!obj.codigo){toast('O código só pode ter letras, números e hífen.');return;}
+    const rep=(db.cupons||[]).find(c=>c.codigo===obj.codigo&&c.id!==id);
+    if(rep){toast('Já existe um cupom <b>'+esc(obj.codigo)+'</b>.');return;}
+    if(!obj.vendedorId){toast('Escolha de quem é a comissão deste cupom.');return;}
+    const v=Number(obj.valor)||0;
+    if(v<=0){toast('O desconto precisa ser maior que zero.');return;}
+    if(obj.tipo==='percentual'&&v>100){toast('Desconto percentual acima de 100% deixaria o total negativo.');return;}
+  }
+  if(type==='vendedor'){
+    const c=Number(obj.comissao)||0;
+    if(c<0||c>100){toast('A comissão precisa ficar entre 0 e 100%.');return;}
+  }
   // validação de domínio (core.js): impede quantidade negativa, data absurda, taxa fora de 0-100…
   const erro=validar(type,obj);
   if(erro){toast('<b>'+esc(erro)+'</b>');return;}
@@ -1514,7 +1547,7 @@ function verPrecos(insId){
 }
 function exportJSON(){if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}dl('cinerea-backup-'+hoje()+'.json',JSON.stringify(db,null,2),'application/json');toast('Backup salvo — guarde este arquivo');}
 function importJSON(){
-  if(!pode('gerir')){toast('Só dono e admin restauram backups');return;}const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||typeof d!=='object'||!Array.isArray(d.insumos))throw 0;if(!confirm('Substituir TODOS os dados atuais pelos do arquivo de backup?'))return;db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],meta:0,checks:{},...d};cloudSave();renderAll();toast('Dados restaurados do backup');}catch(e){toast('Arquivo inválido — use um backup gerado pelo app');}};r.readAsText(f);};inp.click();}
+  if(!pode('gerir')){toast('Só dono e admin restauram backups');return;}const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||typeof d!=='object'||!Array.isArray(d.insumos))throw 0;if(!confirm('Substituir TODOS os dados atuais pelos do arquivo de backup?'))return;db={equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],meta:0,checks:{},...d};cloudSave();renderAll();toast('Dados restaurados do backup');}catch(e){toast('Arquivo inválido — use um backup gerado pelo app');}};r.readAsText(f);};inp.click();}
 function exportCompras(){
   const low=db.insumos.filter(i=>insumoStatus(i)!=='ok');
   if(!low.length){toast('Nada para comprar');return;}
@@ -1790,6 +1823,21 @@ function renderEncomendas(){
     const alerta = t.divergiu
       ? `<div class="hint-box" style="margin-top:8px">Atenção: o cliente viu <b>${brl(e.totalVisto)}</b>, mas pelo cadastro de hoje dá <b>${brl(t.nosso)}</b>. Combine antes de aceitar.</div>`
       : (!t.achouTodos?'<div class="hint-box" style="margin-top:8px">Alguma peça desta encomenda não está mais no cadastro.</div>':'');
+
+    // O CUPOM. O cliente mandou só o código; o desconto é recalculado aqui,
+    // pelo cadastro desta casa. É o mesmo cuidado do preço logo acima, e pela
+    // mesma razão: quem compra não pode ser dono do valor.
+    const cod=normalizarCupom(e.cupom);
+    const cup=cod?descontoDoCupom(cod,t.nosso):null;
+    const vend=cup&&cup.cupom?(db.vendedores||[]).find(v=>v.id===cup.cupom.vendedorId):null;
+    const blocoCupom = !cod ? '' : (
+      !cup.achou
+        ? `<div class="hint-box" style="margin-top:8px">O cliente usou o cupom <b>${esc(cod)}</b>, que <b>não existe neste cadastro</b>. Ninguém recebe comissão por ele, e não há desconto a dar.</div>`
+        : cup.desconto<=0
+          ? `<div class="hint-box" style="margin-top:8px">Cupom <b>${esc(cod)}</b> não vale para esta encomenda: ${esc(cup.motivo)}. Sem desconto.</div>`
+          : `<div class="prazo-item" style="margin-top:8px"><span>Cupom <b>${esc(cod)}</b>${vend?` · ${esc(vend.nome)} (${Number(vend.comissao)||0}% de comissão)`:' · <span style="color:var(--ember)">vendedor não cadastrado</span>'}</span><b>−${brl(cup.desconto)}</b></div>
+             <div class="prazo-item"><span>Com o desconto</span><b>${brl(Math.round((t.nosso-cup.desconto)*100)/100)}</b></div>`
+    );
     const acoes = e.situacao==='nova'
       ? `<div style="display:flex;gap:8px;margin-top:12px"><button class="btn" onclick="aceitarEncomenda('${e.id}')">Aceitar e criar pedido</button><button class="btn2" onclick="recusarEncomenda('${e.id}')">Não consigo atender</button></div>`
       : `<div class="hint" style="margin-top:10px">Situação: ${esc(e.situacao)}</div>`;
@@ -1799,7 +1847,7 @@ function renderEncomendas(){
       <div class="hint" style="margin-top:6px">${esc(e.endereco||'sem endereço')}</div>
       ${e.recado?`<div class="hint" style="margin-top:6px">Recado: ${esc(e.recado)}</div>`:''}
       <div style="margin-top:12px">${itens}</div>
-      ${alerta}${acoes}
+      ${blocoCupom}${alerta}${acoes}
     </div>`;
   }).join('');
 }
@@ -1817,14 +1865,33 @@ async function aceitarEncomenda(id){
   let cli=db.clientes.find(c=>c.nome===e.clienteNome);
   if(!cli){cli={id:uidGen(),nome:e.clienteNome||'Cliente do app',contato:e.clienteTelefone||e.clienteEmail||'',endereco:e.endereco||''};db.clientes.push(cli);}
 
+  // O desconto do cupom é rateado entre os pedidos na proporção do valor de
+  // cada um. Aceitar cria UM PEDIDO POR ITEM, e jogar o desconto inteiro no
+  // primeiro deixaria a margem daquele item mentindo — e a comissão, que sai
+  // do valor do pedido, sairia certa por acaso.
+  const cod=normalizarCupom(e.cupom);
+  const bruto=(e.itens||[]).reduce((s,i)=>{
+    const p=db.produtos.find(x=>String(x.id)===String(i.id));
+    const c=p?calcCusto(p).total:0;
+    const preco=p?(Number(p.preco)||c*Number(p.markup||3)):Number(i.preco||0);
+    return s+preco*Number(i.qtd||1);
+  },0);
+  const cup=cod?descontoDoCupom(cod,Math.round(bruto*100)/100):null;
+  const desconto=cup?cup.desconto:0;
+
   (e.itens||[]).forEach(i=>{
     const p=db.produtos.find(x=>String(x.id)===String(i.id));
     const c=p?calcCusto(p).total:0;
     const preco=p?(Number(p.preco)||c*Number(p.markup||3)):Number(i.preco||0);
+    const cheio=preco*Number(i.qtd||1);
+    const parte=(desconto>0&&bruto>0)?desconto*(cheio/bruto):0;
     db.pedidos.push({
       id:uidGen(), produto:p?p.id:'', clienteId:cli.id, cliente:cli.nome,
-      qtd:Number(i.qtd||1), valor:Math.round(preco*Number(i.qtd||1)*100)/100,
+      qtd:Number(i.qtd||1), valor:Math.round((cheio-parte)*100)/100,
       situacao:'Pendente', data:hoje(), origem:'loja do app', encomendaId:e.id,
+      // O código fica gravado no pedido: é dele que a comissão é calculada, e
+      // é o que permite conferir a atribuição meses depois.
+      ...(desconto>0?{cupom:cod}:{}),
     });
   });
 
@@ -1846,7 +1913,160 @@ async function recusarEncomenda(id){
   }catch(err){console.error(err);toast('Não consegui atualizar');}
 }
 
-Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes});
+// ===========================================================================
+// VENDEDORES E CUPONS
+//
+// O cupom é o único jeito de saber QUEM trouxe a venda sem servidor: o cliente
+// digita o código, o código viaja junto com o pedido, e a comissão sai daí.
+//
+// A regra que sustenta tudo isto: o cliente manda o CÓDIGO, nunca o desconto.
+// O que ele vê na loja é prévia; o valor que vale é o recalculado aqui, pelo
+// cadastro desta tela. Se o desconto viesse do aplicativo, bastaria alguém
+// mandar "desconto de R$ 300" para a casa pagar comissão por cima disso.
+//
+// O que sobe para `cupons/{codigo}` no Firestore é um RECORTE PÚBLICO: só o que
+// o cliente precisa para ver o desconto na tela. Comissão e chave Pix ficam
+// aqui, porque não são da conta de quem compra.
+// ===========================================================================
+
+function normalizarCupom(bruto){
+  return String(bruto||'').normalize('NFD').replace(/[^A-Za-z0-9-]/g,'').toUpperCase().slice(0,24);
+}
+
+/** O desconto que ESTE cadastro dá, que é o que vale. */
+function descontoDoCupom(codigo,total){
+  const c=(db.cupons||[]).find(x=>x.codigo===normalizarCupom(codigo));
+  if(!c) return {achou:false,cupom:null,desconto:0,motivo:'cupom não cadastrado aqui'};
+  if(total<=0) return {achou:true,cupom:c,desconto:0,motivo:'pedido sem valor'};
+  if(c.ativo==='desligado') return {achou:true,cupom:c,desconto:0,motivo:'cupom desligado'};
+  if(c.ate&&hoje()>c.ate) return {achou:true,cupom:c,desconto:0,motivo:'cupom venceu em '+c.ate};
+  const min=Number(c.minimo)||0;
+  if(total<min) return {achou:true,cupom:c,desconto:0,motivo:'abaixo do mínimo de '+brl(min)};
+  const bruto=c.tipo==='valor'
+    ? Math.max(Number(c.valor)||0,0)
+    : total*Math.min(Math.max(Number(c.valor)||0,0),100)/100;
+  return {achou:true,cupom:c,desconto:Math.round(Math.min(bruto,total)*100)/100,motivo:''};
+}
+
+/**
+ * Comissão só de PEDIDO, e pedido só nasce de encomenda aceita.
+ *
+ * Contar sobre encomenda recebida deixaria qualquer um gerar comissão para si
+ * mesmo, mandando pedidos falsos com o próprio cupom. Aceitar já é decisão
+ * humana, então esse filtro sai de graça. Cancelado também não conta.
+ */
+function comissoes(){
+  const porVendedor={};
+  (db.pedidos||[]).forEach(p=>{
+    const cod=normalizarCupom(p.cupom);
+    if(!cod||p.situacao==='Cancelado') return;
+    const c=(db.cupons||[]).find(x=>x.codigo===cod);
+    const v=c?(db.vendedores||[]).find(y=>y.id===c.vendedorId):null;
+    if(!v) return;
+    const linha=porVendedor[v.id]||(porVendedor[v.id]={vendedor:v,pedidos:[],vendido:0,comissao:0});
+    const valor=Number(p.valor)||0;
+    linha.pedidos.push(p);
+    linha.vendido+=valor;
+    linha.comissao+=valor*(Number(v.comissao)||0)/100;
+  });
+  Object.values(porVendedor).forEach(l=>{
+    l.vendido=Math.round(l.vendido*100)/100;
+    l.comissao=Math.round(l.comissao*100)/100;
+  });
+  return Object.values(porVendedor).sort((a,b)=>b.comissao-a.comissao);
+}
+
+function renderVendedores(){
+  const tb=document.getElementById('tbVendedores');
+  if(!tb)return;
+  const com=comissoes();
+  const vs=db.vendedores||[];
+  tb.innerHTML=vs.length?vs.map(v=>{
+    const c=com.find(x=>x.vendedor.id===v.id);
+    const zap=v.whats?`<a href="https://wa.me/${String(v.whats).replace(/\D/g,'')}" target="_blank" rel="noopener">${esc(v.whats)}</a>`:'—';
+    return `<tr><td>${esc(v.nome)}${v.chavePix?`<div style="font-size:11px;color:var(--warm)">Pix: ${esc(v.chavePix)}</div>`:''}</td>
+      <td>${zap}</td><td>${Number(v.comissao)||0}%</td>
+      <td>${c?c.pedidos.length:0}</td><td class="money">${brl(c?c.vendido:0)}</td>
+      <td class="money"><b>${brl(c?c.comissao:0)}</b></td>
+      <td>${rowActions('vendedor',v.id)}</td></tr>`;
+  }).join(''):`<tr><td colspan=7><div class="empty-t">Nenhum vendedor. Cadastre quem divulga a Cinérea e depois crie um cupom para cada um.</div></td></tr>`;
+}
+
+function renderCupons(){
+  const tb=document.getElementById('tbCupons');
+  if(!tb)return;
+  const cs=db.cupons||[];
+  const usos={};
+  (db.pedidos||[]).forEach(p=>{const c=normalizarCupom(p.cupom);if(c)usos[c]=(usos[c]||0)+1;});
+  tb.innerHTML=cs.length?cs.map(c=>{
+    const v=(db.vendedores||[]).find(x=>x.id===c.vendedorId);
+    const venceu=c.ate&&hoje()>c.ate;
+    const pill=c.ativo==='desligado'?'<span class="pill low">desligado</span>'
+      :venceu?'<span class="pill warn">vencido</span>':'<span class="pill ok">ativo</span>';
+    const regras=[c.minimo?`mín. ${brl(c.minimo)}`:'',c.ate?`até ${String(c.ate).slice(8,10)}/${String(c.ate).slice(5,7)}`:''].filter(Boolean).join(' · ')||'—';
+    return `<tr><td><b>${esc(c.codigo)}</b></td>
+      <td>${v?esc(v.nome):'<span style="color:var(--ember)">sem vendedor</span>'}</td>
+      <td>${c.tipo==='valor'?brl(c.valor):`${Number(c.valor)||0}%`}</td>
+      <td style="font-size:12px;color:var(--warm)">${esc(regras)}</td>
+      <td>${pill}</td><td>${usos[c.codigo]||0}</td>
+      <td>${rowActions('cupom',c.id)}</td></tr>`;
+  }).join(''):`<tr><td colspan=7><div class="empty-t">Nenhum cupom. Cada vendedor precisa de um para a venda ser atribuída a ele.</div></td></tr>`;
+
+  const box=document.getElementById('cuponsAviso');
+  if(box) box.innerHTML=cs.length
+    ? '<div class="hint-box" style="margin-bottom:10px">Cupom criado aqui <b>ainda não vale</b> na loja: publicar é o que copia o desconto para o site e o app. Comissão e chave Pix nunca saem daqui.</div>'
+    : '';
+}
+
+function renderComissoes(){
+  const box=document.getElementById('comissoes');
+  if(!box)return;
+  const com=comissoes();
+  if(!com.length){box.innerHTML='';return;}
+  const total=com.reduce((s,c)=>s+c.comissao,0);
+  box.innerHTML=`<div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">A pagar</h2>
+    <div class="desc">Sobre pedido criado e não cancelado. Encomenda do app só entra depois de aceita</div></div></div>`
+    + com.map(c=>`<div class="chartcard" style="margin-bottom:12px">
+        <h3>${esc(c.vendedor.nome)} · ${brl(c.comissao)}</h3>
+        <div class="hint">${c.pedidos.length} pedido(s) · ${brl(c.vendido)} vendidos · ${Number(c.vendedor.comissao)||0}% de comissão${c.vendedor.chavePix?' · Pix '+esc(c.vendedor.chavePix):''}</div>
+        <div style="margin-top:10px">${c.pedidos.map(p=>`<div class="prazo-item"><span>${esc(p.data||'')} · ${esc(p.cliente||'cliente')} <span style="color:var(--warm)">(${esc(normalizarCupom(p.cupom))})</span></span><b>${brl(p.valor)}</b></div>`).join('')}</div>
+      </div>`).join('')
+    + `<div class="hint" style="margin-top:6px">Total a pagar: <b>${brl(Math.round(total*100)/100)}</b></div>`;
+}
+
+/**
+ * Publica o recorte público dos cupons, um documento por código.
+ *
+ * Nada de comissão, nada de Pix: sobe só o que a loja precisa para mostrar o
+ * desconto. É o mesmo desenho do catálogo — o cadastro rico fica aqui, o
+ * recorte público vai para fora.
+ */
+async function publicarCupons(){
+  if(!pode('gerir')){toast('Só dono e admin publicam cupons');return;}
+  const cs=db.cupons||[];
+  if(!cs.length){toast('Nenhum cupom para publicar.');return;}
+  if(!confirm(`Publicar ${cs.length} cupom(ns)? Eles passam a valer na loja do site e do app.`))return;
+  let ok=0,falhou=0;
+  for(const c of cs){
+    try{
+      await setDoc(doc(fdb,'cupons',c.codigo),{
+        // `vendedor` sobe só como identificador, para a encomenda saber a quem
+        // atribuir. Nome, comissão e Pix ficam aqui dentro.
+        vendedor:c.vendedorId||'',
+        tipo:c.tipo==='valor'?'valor':'percentual',
+        valor:Number(c.valor)||0,
+        ativo:c.ativo!=='desligado',
+        minimo:Number(c.minimo)||0,
+        ...(c.ate?{ate:new Date(c.ate+'T23:59:59').getTime()}:{}),
+        atualizadoEm:Date.now(),
+      });
+      ok++;
+    }catch(e){console.error('cupom',c.codigo,e);falhou++;}
+  }
+  toast(falhou?`${ok} publicado(s), ${falhou} falhou(aram) — veja o console`:`${ok} cupom(ns) no ar`);
+}
+
+Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes,publicarCupons,renderVendedores,renderCupons,renderComissoes});
 
 // ============================================================
 // FOTO DE PRODUTO — envio para o Cloud Storage
