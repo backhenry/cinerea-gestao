@@ -1932,7 +1932,15 @@ async function aceitarEncomenda(id){
 
   cloudSave();
   try{
-    await updateDoc(doc(fdb,'encomendas',id),{situacao:'aceita'});
+    // O desconto CONFIRMADO volta para a encomenda, e é o que o cliente passa a
+    // ver no app. Até aqui ele via uma prévia recalculada do próprio cupom;
+    // daqui em diante vê o que ficou combinado, e o número para de depender de
+    // o cupom continuar existindo ou dentro da validade.
+    await updateDoc(doc(fdb,'encomendas',id),{
+      situacao:'aceita',
+      descontoAplicado:Math.round(desconto*100)/100,
+      totalFechado:Math.round((bruto-desconto)*100)/100,
+    });
     e.situacao='aceita';
     toast(`Pedido${(e.itens||[]).length>1?'s':''} criado${(e.itens||[]).length>1?'s':''} — veja em Pedidos`);
   }catch(err){console.error(err);toast('Pedidos criados aqui, mas não consegui avisar o cliente');}
