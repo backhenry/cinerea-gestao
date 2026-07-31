@@ -231,7 +231,14 @@ service cloud.firestore {
         && (!exists(/databases/$(database)/documents/vitrines/$(tagUid))
             || !('dono' in resource.data)
             || resource.data.dono == request.auth.uid)
-        && request.resource.data.keys().hasOnly(['dono','tipo','titulo','dados','senha','atualizadoEm'])
+        && request.resource.data.keys().hasOnly(['dono','tipo','titulo','dados','senha','itens','atualizadoEm'])
+        // `itens` é a lista do tipo "Meus links". A regra limita a QUANTIDADE;
+        // o conteúdo de cada item ela não consegue percorrer — regra não itera
+        // lista. O que segura o resto é o teto de 1 MB por documento e o fato
+        // de só o dono da peça poder escrever aqui.
+        && (!('itens' in request.resource.data)
+            || (request.resource.data.itens is list
+                && request.resource.data.itens.size() <= 12))
         && request.resource.data.tipo is string
         && request.resource.data.tipo.size() <= 20
         && request.resource.data.titulo is string

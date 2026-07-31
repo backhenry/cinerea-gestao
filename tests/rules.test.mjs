@@ -326,6 +326,20 @@ test('sem a peça na conta, nem o dono anterior apaga a vitrine', async () => {
   await assertFails(fs('ana').doc('vitrines/SEMDONO01').delete());
 });
 
+test('vitrine aceita a lista de endereços, com teto de 12', async () => {
+  const link = (i) => ({ rotulo: 'r' + i, url: 'https://exemplo.com/' + i, icone: 'site' });
+  await assertSucceeds(fs('ana').doc(`vitrines/${TAG}`).set({
+    dono: 'ana', tipo: 'links', titulo: 'Meus links', dados: '4 endereços',
+    itens: [1, 2, 3, 4].map(link),
+  }));
+  // A regra não consegue percorrer a lista — regra não itera. O que ela segura
+  // é a QUANTIDADE; o resto fica com o teto de 1 MB por documento.
+  await assertFails(fs('ana').doc(`vitrines/${TAG}`).set({
+    dono: 'ana', tipo: 'links', titulo: 'Meus links', dados: 'demais',
+    itens: Array.from({ length: 13 }, (_, i) => link(i)),
+  }));
+});
+
 test('quem publicou primeiro manda: outro nao sobrescreve nem apaga', async () => {
   // Conhecer o UID do chip basta para registrar a peca na propria conta — e
   // conhecer o UID e so ter encostado o celular na peca uma vez, numa festa.
