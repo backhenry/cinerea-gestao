@@ -65,7 +65,7 @@ try{aplicarPrefs(JSON.parse(localStorage.getItem('cinereaPrefs')||'{}'));}catch(
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if((window.__prefs||{}).tema==='auto')aplicarPrefs(window.__prefs);});
 let charts={};
 
-Object.assign(window,{doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,del,addRecipeLine,rmRecipeLine,updateCost,exportCSV,exportPDF,exportCompras,saveCheck,buyDone,exportJSON,importJSON,setMeta,setMeiTeto,quickCliente,publicarCatalogo,doUndo,renderProducao,renderPedidos,fP,fV,criarEmpresaUI,entrarEmpresaUI,gerarConvite,removerMembro,renomearMe,moveTarefa,repetir,toggleTimer,exportDRE,openPerfil,sairEmpresa,esqueciSenha,toggleMinhas,mudarPapel,dragTarefa,dropTarefa,addComent,gerarCotacao,importarCotacao,verCotacao,usarPrecoCotacao,verPrecos,criarTarefaProducao,addPagamento,arquivarAno,pedirNotifs,quickFornecedor,reciboPedido,cobrarPedido,duplicarProduto,verArquivo,abrirBusca,renderBusca,addContatoForn,rmContatoForn,setPeriodoDash,enviarCotacaoWhats,imprimirCotacao,subAba,maisLinhas,compartilharPedido,linkCotacao,buscarRespostasOnline,fecharRfq});
+Object.assign(window,{escolherImagem,doAuth,toggleAuth,doLogout,openForm,closeModal,saveForm,del,addRecipeLine,rmRecipeLine,updateCost,exportCSV,exportPDF,exportCompras,saveCheck,buyDone,exportJSON,importJSON,setMeta,setMeiTeto,quickCliente,publicarCatalogo,doUndo,renderProducao,renderPedidos,fP,fV,criarEmpresaUI,entrarEmpresaUI,gerarConvite,removerMembro,renomearMe,moveTarefa,repetir,toggleTimer,exportDRE,openPerfil,sairEmpresa,esqueciSenha,toggleMinhas,mudarPapel,dragTarefa,dropTarefa,addComent,gerarCotacao,importarCotacao,verCotacao,usarPrecoCotacao,verPrecos,criarTarefaProducao,addPagamento,arquivarAno,pedirNotifs,quickFornecedor,reciboPedido,cobrarPedido,duplicarProduto,verArquivo,abrirBusca,renderBusca,addContatoForn,rmContatoForn,setPeriodoDash,enviarCotacaoWhats,imprimirCotacao,subAba,maisLinhas,compartilharPedido,linkCotacao,buscarRespostasOnline,fecharRfq});
 
 if(!isConfigured){document.getElementById('gateSetup').style.display='block';}
 else{
@@ -1000,9 +1000,11 @@ const FORMS={
   ]},
   banner:{title:'Banner da loja',fields:[
     {k:'ativo',l:'Situação',t:'select',opts:['ligado','desligado']},
-    {k:'titulo',l:'Chamada',t:'text',hint:'Curta e direta — "Frete grátis até domingo"'},
-    {k:'texto',l:'Detalhe',t:'text',hint:'Opcional — a condição, em uma linha'},
-    {k:'cupom',l:'Cupom para divulgar',t:'text',hint:'Opcional. Aparece destacado, e quem tocar já entra com ele na sacola'},
+    {k:'imagem',l:'Arte de fundo (opcional)',t:'imagem',pasta:'banners',lado:1600,teto:400,
+     hint:'<b>1600 × 500 px</b> (proporção 16:5), JPG, PNG ou WebP, até 400 KB. Encolhemos e convertemos para WebP antes de enviar, então pode mandar maior. O texto vai POR CIMA da arte: deixe o meio da imagem sem elementos importantes, porque no celular as laterais são cortadas.'},
+    {k:'titulo',l:'Chamada',t:'text',hint:'Até 90 caracteres, mas mire em 40: no celular a faixa tem uma linha e meia. Ex.: "Frete grátis até domingo"'},
+    {k:'texto',l:'Detalhe',t:'text',hint:'Opcional, até 140 caracteres. A condição em uma linha — "Para todo o estado de São Paulo"'},
+    {k:'cupom',l:'Cupom para divulgar',t:'text',hint:'Opcional, até 24 caracteres. Vira maiúscula e sem acento sozinho. Aparece destacado, e quem tocar já entra com ele na sacola'},
     {k:'ate',l:'Até',t:'date',def:'',hint:'Opcional. Passou a data, o banner some sozinho da loja'},
     {k:'cor',l:'Cor do banner',t:'select',opts:['brasa','carvão','areia']},
   ]},
@@ -1040,7 +1042,7 @@ function openForm(type,id){
     renderRecipe();
   } else {
     if(type==='banner') ex = db.banner || {};
-    body.innerHTML=FORMS[type].fields.map(f=>{let inp;const cur=ex[f.k]!==undefined?ex[f.k]:(id?'':(f.def!==undefined?f.def:(f.t==='date'?hoje():'')));if(f.t==='select')inp=`<select id="f_${f.k}">${f.opts.map(o=>`<option ${ex[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;else if(f.t==='selectProd')inp=`<select id="f_${f.k}"><option value="">—</option>${db.produtos.map(p=>`<option value="${p.id}" ${ex[f.k]===p.id?'selected':''}>${esc(p.nome)}</option>`).join('')}</select>`;else if(f.t==='selectMolde')inp=`<select id="f_${f.k}"><option value="">— nenhum —</option>${db.moldes.map(m=>`<option value="${m.id}" ${ex[f.k]===m.id?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>`;else if(f.t==='selectIns')inp=`<select id="f_${f.k}"><option value="">—</option>${db.insumos.map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectCliente')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickCliente(this)"><option value="">—</option>${(db.clientes||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}<option value="__new">➕ Novo cliente…</option></select>`;else if(f.t==='selectCanal')inp=`<select id="f_${f.k}"><option value="">— taxa do produto —</option>${(db.canais||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)} (${Number(c.taxa||0)}%)</option>`).join('')}</select>`;else if(f.t==='selectMembro')inp=`<select id="f_${f.k}"><option value="">—</option>${Object.entries(membros).map(([id,m])=>`<option value="${id}" ${ex[f.k]===id?'selected':''}>${esc(m.nome||'membro')}</option>`).join('')}</select>`;else if(f.t==='selectVendedor')inp=`<select id="f_${f.k}"><option value="">—</option>${(db.vendedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectFornecedor')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickFornecedor(this)"><option value="">—</option>${(db.fornecedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}<option value="__new">➕ Novo fornecedor…</option></select>`;else inp=`<input id="f_${f.k}" type="${f.t}" value="${esc(cur)}">`;return `<div class="field"><label>${f.l}</label>${inp}${f.hint?`<div class="hint">${f.hint}</div>`:''}</div>`;}).join('');
+    body.innerHTML=FORMS[type].fields.map(f=>{let inp;const cur=ex[f.k]!==undefined?ex[f.k]:(id?'':(f.def!==undefined?f.def:(f.t==='date'?hoje():'')));if(f.t==='select')inp=`<select id="f_${f.k}">${f.opts.map(o=>`<option ${ex[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;else if(f.t==='selectProd')inp=`<select id="f_${f.k}"><option value="">—</option>${db.produtos.map(p=>`<option value="${p.id}" ${ex[f.k]===p.id?'selected':''}>${esc(p.nome)}</option>`).join('')}</select>`;else if(f.t==='selectMolde')inp=`<select id="f_${f.k}"><option value="">— nenhum —</option>${db.moldes.map(m=>`<option value="${m.id}" ${ex[f.k]===m.id?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>`;else if(f.t==='selectIns')inp=`<select id="f_${f.k}"><option value="">—</option>${db.insumos.map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectCliente')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickCliente(this)"><option value="">—</option>${(db.clientes||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}<option value="__new">➕ Novo cliente…</option></select>`;else if(f.t==='selectCanal')inp=`<select id="f_${f.k}"><option value="">— taxa do produto —</option>${(db.canais||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)} (${Number(c.taxa||0)}%)</option>`).join('')}</select>`;else if(f.t==='selectMembro')inp=`<select id="f_${f.k}"><option value="">—</option>${Object.entries(membros).map(([id,m])=>`<option value="${id}" ${ex[f.k]===id?'selected':''}>${esc(m.nome||'membro')}</option>`).join('')}</select>`;else if(f.t==='selectVendedor')inp=`<select id="f_${f.k}"><option value="">—</option>${(db.vendedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectFornecedor')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickFornecedor(this)"><option value="">—</option>${(db.fornecedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}<option value="__new">➕ Novo fornecedor…</option></select>`;else if(f.t==='imagem')inp=`<label class="fotoup">Escolher imagem<input type="file" accept="image/jpeg,image/png,image/webp" onchange="escolherImagem(this,'${f.k}','${f.pasta||'banners'}',${f.lado||1600},${f.teto||400})" hidden></label><img id="f_${f.k}Prev" class="fotoprev" src="${esc(cur||'')}" style="display:${cur?'block':'none'}" alt=""><div class="hint" id="f_${f.k}Status"></div><input id="f_${f.k}" value="${esc(cur||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px">`;else inp=`<input id="f_${f.k}" type="${f.t}" value="${esc(cur)}">`;return `<div class="field"><label>${f.l}</label>${inp}${f.hint?`<div class="hint">${f.hint}</div>`:''}</div>`;}).join('');
   }
   if(type==='producao'){const mf=document.getElementById('f_minutos');if(mf){const w=document.createElement('div');w.style.marginTop='6px';w.innerHTML='<button type="button" class="btn2" id="timerBtn" onclick="toggleTimer()">▶ Cronometrar uma peça</button> <span id="timerView" style="font-size:12px;color:var(--warm)"></span>';mf.parentElement.appendChild(w);}}
   if(type==='fornecedor'){currentForm.contatos=ex.contatos?JSON.parse(JSON.stringify(ex.contatos)):[];const box=document.createElement('div');box.className='field';box.innerHTML='<label>Contatos no fornecedor</label><div id="contatosLines"></div><button type="button" class="add-line" onclick="addContatoForn()">+ contato (vendedor, financeiro…)</button>';document.getElementById('modalBody').appendChild(box);renderContatosForn();}
@@ -1119,7 +1121,7 @@ function saveForm(){
   if(type==='banner'){
     db.banner={
       ativo:val('f_ativo')||'ligado', titulo:val('f_titulo').trim(),
-      texto:val('f_texto').trim(), cupom:normalizarCupom(val('f_cupom')),
+      texto:val('f_texto').trim(), cupom:normalizarCupom(val('f_cupom')), imagem:val('f_imagem').trim(),
       ate:val('f_ate')||'', cor:val('f_cor')||'brasa',
     };
     if(!db.banner.titulo){toast('Escreva a chamada do banner.');return;}
@@ -1350,6 +1352,10 @@ function bannerPublicavel(){
     cupom: normalizarCupom(b.cupom||''),
     ate: b.ate || '',
     cor: ['brasa','carvão','areia'].includes(b.cor) ? b.cor : 'brasa',
+    // Só endereço do nosso Storage, pela mesma razão do logo: sem a trava,
+    // alguém aponta a arte para servidor próprio e tem um pixel de
+    // rastreamento rodando no domínio da marca.
+    ...(/^https:\/\/firebasestorage\.googleapis\.com\//.test(b.imagem||'') ? {imagem:b.imagem} : {}),
   };
 }
 
@@ -2615,6 +2621,53 @@ function caminhoDaFoto(urlAtual){
 }
 
 /** Chamado pelo campo de foto no formulário de produto. */
+/**
+ * Envio genérico de imagem, para os campos `t:'imagem'`.
+ *
+ * A foto de produto tem a sua própria (`escolherFoto`), com caminho e teto
+ * herdados; esta serve aos campos novos e recebe pasta, lado máximo e teto por
+ * argumento — é o que permite ter TRÊS limites diferentes sem três funções.
+ *
+ * Os limites não são arbitrários: cada arquivo é servido a um público
+ * diferente. Foto de produto sai uma vez por peça na loja; banner e logo saem a
+ * cada visita, e por isso apertam mais.
+ */
+async function escolherImagem(input, campo, pasta, ladoMax, tetoKB){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const aviso = document.getElementById('f_'+campo+'Status');
+  const alvo  = document.getElementById('f_'+campo);
+  const prev  = document.getElementById('f_'+campo+'Prev');
+  const diz = t => { if(aviso) aviso.innerHTML = t; };
+
+  if(!pode('gerir')){diz('Só dono e admin enviam imagens.');return;}
+  if(!fstore){diz('Storage não iniciado.');return;}
+
+  diz('Encolhendo e enviando…');
+  try{
+    const blob = await comprimirImagem(file, ladoMax, 0.82);
+    const kb = Math.round(blob.size/1024);
+    if(kb > tetoKB){
+      diz(`Mesmo encolhida ficou com ${kb} KB, acima do teto de ${tetoKB} KB. `
+        + 'Tente uma imagem menos detalhada, ou com menos texto dentro dela.');
+      return;
+    }
+    const caminho = `${pasta}/${uid}/${campo}-${Date.now()}.jpg`;
+    await uploadBytes(sRef(fstore, caminho), blob, {contentType:'image/jpeg'});
+    const url = await getDownloadURL(sRef(fstore, caminho));
+    if(alvo) alvo.value = url;
+    if(prev){ prev.src = url; prev.style.display = 'block'; }
+    diz(`Enviada (${kb} KB). <b>Publique a loja</b> para ela entrar no ar.`);
+  }catch(e){
+    console.error(e);
+    diz(e.code === 'storage/unauthorized'
+      ? 'O envio foi recusado. As regras do Storage podem não estar publicadas.'
+      : 'Não consegui enviar: ' + ((e && e.message) || 'erro'));
+  }finally{
+    input.value = '';
+  }
+}
+
 async function escolherFoto(input){
   const file=input.files&&input.files[0];
   if(!file)return;

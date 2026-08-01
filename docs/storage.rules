@@ -36,6 +36,40 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == dono;
     }
 
+    // Logo que o dono da peça põe na página dela. Mesma forma da pasta acima:
+    // o uid no caminho, cada um escreve só no que é seu.
+    //
+    // O TETO É MENOR, e de propósito. Foto de produto é conteúdo da loja e sai
+    // uma vez por peça; logo é servido a CADA convidado que encosta o celular,
+    // e um arquivo gordo aqui vira banda paga mil vezes. 512 KB já é generoso
+    // para uma marca, e o painel ainda encolhe antes de enviar.
+    match /logos/{dono}/{arquivo} {
+      allow read: if true;
+
+      allow write: if request.auth != null
+        && request.auth.uid == dono
+        && request.resource.size < 512 * 1024
+        && request.resource.contentType.matches('image/.*');
+
+      allow delete: if request.auth != null && request.auth.uid == dono;
+    }
+
+    // Arte do banner da loja. Uma imagem só, larga, no alto da vitrine.
+    //
+    // Teto entre os outros dois de propósito: é servida a todo visitante da
+    // loja, como o logo, mas é uma imagem larga e não um símbolo — 400 KB
+    // acomoda 1600px de largura em WebP com folga, e o painel encolhe antes.
+    match /banners/{dono}/{arquivo} {
+      allow read: if true;
+
+      allow write: if request.auth != null
+        && request.auth.uid == dono
+        && request.resource.size < 400 * 1024
+        && request.resource.contentType.matches('image/.*');
+
+      allow delete: if request.auth != null && request.auth.uid == dono;
+    }
+
     // Nada mais é gravável. Uma pasta esquecida aberta é onde nascem as
     // surpresas de fatura.
     match /{caminho=**} {
