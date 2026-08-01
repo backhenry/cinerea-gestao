@@ -1001,7 +1001,7 @@ const FORMS={
   banner:{title:'Banner da loja',fields:[
     {k:'ativo',l:'Situação',t:'select',opts:['ligado','desligado']},
     {k:'imagem',l:'Arte de fundo (opcional)',t:'imagem',pasta:'banners',lado:1600,teto:400,
-     hint:'<b>1600 × 500 px</b> (proporção 16:5), JPG, PNG ou WebP, até 400 KB. Encolhemos e convertemos para WebP antes de enviar, então pode mandar maior. O texto vai POR CIMA da arte: deixe o meio da imagem sem elementos importantes, porque no celular as laterais são cortadas.'},
+     hint:'<b>1600 × 500 px</b>, JPG, PNG ou WebP, até 400 KB. Encolhemos antes de enviar, então pode mandar maior.<br><b>O que sobrevive é o MEIO.</b> A faixa da loja é bem baixa: no computador some o terço de cima e o de baixo da arte; no celular somem as bordas laterais. Ponha o assunto na faixa central e não conte com cantos.<br><b>O texto vai por cima</b>, centralizado e com um véu escuro. Arte muito detalhada no centro atrapalha a leitura — luz e superfície ali funcionam melhor que objeto.'},
     {k:'titulo',l:'Chamada',t:'text',hint:'Até 90 caracteres, mas mire em 40: no celular a faixa tem uma linha e meia. Ex.: "Frete grátis até domingo"'},
     {k:'texto',l:'Detalhe',t:'text',hint:'Opcional, até 140 caracteres. A condição em uma linha — "Para todo o estado de São Paulo"'},
     {k:'cupom',l:'Cupom para divulgar',t:'text',hint:'Opcional, até 24 caracteres. Vira maiúscula e sem acento sozinho. Aparece destacado, e quem tocar já entra com ele na sacola'},
