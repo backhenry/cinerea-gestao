@@ -2172,6 +2172,13 @@ async function recusarEncomenda(id){
  * `auth/operation-not-allowed`, e o recado abaixo diz isso com todas as letras
  * em vez de "erro ao enviar".
  */
+window.copiarUid = u => {
+  if(navigator.clipboard) navigator.clipboard.writeText(u).then(
+    ()=>toast('uid copiado: <code>'+esc(u)+'</code>'),
+    ()=>toast('Não consegui copiar. O uid é: <code>'+esc(u)+'</code>'));
+  else toast('O uid é: <code>'+esc(u)+'</code>');
+};
+
 async function convidarPorEmail(email){
   const alvo = String(email||'').trim().toLowerCase();
   if(!alvo) return;
@@ -2261,7 +2268,11 @@ function renderAcessos(){
     const divergiu = par && papelReal !== a.papel;
     return `<tr>
       <td>${esc(a.email)}${a.obs?`<div style="font-size:11px;color:var(--warm)">${esc(a.obs)}</div>`:''}</td>
-      <td>${esc(par ? (par[1].nome || a.nome || '') : (a.nome||'—'))}</td>
+      <td>${esc(par ? (par[1].nome || a.nome || '') : (a.nome||'—'))}
+        ${par?`<div class="uid-linha">
+          <code>${esc(par[0])}</code>
+          <button class="icon-btn" title="Copiar o uid" onclick="copiarUid('${esc(par[0])}')">⧉</button>
+        </div>`:''}</td>
       <td>${esc(PAPEL_LABEL[a.papel]||a.papel)}${divergiu?`<div style="font-size:11px;color:var(--ember)">na empresa está como ${esc(PAPEL_LABEL[papelReal]||papelReal)}</div>`:''}</td>
       <td>${situacao}</td>
       <td>${ger?`<div class="row-actions">
@@ -2300,6 +2311,18 @@ function renderAcessos(){
     <b>Papéis.</b> ${esc(PAPEL_LABEL.empregado)} não vê o financeiro nem a aba
     Peças. ${esc(PAPEL_LABEL.socio)} vê. ${esc(PAPEL_LABEL.admin)} vê e também
     convida, publica e mexe nos papéis.
+    <br><br>
+    <b>Encomendas exigem um passo a mais, no Console.</b> O papel aqui manda no
+    que a tela mostra; quem manda em listar as encomendas é a coleção
+    <code>gestores</code> do Firebase, e ela só se mexe por lá. Para ${esc(PAPEL_LABEL.socio)}
+    ou ${esc(PAPEL_LABEL.admin)} enxergar a caixa de entrada, crie no Console o
+    documento <code>gestores/{uid}</code> com o uid que aparece ao lado do nome
+    da pessoa (o ⧉ copia). Qualquer campo serve.
+    <br><br>
+    São dois conceitos que não conversam, e é de propósito:
+    <code>gestores</code> é "quem é da casa" e vale para o projeto inteiro,
+    inclusive para registrar procedência de peça e publicar cupom. Papel na
+    empresa é só desta empresa.
   </div>`;
 }
 

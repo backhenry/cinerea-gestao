@@ -287,3 +287,12 @@
   nav.tabs::after{content:'';flex:0 0 12px}
   .subtabs{scrollbar-width:none;-ms-overflow-style:none;overflow-x:auto}
   .subtabs::-webkit-scrollbar{display:none}
+
+
+/* O uid de cada membro, na aba Usuários. Ele existe por um motivo estreito:
+   liberar a caixa de entrada das encomendas exige criar `gestores/{uid}` no
+   Console do Firebase, e sem isto o dono não tinha como saber o uid de ninguém
+   — só a própria pessoa via o dela, e ainda por cima só dentro de uma mensagem
+   de erro. */
+.uid-linha{display:flex;align-items:center;gap:6px;margin-top:3px}
+.uid-linha code{font-size:11px;color:var(--warm);word-break:break-all}
