@@ -1,6 +1,10 @@
 // Service worker da Cinérea Gestão — deixa o app abrir mesmo sem internet.
 // Estratégia: rede primeiro (para pegar atualizações), cache como reserva offline.
-const CACHE = 'cinerea-v24';
+// A versão é CARIMBADA NO DEPLOY com o SHA do commit (ver .github/workflows).
+// Este valor só vale quando se abre o arquivo direto do repositório, em
+// desenvolvimento. Mantê-lo à mão foi o que fez o aviso de atualização morrer:
+// dez publicações de `app.js` sem mexer aqui não instalam service worker novo.
+const CACHE = 'cinerea-dev';
 const SHELL = ['./', './index.html', './styles.css', './app.js', './core.js', './catalogo.html', './pedido.html', './cotacao.html', './config.js', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

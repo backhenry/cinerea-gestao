@@ -49,6 +49,23 @@ jobs:
             node --check /tmp/$p.mjs
           done
           node --check sw.js
+      # A VERSÃO DO SERVICE WORKER É CARIMBADA AQUI, e não à mão.
+      #
+      # O `sw.js` só se reinstala quando o próprio arquivo muda. Com a versão
+      # escrita à mão, dez publicações seguidas de `app.js` não mudavam o
+      # `sw.js`, nenhum service worker novo era instalado e o aviso de "Nova
+      # versão disponível" nunca aparecia — o app continuava servindo o código
+      # velho e parecia que o deploy não tinha saído.
+      #
+      # Com o SHA do commit no lugar da versão, todo deploy gera um `sw.js`
+      # diferente, e o aviso passa a funcionar como sempre foi desenhado.
+      - name: Carimbar a versão do service worker
+        run: |
+          sed -i "s/const CACHE = '[^']*'/const CACHE = 'cinerea-${GITHUB_SHA::12}'/" sw.js
+          grep -q "cinerea-${GITHUB_SHA::12}" sw.js || {
+            echo "::error::Não consegui carimbar a versão no sw.js"; exit 1; }
+          echo "sw.js carimbado: cinerea-${GITHUB_SHA::12}"
+
       - name: Gerar config.js a partir do secret
         env:
           CINEREA_CONFIG_JS: ${{ secrets.CINEREA_CONFIG_JS }}
