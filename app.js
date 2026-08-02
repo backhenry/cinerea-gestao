@@ -1372,13 +1372,46 @@ function renderBanner(){
   const situacao = desligado ? '<span class="pill low">desligado</span>'
     : vencido ? '<span class="pill warn">venceu em '+esc(b.ate)+'</span>'
     : '<span class="pill ok">no ar</span>';
+  const problema = cupomDoBannerFalha(b);
   box.innerHTML = `<div class="chartcard">
     <h3>${esc(b.titulo)} ${situacao}</h3>
     ${b.texto?`<div class="hint" style="margin-top:6px">${esc(b.texto)}</div>`:''}
     ${b.cupom?`<div class="hint" style="margin-top:6px">Cupom divulgado: <b>${esc(b.cupom)}</b></div>`:''}
     ${b.ate&&!vencido?`<div class="hint" style="margin-top:6px">Sai do ar em ${esc(b.ate)}</div>`:''}
+    ${problema?`<div class="hint-box" style="margin-top:10px"><b>O banner promete um desconto que a loja não dá.</b><br>${problema}</div>`:''}
     ${(desligado||vencido)?'<div class="hint-box" style="margin-top:10px">Neste estado ele <b>não sobe</b> quando você publicar a loja, e sai do ar se já estava lá.</div>':''}
   </div>`;
+}
+
+/**
+ * O banner anuncia um cupom que não vai funcionar? Devolve a explicação.
+ *
+ * ISTO ACONTECEU DE VERDADE (ago/2026): o banner no ar dizia "Celebre nossa
+ * inauguração com 15% OFF!" com o código INAUGURA15, e `cupons/INAUGURA15` não
+ * existia. O estrago não é só o desconto que não sai. O banner da loja é
+ * CLICÁVEL: tocar nele abre a sacola com o código já preenchido, e a loja
+ * responde "não encontrei esse cupom, confira as letras" — culpando o cliente
+ * por um código que ele não digitou, na página em que ele ia comprar.
+ *
+ * A conferência é contra o cadastro DAQUI e não contra o ar, porque salvar
+ * cupom já sincroniza sozinho. Divergência entre os dois é assunto do botão
+ * "Conferir o que está no ar", na aba de cupons.
+ */
+function cupomDoBannerFalha(b){
+  if(!b || !b.cupom) return '';
+  const cod = normalizarCupom(b.cupom);
+  if(!cod) return '';
+  const c = (db.cupons||[]).find(x => normalizarCupom(x.codigo||'') === cod);
+  const nome = `<b>${esc(cod)}</b>`;
+
+  if(!c) return `Não existe cupom ${nome} no seu cadastro. Crie em Vendas → Cupons, ou tire o código do banner.`;
+  if(c.ativo === 'desligado' || c.ativo === false)
+    return `O cupom ${nome} está desligado, então a loja recusa quem tocar no banner.`;
+  if(c.ate && hoje() > c.ate)
+    return `O cupom ${nome} venceu em ${esc(c.ate)}, e o banner continua anunciando.`;
+  if(c.ate && b.ate && b.ate > c.ate)
+    return `O banner fica até ${esc(b.ate)} e o cupom ${nome} vence antes, em ${esc(c.ate)}. Entre as duas datas ele anuncia sozinho.`;
+  return '';
 }
 
 function assinaturaCatalogo(){
