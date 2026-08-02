@@ -17,8 +17,11 @@ import { readFileSync } from 'node:fs';
 const fonte = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
 
 function extrair(nome) {
-  const i = fonte.indexOf(`function ${nome}(`);
+  let i = fonte.indexOf(`function ${nome}(`);
   assert.notEqual(i, -1, `não achei ${nome} no app.js`);
+  // O `async` vem ANTES do `function`: cortá-lo deixa um `await` solto dentro
+  // de função síncrona, e o erro parece do código medido, não do extrator.
+  if (fonte.slice(Math.max(0, i - 6), i) === 'async ') i -= 6;
   let j = fonte.indexOf('{', i), nivel = 0, fim = j;
   for (; fim < fonte.length; fim++) {
     if (fonte[fim] === '{') nivel++;
