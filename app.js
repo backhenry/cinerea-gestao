@@ -2114,24 +2114,23 @@ async function aceitarEncomenda(id){
   // primeiro deixaria a margem daquele item mentindo — e a comissão, que sai
   // do valor do pedido, sairia certa por acaso.
   const cod=normalizarCupom(e.cupom);
-  const bruto=(e.itens||[]).reduce((s,i)=>{
+  const precoDoItem=i=>{
     const p=db.produtos.find(x=>String(x.id)===String(i.id));
     const c=p?calcCusto(p).total:0;
     const preco=p?(Number(p.preco)||c*Number(p.markup||3)):Number(i.preco||0);
-    return s+preco*Number(i.qtd||1);
-  },0);
+    return preco*Number(i.qtd||1);
+  };
+  const cheios=(e.itens||[]).map(precoDoItem);
+  const bruto=cheios.reduce((s,x)=>s+x,0);
   const cup=cod?descontoDoCupom(cod,Math.round(bruto*100)/100):null;
   const desconto=cup?cup.desconto:0;
+  const valores=ratearDesconto(cheios,desconto);
 
-  (e.itens||[]).forEach(i=>{
+  (e.itens||[]).forEach((i,k)=>{
     const p=db.produtos.find(x=>String(x.id)===String(i.id));
-    const c=p?calcCusto(p).total:0;
-    const preco=p?(Number(p.preco)||c*Number(p.markup||3)):Number(i.preco||0);
-    const cheio=preco*Number(i.qtd||1);
-    const parte=(desconto>0&&bruto>0)?desconto*(cheio/bruto):0;
     db.pedidos.push({
       id:uidGen(), produto:p?p.id:'', clienteId:cli.id, cliente:cli.nome,
-      qtd:Number(i.qtd||1), valor:Math.round((cheio-parte)*100)/100,
+      qtd:Number(i.qtd||1), valor:valores[k],
       situacao:'Pendente', data:hoje(), origem:'loja do app', encomendaId:e.id,
       // O código fica gravado no pedido: é dele que a comissão é calculada, e
       // é o que permite conferir a atribuição meses depois.
@@ -2418,6 +2417,37 @@ function descontoDoCupom(codigo,total){
     ? Math.max(Number(c.valor)||0,0)
     : total*Math.min(Math.max(Number(c.valor)||0,0),100)/100;
   return {achou:true,cupom:c,desconto:Math.round(Math.min(bruto,total)*100)/100,motivo:''};
+}
+
+/**
+ * Reparte o desconto entre os pedidos, na proporção do valor de cada um.
+ *
+ * Aceitar uma encomenda cria UM PEDIDO POR ITEM. Jogar o desconto inteiro no
+ * primeiro deixaria a margem daquele item mentindo, e a comissão, que sai do
+ * valor do pedido, sairia certa só por acaso.
+ *
+ * O MAIOR ITEM ABSORVE A SOBRA, e é isso que faz a conta fechar. Repartir na
+ * proporção e arredondar cada parte por si perde ou ganha centavos: sete peças
+ * de R$ 19,99 com R$ 20 de desconto somavam R$ 119,91 quando o combinado com o
+ * cliente era R$ 119,93. Dois centavos que ninguém cobra e ninguém acha depois,
+ * e que deixam a receita divergindo do que o cliente pagou.
+ *
+ * A sobra vai no MAIOR e não no último porque o último pode ser um item de
+ * poucos centavos, que não tem de onde tirar.
+ */
+function ratearDesconto(cheios,desconto){
+  const cent=v=>Math.round(v*100)/100;
+  const valores=(cheios||[]).map(cent);
+  const bruto=cent((cheios||[]).reduce((s,x)=>s+x,0));
+  if(!(desconto>0)||!(bruto>0)||!valores.length) return valores;
+
+  const rateados=cheios.map(c=>cent(c-desconto*(c/bruto)));
+  const alvo=cent(bruto-desconto);
+  const sobra=cent(alvo-rateados.reduce((s,x)=>s+x,0));
+  let maior=0;
+  rateados.forEach((v,i)=>{ if(v>rateados[maior]) maior=i; });
+  rateados[maior]=cent(rateados[maior]+sobra);
+  return rateados;
 }
 
 /**
