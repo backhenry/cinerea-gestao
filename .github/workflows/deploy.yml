@@ -31,7 +31,7 @@ jobs:
       # lógica pura: cálculo (core.js) e o aviso do cupom do banner.
       # Rodam sem emulador. Teste novo sem emulador ENTRA AQUI, senão fica
       # no repositório sem nunca rodar na CI.
-      - run: node --test tests/core.test.mjs tests/banner.test.mjs tests/rateio.test.mjs
+      - run: node --test tests/core.test.mjs tests/banner.test.mjs tests/rateio.test.mjs tests/pago.test.mjs
       # regras de segurança: precisam do emulador do Firestore
       - run: npx firebase emulators:exec --only firestore "node --test tests/rules.test.mjs tests/flows.test.mjs"
 

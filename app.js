@@ -2059,9 +2059,17 @@ function conferirTotal(enc){
 function renderEncomendas(){
   const box=document.getElementById('encList');
   if(!box)return;
-  const novas=encomendas.filter(e=>e.situacao==='nova');
+  // PAGA CONTA COMO NOVA, e essa linha e dinheiro. O filtro pegava so 'nova',
+  // entao a encomenda que o cliente PAGOU sumia da caixa de entrada: o dinheiro
+  // entrava e a casa nao ficava sabendo. Paga vem primeiro, porque e a que ja
+  // tem dinheiro parado esperando alguem separar a peca.
+  const esperando = e => e.situacao==='paga' || e.situacao==='nova';
+  const novas=encomendas.filter(esperando);
   if(!encomendas.length){box.innerHTML='<div class="hint-box">Nenhuma encomenda ainda. Elas chegam quando alguém fecha a sacola no app.</div>';return;}
-  box.innerHTML=(novas.length?'':'<div class="hint">Nenhuma encomenda nova.</div>')+encomendas.map(e=>{
+  box.innerHTML=(novas.length?'':'<div class="hint">Nenhuma encomenda esperando.</div>')
+    +[...encomendas].sort((a,b)=>
+        (a.situacao==='paga'?0:a.situacao==='nova'?1:2)
+      - (b.situacao==='paga'?0:b.situacao==='nova'?1:2)).map(e=>{
     const t=conferirTotal(e);
     const itens=(e.itens||[]).map(i=>`<div class="prazo-item"><span>${i.qtd}× ${esc(i.nome)}</span><b>${brl(Number(i.preco||0)*Number(i.qtd||1))}</b></div>`).join('');
     const alerta = t.divergiu
@@ -2082,11 +2090,16 @@ function renderEncomendas(){
           : `<div class="prazo-item" style="margin-top:8px"><span>Cupom <b>${esc(cod)}</b>${vend?` · ${esc(vend.nome)} (${Number(vend.comissao)||0}% de comissão)`:' · <span style="color:var(--ember)">vendedor não cadastrado</span>'}</span><b>−${brl(cup.desconto)}</b></div>
              <div class="prazo-item"><span>Com o desconto</span><b>${brl(Math.round((t.nosso-cup.desconto)*100)/100)}</b></div>`
     );
-    const acoes = e.situacao==='nova'
+    const acoes = esperando(e)
       ? `<div style="display:flex;gap:8px;margin-top:12px"><button class="btn" onclick="aceitarEncomenda('${e.id}')">Aceitar e criar pedido</button><button class="btn2" onclick="recusarEncomenda('${e.id}')">Não consigo atender</button></div>`
       : `<div class="hint" style="margin-top:10px">Situação: ${esc(e.situacao)}</div>`;
     return `<div class="chartcard" style="margin-bottom:14px">
-      <h3>${esc(e.clienteNome||'Sem nome')} · ${brl(e.totalVisto)}</h3>
+      <h3>${esc(e.clienteNome||'Sem nome')} · ${brl(e.totalVisto)}
+        ${e.situacao==='paga'?'<span class="pill ok">JÁ PAGA</span>':''}
+        ${e.situacao==='aguardando pagamento'?'<span class="pill warn">pagamento em aberto</span>':''}</h3>
+      ${e.situacao==='paga'?`<div class="hint-box" style="margin-top:8px">O cliente
+        <b>já pagou ${brl(e.totalFechado)}</b>${Number(e.descontoAplicado)>0?` (com ${brl(e.descontoAplicado)} de desconto)`:''}.
+        O valor está fechado: aceitar cria os pedidos por ele, sem recalcular.</div>`:''}
       <div class="hint">${esc(e.clienteEmail||'')} · ${esc(e.clienteTelefone||'')}</div>
       <div class="hint" style="margin-top:6px">${esc(e.endereco||'sem endereço')}</div>
       ${e.recado?`<div class="hint" style="margin-top:6px">Recado: ${esc(e.recado)}</div>`:''}
@@ -2104,7 +2117,11 @@ function renderEncomendas(){
 async function aceitarEncomenda(id){
   const e=encomendas.find(x=>x.id===id);if(!e)return;
   const t=conferirTotal(e);
-  if(t.divergiu&&!confirm(`O cliente viu ${brl(e.totalVisto)} e o cadastro de hoje dá ${brl(t.nosso)}. Criar os pedidos pelo preço de hoje?`))return;
+  // Divergência de catálogo só interessa antes de haver dinheiro. Depois de
+  // pago, perguntar "criar pelo preço de hoje?" é oferecer uma escolha que não
+  // existe: o preço de hoje não é o que a pessoa pagou.
+  if(e.situacao!=='paga' && t.divergiu
+     && !confirm(`O cliente viu ${brl(e.totalVisto)} e o cadastro de hoje dá ${brl(t.nosso)}. Criar os pedidos pelo preço de hoje?`))return;
 
   let cli=db.clientes.find(c=>c.nome===e.clienteNome);
   if(!cli){cli={id:uidGen(),nome:e.clienteNome||'Cliente do app',contato:e.clienteTelefone||e.clienteEmail||'',endereco:e.endereco||''};db.clientes.push(cli);}
@@ -2122,8 +2139,17 @@ async function aceitarEncomenda(id){
   };
   const cheios=(e.itens||[]).map(precoDoItem);
   const bruto=cheios.reduce((s,x)=>s+x,0);
-  const cup=cod?descontoDoCupom(cod,Math.round(bruto*100)/100):null;
-  const desconto=cup?cup.desconto:0;
+  // O QUE JÁ FOI PAGO NÃO SE RECALCULA. Recalcular aqui reescreveria o valor
+  // por cima do que saiu da conta da pessoa: bastava o cupom vencer entre o
+  // pagamento e o aceite para a casa registrar um total MAIOR do que cobrou, e
+  // a comissão sair de um número que nunca existiu.
+  //
+  // Pago, o número está fechado desde o instante em que o dinheiro se moveu.
+  // Não pago, vale a conta de sempre — pelo cadastro desta casa, porque quem
+  // compra não pode ser dono do valor.
+  const jaPago = e.situacao==='paga' && Number(e.totalFechado)>0;
+  const cup=(!jaPago&&cod)?descontoDoCupom(cod,Math.round(bruto*100)/100):null;
+  const desconto=jaPago?(Number(e.descontoAplicado)||0):(cup?cup.desconto:0);
   const valores=ratearDesconto(cheios,desconto);
 
   (e.itens||[]).forEach((i,k)=>{
