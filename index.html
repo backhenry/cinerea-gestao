@@ -105,12 +105,15 @@
 </section>
   <section class="panel" id="p-vender">
     <nav class="subtabs" role="tablist" aria-label="Seções de venda">
-      <button class="active" role="tab" aria-selected="true" data-sub="pedidos" onclick="subAba('pedidos')">Pedidos</button>
-      <button class="" role="tab" aria-selected="false" data-sub="encomendas" onclick="subAba('encomendas');carregarEncomendas()">Encomendas</button>
+      <!-- ENCOMENDAS VEM PRIMEIRO porque é a ordem de uso: a encomenda chega,
+           você confere, e só então ela vira pedido. Pedidos na frente pedia
+           para começar pelo fim. -->
+      <button class="active" role="tab" aria-selected="true" data-sub="encomendas" onclick="subAba('encomendas');carregarEncomendas()">Encomendas</button>
+      <button class="" role="tab" aria-selected="false" data-sub="pedidos" onclick="subAba('pedidos')">Pedidos</button>
       <button class="" role="tab" aria-selected="false" data-sub="vendedores" onclick="subAba('vendedores')">Vendedores</button>
       <button class="" role="tab" aria-selected="false" data-sub="posts" onclick="subAba('posts')">Posts</button>
     </nav>
-    <div class="subpanel active" id="s-pedidos">
+    <div class="subpanel" id="s-pedidos">
     <div class="panel-head"><div><h2>Pedidos</h2><div class="desc">Vendas e encomendas</div></div><button class="btn" onclick="openForm('pedido')">+ Pedido</button></div>
     <div class="filterbar"><input id="qPed" placeholder="Buscar cliente, produto, descrição…" oninput="fV.q=this.value;renderPedidos()"><select id="mesPed" onchange="fV.m=this.value;renderPedidos()"></select></div>
     <div class="tablewrap"><table><thead><tr><th>Data</th><th>Cliente</th><th>Item</th><th>Prazo</th><th>Valor</th><th>Lucro</th><th>Situação</th><th></th></tr></thead><tbody id="tbPedidos"></tbody></table></div>
@@ -119,7 +122,7 @@
     <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Canais de venda</h2><div class="desc">Cada canal com sua taxa — o lucro do pedido usa a taxa do canal</div></div><button class="btn" onclick="openForm('canal')">+ Canal</button></div>
     <div class="tablewrap"><table><thead><tr><th>Canal</th><th>Taxa</th><th></th></tr></thead><tbody id="tbCanais"></tbody></table></div>
   </div>
-    <div class="subpanel" id="s-encomendas">
+    <div class="subpanel active" id="s-encomendas">
     <div class="panel-head">
       <div><h2>Encomendas</h2><div class="desc">O que chegou pela loja do app — confira antes de virar pedido</div></div>
       <div class="head-btns"><button class="btn2" onclick="carregarEncomendas()">Atualizar</button></div>

@@ -95,3 +95,30 @@ test('encomenda PAGA aparece na caixa de entrada', () => {
   assert.equal(esperando({ situacao: 'recusada' }), false);
   assert.equal(esperando({ situacao: 'aguardando pagamento' }), false);
 });
+
+// ---------------------------------------------------------------------------
+// O pedido que nasce
+// ---------------------------------------------------------------------------
+
+test('pedido de encomenda paga nasce PAGO, e não pendente', () => {
+  // "Pendente" num pedido já pago manda a casa cobrar de novo quem já pagou, e
+  // some do que o painel conta como recebido. A situação "Pago" já existia na
+  // lista do formulário; faltava usá-la.
+  const i = fonte.indexOf("situacao:jaPago?'Pago':'Pendente'");
+  assert.notEqual(i, -1, 'o pedido não olha mais se a encomenda foi paga');
+  const decidir = new Function('jaPago', `return ${fonte.slice(i + 9, fonte.indexOf(',', i))};`);
+  assert.equal(decidir(true), 'Pago');
+  assert.equal(decidir(false), 'Pendente');
+});
+
+test('a aba de Encomendas vem antes da de Pedidos', () => {
+  // É a ordem de uso: a encomenda chega, você confere, e só então vira pedido.
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const enc = html.indexOf('data-sub="encomendas"');
+  const ped = html.indexOf('data-sub="pedidos"');
+  assert.ok(enc !== -1 && ped !== -1, 'não achei as duas abas');
+  assert.ok(enc < ped, 'Pedidos voltou para a frente de Encomendas');
+  // E é ela que abre.
+  assert.ok(/<div class="subpanel active" id="s-encomendas">/.test(html),
+            'o painel que abre não é o de encomendas');
+});

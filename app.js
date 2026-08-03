@@ -481,7 +481,13 @@ function aplicarRotulos(){
 
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>{x.classList.remove('active');x.setAttribute('aria-selected','false');});b.classList.add('active');b.setAttribute('aria-selected','true');document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.getElementById('p-'+b.dataset.tab).classList.add('active');// no celular a barra rola: sem isto, tocar num grupo do fim deixa
   // o selecionado fora de vista
-  b.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});renderAll();});
+  b.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});renderAll();
+  // Encomendas agora ABRE por padrão no grupo Vender, e a lista dela vem do
+  // Firestore, não do cadastro local. Sem esta linha ela apareceria vazia até
+  // alguém clicar na aba que já estava selecionada -- que é o tipo de tela que
+  // faz parecer que não chegou encomenda nenhuma.
+  if(b.dataset.tab==='vender'&&document.getElementById('s-encomendas')?.classList.contains('active')) carregarEncomendas();
+});
 // paginação: tabelas longas renderizam por blocos (evita centenas de linhas no DOM)
 const PAG={producao:50,pedidos:50,compras:50};
 function maisLinhas(k){
@@ -2157,7 +2163,10 @@ async function aceitarEncomenda(id){
     db.pedidos.push({
       id:uidGen(), produto:p?p.id:'', clienteId:cli.id, cliente:cli.nome,
       qtd:Number(i.qtd||1), valor:valores[k],
-      situacao:'Pendente', data:hoje(), origem:'loja do app', encomendaId:e.id,
+      // NASCE PAGO quando o dinheiro já entrou. "Pendente" num pedido que foi
+      // pago manda a casa cobrar de novo quem já pagou -- e some do que o
+      // painel mostra como recebido.
+      situacao:jaPago?'Pago':'Pendente', data:hoje(), origem:'loja do app', encomendaId:e.id,
       // O código fica gravado no pedido: é dele que a comissão é calculada, e
       // é o que permite conferir a atribuição meses depois.
       ...(desconto>0?{cupom:cod}:{}),
