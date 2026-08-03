@@ -185,6 +185,78 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
   O Excel continua valendo — os dois caminhos caem na mesma lista de respostas.
   Campos de preço são type=text + inputmode=decimal (aceitam vírgula e ponto).
 
+## Revisão de interface (ago/2026)
+
+Três passadas na camada que vale para as 15 telas, em vez de redesenhar uma a
+uma. O que ficou como regra:
+
+**O rótulo das células no celular vem do `<thead>`, sozinho.** No celular a
+tabela vira cartão e o cabeçalho some; quem diz o que é cada valor é o `data-l`
+da célula, desenhado por `td::before{content:attr(data-l)}`. O mecanismo existia
+desde sempre e estava praticamente sem uso: **5 células tinham `data-l` e 136
+não** — a tabela de peças saía como sete números empilhados sem dizer qual é
+custo, qual é preço e qual é margem.
+
+Sair escrevendo `data-l` em 136 lugares consertaria hoje e voltaria a quebrar na
+próxima coluna, sem erro nenhum para avisar: foi assim que se chegou a 136. Um
+`MutationObserver` chama `rotularCelulas`, que lê o cabeçalho — as tabelas são
+preenchidas em dezenas de funções, e qualquer lista de chamadas fica incompleta
+do mesmo jeito. **Coluna nova nasce rotulada.**
+
+Qual coluna titula o cartão é decisão de cada tabela, no `<th data-titulo>`:
+Pedidos, Produção e Compras começam pela data, e um cartão intitulado "12/07"
+não diz de quem é o pedido. Quem não declara cai na primeira coluna.
+
+**Nada de emoji na interface.** Eram 18, entre botões e avisos. Quem desenha
+emoji é o sistema operacional — lixeira cinza no macOS, verde no Android — e a
+cor da marca não alcança, nem o tema escuro. Pior: `✎ ◈ ⟳ ▶ ◀ ✕ ✉` nem são
+emoji, são símbolos de texto, e viram retângulo vazio onde o glifo não existe.
+São 21 ícones em `ICONES`, desenhados no mesmo grid de 24 e herdando
+`currentColor` — é isso que os faz acompanhar hover e tema escuro de graça.
+`tests/tabelas.test.mjs` falha se algum voltar.
+
+Ficaram de propósito os dois que são CONTEÚDO e não interface: a vela na
+mensagem de WhatsApp e no rodapé do recibo, que é voz da marca indo para o
+cliente.
+
+**Números alinham à direita, com `tabular-nums`.** Sem isso o "1" é estreito e o
+"0" é largo, as casas decimais dançam de linha em linha, e comparar R$ 112,00
+com R$ 19,50 vira leitura caractere a caractere. Quem decide se a coluna é
+numérica é o CONTEÚDO (`alinharColunasNumericas` olha a classe `.money`), e não
+uma lista de nomes de coluna — que ficaria desatualizada como os `data-l`
+ficaram.
+
+**Os avisos do painel têm nível, e o nível vem escrito.** Iam todos para uma
+caixa cinza única separada por `<br>`: "peça hoje ou a produção para" do lado de
+"esse insumo ficou 14% mais caro". Quando tudo tem a mesma urgência, nada tem.
+A palavra ao lado do ícone não é enfeite: vermelho e âmbar são o par que mais
+gente confunde, e é exatamente o par que separa "peça hoje" de "vale cotar".
+
+**Dois níveis de aba não podem se parecer.** Grupo com fio embaixo, subgrupo em
+pastilha preenchida. E a barra avisa quando há mais à direita, e traz a aba
+ativa para dentro do campo de visão — no celular cabem 5 dos 6 grupos, e abrir
+em Ajustes deixava a barra parecendo sem seleção.
+
+**`.hint` vale pela classe, não só dentro de `.field`.** Toda dica fora de um
+campo saía em 14px na cor do texto, do tamanho do conteúdo.
+
+**O ícone é inline por padrão.** Como bloco, todo uso ao lado de texto quebrava
+a linha. Dentro de botão só de ícone o bloco é a exceção declarada.
+
+Armadilhas que apareceram no caminho, e que voltam:
+
+- **`:first-of-type` conta por TIPO de elemento, não por classe.** Usei para
+  separar seções e a regra pegou o cabeçalho do painel também. O que se quer
+  dizer é `.panel-head ~ .panel-head`.
+- **`position:sticky` não funciona dentro de `overflow:hidden`**, que era como o
+  canto arredondado da tabela era feito. Tirando o recorte, o arredondado tem de
+  vir das células dos cantos.
+- **O service worker serve o CSS velho.** Ele me enganou três vezes durante a
+  revisão, do mesmo jeito que já enganou ~10 deploys. Medir num `?v=` só troca o
+  HTML: o `styles.css` continua vindo do cache.
+- **Aba escondida congela `requestAnimationFrame`.** Esperar por quadro no painel
+  do navegador trava sem erro. Medir direto, ou buscar o instante.
+
 ## Pendente / próximo
 - Domínio próprio: passos no README (exige compra do domínio pelo dono).
 - Push com app fechado (FCM + backend) se a equipe sentir falta.
