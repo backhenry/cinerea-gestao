@@ -412,3 +412,97 @@ nav.tabs::after{content:'';flex:0 0 12px}
 /* Um ícone dentro de texto corrido (avisos do painel) alinha pela linha de base
    do texto, não pelo topo da caixa. */
 .hint-box .ico,#dashAlerts .ico{display:inline-block;vertical-align:-3px;margin-right:4px}
+
+/* ── Os avisos do painel ────────────────────────────────────────────────────
+   Uma linha por aviso, com o nível escrito ao lado do ícone. A cor sozinha não
+   decide: quem não distingue vermelho de âmbar ficaria sem a informação que a
+   tela existe para dar. */
+.avisos{list-style:none;display:flex;flex-direction:column;gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.aviso{display:flex;gap:14px;align-items:flex-start;background:var(--paper);padding:13px 16px;font-size:13.5px}
+.aviso-marca{display:flex;align-items:center;gap:6px;flex:0 0 88px;color:var(--warm)}
+.aviso-nivel{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase}
+.aviso-texto{color:var(--smoke)}
+.aviso-texto b{color:var(--char)}
+/* Um fio à esquerda, e não a faixa inteira tingida: sobre o creme do papel um
+   fundo de brasa a 6% vira um bege sujo que pesa mais do que informa. O fio dá
+   o mesmo destaque sem sujar a cor de fundo. */
+.aviso.urgente{border-left:3px solid var(--ember);padding-left:13px}
+.aviso.urgente .aviso-marca{color:var(--ember)}
+.aviso.atencao .aviso-marca{color:var(--warn)}
+.avisos-vazio{color:var(--smoke);font-family:'Fraunces';font-style:italic;padding:18px 2px}
+@media(max-width:560px){
+  .aviso{flex-direction:column;gap:5px}
+  .aviso-marca{flex:none}
+}
+
+/* ── Botão que fica ligado ──────────────────────────────────────────────────
+   "Só minhas" dizia que estava ativo trocando o rótulo para "✓ Só minhas". Um
+   glifo de texto como estado tem dois problemas: some onde a fonte não o tem, e
+   o rótulo do botão muda de tamanho a cada clique, empurrando o que está do
+   lado. O estado agora é do botão, e `aria-pressed` diz o mesmo a quem usa
+   leitor de tela — que antes não tinha como saber. */
+.btn2.ligado,.mini.ligado{background:var(--char);color:var(--paper);border-color:var(--char)}
+
+/* ── A barra de filtros ─────────────────────────────────────────────────────
+   Um campo de texto grande e vazio ao lado de um seletor estreito, e nada
+   dizendo que o campo é de busca. A lupa vai por `background-image`, e não por
+   um elemento novo: são seis barras dessas espalhadas pelo HTML, e um wrapper
+   em cada uma é seis chances de esquecer uma.
+
+   A cor da lupa é fixa no SVG porque imagem de fundo não herda `currentColor`.
+   Dá para viver com isso aqui: `--warm` é #8A7E70 no tema claro e #8A8075 no
+   escuro, praticamente a mesma tinta. */
+.filterbar input{
+  background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%238A7E70" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>');
+  background-repeat:no-repeat;background-position:11px 50%;background-size:15px;
+  padding-left:33px;
+}
+/* O seletor de mês tem largura mínima: com "todos os meses" ele fica largo e,
+   ao escolher um mês, encolhia e empurrava a barra inteira. */
+.filterbar select{min-width:170px}
+@media(max-width:560px){
+  .filterbar{flex-wrap:wrap}
+  .filterbar input{flex:1 1 100%}
+  .filterbar select{flex:1 1 auto;min-width:0}
+}
+
+/* ── Campos numéricos ───────────────────────────────────────────────────────
+   Alinhados à direita e com dígito de largura fixa, pelo mesmo motivo das
+   colunas de dinheiro: markup, preço e custo são digitados um embaixo do outro
+   no mesmo formulário, e conferir de relance exige a vírgula na mesma coluna.
+
+   As setinhas de incremento saem. Elas roubam largura do número, e no meio de
+   um formulário de custo ninguém ajusta preço de centavo em centavo clicando —
+   digita. Em celular elas nem existem. */
+.field input[type="number"]{text-align:right;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+.field input[type="number"]::-webkit-outer-spin-button,
+.field input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+/* `inputmode="decimal"` é o que faz o celular abrir o teclado de números em vez
+   do alfabético. Nenhum dos 11 campos numéricos tinha: lançar uma compra no
+   ateliê, de pé, começava trocando de teclado a cada campo. */
+
+/* ── O rodapé do formulário ─────────────────────────────────────────────────
+   No celular a ordem visual "Cancelar | Salvar" põe o botão de descartar sob o
+   polegar. Salvar é o que se faz noventa e nove vezes em cem. */
+@media(max-width:560px){
+  .modal-foot{flex-direction:column-reverse;gap:8px}
+  .modal-foot button{width:100%}
+  .field-row{grid-template-columns:1fr}
+}
+
+/* ── O formulário que continua abaixo ───────────────────────────────────────
+   O corpo do modal rola sob um rodapé fixo, e o corte era limpo: a linha
+   "Insumos R$ 84,00" aparecia cortada ao meio, sem nada dizendo que ali há
+   rolagem. Parece defeito de layout, e não conteúdo continuando.
+
+   A sombra no cabeçalho e no rodapé é o sinal, e é só quando há o que rolar —
+   `position:sticky` só a desenha quando o elemento efetivamente gruda. */
+.modal-head{box-shadow:0 1px 0 var(--line),0 6px 12px -10px rgba(28,26,23,.5)}
+.modal-foot{box-shadow:0 -1px 0 var(--line),0 -6px 12px -10px rgba(28,26,23,.5)}
+
+/* O botão de ícone dentro de uma pastilha de membro é menor que o da tabela:
+   a pastilha tem 34px de altura e um alvo de 30 a estouraria. Aqui o alvo
+   pequeno se justifica porque a ação é rara e fica longe de qualquer outra. */
+.membro-chip .icon-btn{width:22px;height:22px}
+.membro-chip .ico{width:14px;height:14px}

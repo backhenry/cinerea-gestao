@@ -78,7 +78,7 @@
 
     <!-- Primeiro o que pede ação. Antes isto vinha DEPOIS de nove gráficos:
          o urgente enterrado embaixo do que exige interpretação. -->
-    <div class="hint-box" id="dashAlerts" style="margin-top:20px"></div>
+    <div id="dashAlerts" style="margin-top:20px"></div>
     <div id="dashPrazos" style="margin-top:16px"></div>
 
     <div class="dash-numeros">
@@ -266,7 +266,7 @@
 
     <div class="subpanel active" id="s-lista">
       <div class="panel-head"><div><h2>Lista de compras</h2><div class="desc">O que está baixo, gerado automático</div></div><button class="btn2" onclick="exportCompras()">↓ Copiar lista</button></div>
-      <div class="hint-box">Reúne tudo que está no mínimo ou abaixo. A quantidade sugerida repõe até o dobro do mínimo — ajuste ao seu fornecedor. Quando comprar, toque em <b>✓ Comprei</b> para registrar a compra e dar entrada no estoque.</div>
+      <div class="hint-box">Reúne tudo que está no mínimo ou abaixo. A quantidade sugerida repõe até o dobro do mínimo — ajuste ao seu fornecedor. Quando comprar, toque em <b>Comprei</b> para registrar a compra e dar entrada no estoque.</div>
       <div id="shopList"></div>
     </div>
 
@@ -345,8 +345,8 @@
     <div class="guide-step"><div class="gn">1</div><div><h3>Cadastre insumos, moldes e equipamentos</h3><p>Em <b>Insumos</b>: cada material com estoque atual, mínimo (vira alerta) e custo. Em <b>Moldes</b>: vida útil (gesso ~40, cera ~120) — a produção soma usos sozinha. Em <b>Equipamentos</b>: informe custo e vida útil em horas para a depreciação entrar no preço.</p></div></div>
     <div class="guide-step"><div class="gn">2</div><div><h3>Monte o orçamento das peças</h3><p>Em <b>Orçamento</b>, crie o produto com a <b>receita de insumos</b>, tempo e equipamento. O app calcula custo, preço sugerido, margem e <b>lucro por hora</b> — arraste o slider de markup para simular. Marque "mostrar no catálogo" e use <b>Publicar catálogo</b> para gerar sua vitrine com link para a bio.</p></div></div>
     <div class="guide-step"><div class="gn">3</div><div><h3>Produza cronometrando</h3><p>Em <b>Produção</b>, registre com o <b>cronômetro</b> (▶) para ter o tempo real. Ao salvar, o estoque baixa, o molde ganha usos, a peça entra no estoque de prontas e o lote é gerado. Use <b>⟳</b> para repetir produções frequentes. Excluiu errado? <b>Desfazer</b> no aviso.</p></div></div>
-    <div class="guide-step"><div class="gn">4</div><div><h3>Venda com prazo e pagamentos</h3><p>Em <b>Pedidos</b>, ligue a venda ao produto, cliente e <b>canal</b> (a taxa certa entra no lucro). Defina o <b>prazo de entrega</b> — o Painel avisa atrasos e monta o <b>plano de produção</b>. Registre <b>sinal e parcelas</b> ao editar o pedido; use <b>🧾</b> para o recibo e <b>💬</b> para cobrar pelo WhatsApp.</p></div></div>
-    <div class="guide-step"><div class="gn">5</div><div><h3>Compre com cotação</h3><p>Em <b>Compras</b>, a lista do que está baixo se monta sozinha. Use <b>Nova cotação</b> para gerar a planilha (escolhendo itens e quantidades), envie ao fornecedor, <b>importe a resposta</b> e compare os preços — o 🛒 registra a compra com o melhor preço e o custo médio se atualiza. O 📈 no insumo mostra a evolução de preços.</p></div></div>
+    <div class="guide-step"><div class="gn">4</div><div><h3>Venda com prazo e pagamentos</h3><p>Em <b>Pedidos</b>, ligue a venda ao produto, cliente e <b>canal</b> (a taxa certa entra no lucro). Defina o <b>prazo de entrega</b> — o Painel avisa atrasos e monta o <b>plano de produção</b>. Registre <b>sinal e parcelas</b> ao editar o pedido; use o ícone de <b>recibo</b> e o de <b>conversa</b> para cobrar pelo WhatsApp.</p></div></div>
+    <div class="guide-step"><div class="gn">5</div><div><h3>Compre com cotação</h3><p>Em <b>Compras</b>, a lista do que está baixo se monta sozinha. Use <b>Nova cotação</b> para gerar a planilha (escolhendo itens e quantidades), envie ao fornecedor, <b>importe a resposta</b> e compare os preços — o ícone de <b>carrinho</b> registra a compra com o melhor preço e o custo médio se atualiza. O ícone de <b>gráfico</b> no insumo mostra a evolução de preços.</p></div></div>
     <div class="guide-step"><div class="gn">6</div><div><h3>Trabalhe em equipe</h3><p>Em <b>Equipe</b>, convide pessoas com um código que já define o papel: <b>admin</b> gere tudo, <b>sócio</b> vê o financeiro, <b>empregado</b> só opera. Distribua tarefas no kanban (arraste os cards), comente nelas e acompanhe a atividade e a produção de cada um.</p></div></div>
     <div class="guide-step"><div class="gn">7</div><div><h3>Feche o mês e proteja os dados</h3><p>No <b>Painel</b>: metas, ponto de equilíbrio, teto MEI e o botão <b>Fechamento</b> (DRE do mês para o contador). O backup mensal é automático; baixe um <b>Backup</b> manual de vez em quando, e use <b>Arquivar ano</b> quando os dados crescerem. A busca no alto da tela (atalho <b>/</b>) acha qualquer coisa.</p></div></div>
     <div class="checklist"><h3>Primeiros passos</h3>
