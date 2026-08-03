@@ -117,9 +117,9 @@
     <div class="panel-head"><div><h2>Pedidos</h2><div class="desc">Vendas e encomendas</div></div><button class="btn" onclick="openForm('pedido')">+ Pedido</button></div>
     <div class="filterbar"><input id="qPed" placeholder="Buscar cliente, produto, descrição…" oninput="fV.q=this.value;renderPedidos()"><select id="mesPed" onchange="fV.m=this.value;renderPedidos()"></select></div>
     <div class="tablewrap"><table><thead><tr><th>Data</th><th data-titulo>Cliente</th><th>Item</th><th>Prazo</th><th>Valor</th><th>Lucro</th><th>Situação</th><th></th></tr></thead><tbody id="tbPedidos"></tbody></table></div>
-    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Clientes</h2><div class="desc">Quem compra e quanto já comprou</div></div><button class="btn" onclick="openForm('cliente')">+ Cliente</button></div>
+    <div class="panel-head" style="margin-top:32px"><div><h2>Clientes</h2><div class="desc">Quem compra e quanto já comprou</div></div><button class="btn" onclick="openForm('cliente')">+ Cliente</button></div>
     <div class="tablewrap"><table><thead><tr><th>Nome</th><th>WhatsApp</th><th>Pedidos</th><th>Total</th><th></th></tr></thead><tbody id="tbClientes"></tbody></table></div>
-    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Canais de venda</h2><div class="desc">Cada canal com sua taxa — o lucro do pedido usa a taxa do canal</div></div><button class="btn" onclick="openForm('canal')">+ Canal</button></div>
+    <div class="panel-head" style="margin-top:32px"><div><h2>Canais de venda</h2><div class="desc">Cada canal com sua taxa — o lucro do pedido usa a taxa do canal</div></div><button class="btn" onclick="openForm('canal')">+ Canal</button></div>
     <div class="tablewrap"><table><thead><tr><th>Canal</th><th>Taxa</th><th></th></tr></thead><tbody id="tbCanais"></tbody></table></div>
   </div>
     <div class="subpanel active" id="s-encomendas">
@@ -137,7 +137,7 @@
     <div class="tablewrap"><table><thead><tr><th>Vendedor</th><th>Contato</th><th>Comissão</th><th>Vendas</th><th class="money">Vendido</th><th class="money">A pagar</th><th></th></tr></thead><tbody id="tbVendedores"></tbody></table></div>
 
     <div class="panel-head" style="margin-top:32px">
-      <div><h2 style="font-size:20px">Cupons</h2><div class="desc">O desconto que o cliente digita. Salvar e apagar já valem no site e no app na mesma hora</div></div>
+      <div><h2>Cupons</h2><div class="desc">O desconto que o cliente digita. Salvar e apagar já valem no site e no app na mesma hora</div></div>
       <div class="head-btns"><button class="btn2" onclick="publicarCupons()">Conferir o que está no ar</button><button class="btn" onclick="openForm('cupom')">+ Cupom</button></div>
     </div>
     <div id="cuponsAviso"></div>
@@ -309,7 +309,7 @@
 </div>
     <div id="bannerPreview"></div>
 
-<div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Custos fixos mensais</h2><div class="desc">Aluguel, energia, assinaturas — alimentam o ponto de equilíbrio no Painel</div></div><button class="btn" onclick="openForm('fixo')">+ Custo fixo</button></div>
+<div class="panel-head" style="margin-top:32px"><div><h2>Custos fixos mensais</h2><div class="desc">Aluguel, energia, assinaturas — alimentam o ponto de equilíbrio no Painel</div></div><button class="btn" onclick="openForm('fixo')">+ Custo fixo</button></div>
     <div class="tablewrap"><table><thead><tr><th>Custo</th><th>Valor mensal</th><th></th></tr></thead><tbody id="tbFixos"></tbody></table></div>
   </section>
   <section class="panel" id="p-ajustes">
@@ -326,9 +326,9 @@
       <div class="kb-col" ondragover="event.preventDefault()" ondrop="dropTarefa(event,1)"><h3>Fazendo <span class="kb-n" id="kbN1"></span></h3><div id="kb1"></div></div>
       <div class="kb-col" ondragover="event.preventDefault()" ondrop="dropTarefa(event,2)"><h3>Feito <span class="kb-n" id="kbN2"></span></h3><div id="kb2"></div></div>
     </div>
-    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Produção do mês por membro</h2><div class="desc">Peças e horas registradas por cada um</div></div></div>
+    <div class="panel-head" style="margin-top:32px"><div><h2>Produção do mês por membro</h2><div class="desc">Peças e horas registradas por cada um</div></div></div>
     <div class="chartcard" id="prodMembroBox"></div>
-    <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Atividade recente</h2><div class="desc">Quem fez o quê</div></div></div>
+    <div class="panel-head" style="margin-top:32px"><div><h2>Atividade recente</h2><div class="desc">Quem fez o quê</div></div></div>
     <div class="chartcard" id="atvBox"></div>
   </div>
     <div class="subpanel" id="s-usuarios">
@@ -344,7 +344,7 @@
     <div class="panel-head"><div><h2>Guia</h2><div class="desc">Como usar cada parte — na ordem certa</div></div></div>
     <div class="guide-step"><div class="gn">1</div><div><h3>Cadastre insumos, moldes e equipamentos</h3><p>Em <b>Insumos</b>: cada material com estoque atual, mínimo (vira alerta) e custo. Em <b>Moldes</b>: vida útil (gesso ~40, cera ~120) — a produção soma usos sozinha. Em <b>Equipamentos</b>: informe custo e vida útil em horas para a depreciação entrar no preço.</p></div></div>
     <div class="guide-step"><div class="gn">2</div><div><h3>Monte o orçamento das peças</h3><p>Em <b>Orçamento</b>, crie o produto com a <b>receita de insumos</b>, tempo e equipamento. O app calcula custo, preço sugerido, margem e <b>lucro por hora</b> — arraste o slider de markup para simular. Marque "mostrar no catálogo" e use <b>Publicar catálogo</b> para gerar sua vitrine com link para a bio.</p></div></div>
-    <div class="guide-step"><div class="gn">3</div><div><h3>Produza cronometrando</h3><p>Em <b>Produção</b>, registre com o <b>cronômetro</b> (▶) para ter o tempo real. Ao salvar, o estoque baixa, o molde ganha usos, a peça entra no estoque de prontas e o lote é gerado. Use <b>⟳</b> para repetir produções frequentes. Excluiu errado? <b>Desfazer</b> no aviso.</p></div></div>
+    <div class="guide-step"><div class="gn">3</div><div><h3>Produza cronometrando</h3><p>Em <b>Produção</b>, registre com o <b>cronômetro</b> para ter o tempo real. Ao salvar, o estoque baixa, o molde ganha usos, a peça entra no estoque de prontas e o lote é gerado. Use o ícone de <b>repetir</b> para produções frequentes. Excluiu errado? <b>Desfazer</b> no aviso.</p></div></div>
     <div class="guide-step"><div class="gn">4</div><div><h3>Venda com prazo e pagamentos</h3><p>Em <b>Pedidos</b>, ligue a venda ao produto, cliente e <b>canal</b> (a taxa certa entra no lucro). Defina o <b>prazo de entrega</b> — o Painel avisa atrasos e monta o <b>plano de produção</b>. Registre <b>sinal e parcelas</b> ao editar o pedido; use o ícone de <b>recibo</b> e o de <b>conversa</b> para cobrar pelo WhatsApp.</p></div></div>
     <div class="guide-step"><div class="gn">5</div><div><h3>Compre com cotação</h3><p>Em <b>Compras</b>, a lista do que está baixo se monta sozinha. Use <b>Nova cotação</b> para gerar a planilha (escolhendo itens e quantidades), envie ao fornecedor, <b>importe a resposta</b> e compare os preços — o ícone de <b>carrinho</b> registra a compra com o melhor preço e o custo médio se atualiza. O ícone de <b>gráfico</b> no insumo mostra a evolução de preços.</p></div></div>
     <div class="guide-step"><div class="gn">6</div><div><h3>Trabalhe em equipe</h3><p>Em <b>Equipe</b>, convide pessoas com um código que já define o papel: <b>admin</b> gere tudo, <b>sócio</b> vê o financeiro, <b>empregado</b> só opera. Distribua tarefas no kanban (arraste os cards), comente nelas e acompanhe a atividade e a produção de cada um.</p></div></div>

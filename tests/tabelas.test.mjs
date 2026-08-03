@@ -80,7 +80,11 @@ test('ninguém voltou a usar emoji como ícone', () => {
   // A flag `u` é obrigatória: sem ela a classe de caracteres quebra os pares
   // substitutos do UTF-16 e passa a casar METADE de cada emoji, o que dá falha
   // num arquivo limpo e não diz onde.
-  const proibidos = /[🗑✎⧉🔍💰◈]/gu;
+  // A lista cresceu junto com o conserto: os seis primeiros saíram na primeira
+  // passada e os outros na segunda, espalhados por botões que ninguém tinha
+  // olhado. `⟳ ▶ ◀ ✕ ✉` não são emoji, são símbolos de texto — pior ainda,
+  // porque caem para a fonte do aparelho e viram retângulo onde não existem.
+  const proibidos = /[🗑✎⧉🔍💰◈🛒📈🔗🧾💬🔔🌐👤🖨🔒⚠⟳▶◀✕✉]/gu;
   const semComentarios = js.replace(/\/\*[\s\S]*?\*\//g, '');
   const achados = semComentarios.match(proibidos) || [];
   assert.deepEqual(achados, [], `emoji de volta na interface: ${achados.join(' ')}`);
@@ -88,7 +92,10 @@ test('ninguém voltou a usar emoji como ícone', () => {
 });
 
 test('os ícones existem e são de traço', () => {
-  for (const nome of ['lapis', 'lixeira', 'copiar', 'lupa']) {
+  for (const nome of ['lapis', 'lixeira', 'copiar', 'lupa', 'grafico', 'carrinho',
+                      'elo', 'recibo', 'balao', 'fechar', 'cadeado', 'impressora',
+                      'envelope', 'sino', 'globo', 'pessoa', 'info', 'repetir',
+                      'play', 'antes', 'depois']) {
     assert.match(js, new RegExp(`${nome}:'<`), `falta o ícone ${nome}`);
   }
   // `currentColor` é o ponto todo: o ícone herda a cor do botão, e com isso

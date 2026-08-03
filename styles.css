@@ -120,7 +120,6 @@
   .filterbar input{flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:7px;background:var(--paper);font-size:13px}
   .filterbar select{padding:9px 12px;border:1px solid var(--line);border-radius:7px;background:var(--paper);font-size:13px}
   .kanban{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-  @media(max-width:720px){.kanban{grid-template-columns:1fr}}
   .kb-col{background:var(--ash);border-radius:10px;padding:14px;min-height:120px}
   .kb-col h3{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--warm);margin-bottom:12px}
   .kb-n{font-weight:400;color:var(--smoke)}
@@ -402,16 +401,19 @@ nav.tabs::after{content:'';flex:0 0 12px}
    `currentColor` é o ponto todo: o ícone recebe a cor do botão que o contém, e
    com isso acompanha o hover, o tema escuro e o acento da marca sem nenhuma
    regra a mais. Era o que emoji não fazia. */
-.ico{width:16px;height:16px;display:block;flex-shrink:0}
+/* O padrão é INLINE, porque a maioria dos usos é ao lado de um texto: o
+   responsável no cartão do kanban, o "pedir hoje" na linha do insumo, o rótulo
+   dentro de um botão. Como `display:block`, cada um desses quebrava a linha e
+   o ícone ia parar sozinho em cima da palavra que ele acompanha. Dentro de um
+   botão só de ícone o bloco é que serve, e é a exceção declarada abaixo. */
+.ico{width:16px;height:16px;display:inline-block;vertical-align:-3px;flex-shrink:0}
+.icon-btn .ico{display:block;vertical-align:baseline}
 .icon-btn{display:inline-flex;align-items:center;justify-content:center;
   width:30px;height:30px;padding:0;color:var(--warm)}
 .icon-btn:hover{color:var(--ember);background:var(--ash)}
 .mini-ico{display:inline-flex;align-items:center;justify-content:center;padding:7px 9px}
 .selo-loja{display:inline-flex;vertical-align:-3px;margin-left:6px;color:var(--warm)}
 .selo-loja .ico{width:14px;height:14px}
-/* Um ícone dentro de texto corrido (avisos do painel) alinha pela linha de base
-   do texto, não pelo topo da caixa. */
-.hint-box .ico,#dashAlerts .ico{display:inline-block;vertical-align:-3px;margin-right:4px}
 
 /* ── Os avisos do painel ────────────────────────────────────────────────────
    Uma linha por aviso, com o nível escrito ao lado do ícone. A cor sozinha não
@@ -421,6 +423,7 @@ nav.tabs::after{content:'';flex:0 0 12px}
   background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .aviso{display:flex;gap:14px;align-items:flex-start;background:var(--paper);padding:13px 16px;font-size:13.5px}
 .aviso-marca{display:flex;align-items:center;gap:6px;flex:0 0 88px;color:var(--warm)}
+.aviso-marca .ico{vertical-align:baseline}
 .aviso-nivel{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase}
 .aviso-texto{color:var(--smoke)}
 .aviso-texto b{color:var(--char)}
@@ -506,3 +509,52 @@ nav.tabs::after{content:'';flex:0 0 12px}
    pequeno se justifica porque a ação é rara e fica longe de qualquer outra. */
 .membro-chip .icon-btn{width:22px;height:22px}
 .membro-chip .ico{width:14px;height:14px}
+
+/* ── A dica solta ───────────────────────────────────────────────────────────
+   `.hint` só existia como `.field .hint`. Toda dica que não está dentro de um
+   campo — "Alterne claro e escuro entre posts", o estado da publicação — saía
+   em 14px na cor do texto, do mesmo tamanho do conteúdo, parecendo frase da
+   interface e não nota de rodapé. A regra passa a valer pela classe, que é o
+   que quem escreveu `class="hint"` quis dizer. */
+.hint{font-size:11px;color:var(--warm);margin-top:4px;line-height:1.5}
+
+/* ── A prévia do post acompanha a rolagem ───────────────────────────────────
+   O formulário é mais alto que a tela: ao chegar em "legenda" a imagem já
+   saiu de vista, e é ela que se está montando. Sem isto, escolher um clima
+   exige rolar para cima para ver o que mudou. */
+@media(min-width:901px){
+  .poststage{position:sticky;top:110px}
+}
+/* No celular a coluna única punha o formulário inteiro ANTES da prévia: a
+   pessoa preenchia tudo às cegas e só via o resultado no fim. Invertido, cada
+   escolha aparece logo acima do campo que a fez. */
+@media(max-width:900px){
+  .postgrid{display:flex;flex-direction:column}
+  .poststage{order:-1;position:sticky;top:96px;z-index:5;
+    background:var(--paper);padding:8px 0 12px;box-shadow:0 8px 12px -12px rgba(28,26,23,.5)}
+  .postwrap{max-width:min(100%,320px)}
+}
+
+/* ── O guia é texto para ler ────────────────────────────────────────────────
+   Os passos ocupavam a largura inteira do sistema. Uma linha de 1150px passa
+   dos 75 caracteres em que o olho ainda acha o começo da linha seguinte, e o
+   guia é justamente a tela que se lê de ponta a ponta, e não se varre. */
+.guide-step p{max-width:68ch}
+
+/* ── O quadro de tarefas no celular ─────────────────────────────────────────
+   As três colunas viravam três listas empilhadas: "Feito" ficava a duas telas
+   de rolagem de "A fazer", e o quadro deixava de ser quadro. Rolando de lado,
+   cada coluna ocupa quase a largura da tela e o encaixe para na coluna, então
+   o gesto para exatamente onde deveria. */
+@media(max-width:720px){
+  .kanban{
+    display:flex;gap:12px;overflow-x:auto;
+    scroll-snap-type:x mandatory;
+    margin:0 -20px;padding:0 20px 6px;
+    scrollbar-width:none;
+  }
+  .kanban::-webkit-scrollbar{display:none}
+  .kb-col{flex:0 0 82%;scroll-snap-align:start}
+  /* O respiro no fim deixa claro que a última coluna acabou. */
+  .kanban::after{content:'';flex:0 0 8px}
+}
