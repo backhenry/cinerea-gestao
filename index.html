@@ -53,7 +53,7 @@
 <header>
   <div class="head-in">
     <div class="brand"><svg class="sym" viewBox="0 0 150 150" fill="none"><path d="M108 46 C97 31,70 28,53 42 C36 56,36 94,53 108 C70 122,97 119,108 104" stroke="#1C1A17" stroke-width="9" fill="none" stroke-linecap="round"/><circle cx="112" cy="75" r="11" fill="#B5462A"/></svg><span id="brandName">Cinérea · Gestão</span></div>
-    <div class="head-actions"><span class="synced" id="syncState"><span class="dot"></span> sincronizado</span><button class="mini" onclick="abrirBusca()" title="Buscar (atalho: /)">🔍</button><button class="mini" onclick="openPerfil()">Perfil</button><button class="mini" onclick="doLogout()">Sair</button></div>
+    <div class="head-actions"><span class="synced" id="syncState"><span class="dot"></span> sincronizado</span><button class="mini mini-ico" onclick="abrirBusca()" title="Buscar (atalho: /)" aria-label="Buscar"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg></button><button class="mini" onclick="openPerfil()">Perfil</button><button class="mini" onclick="doLogout()">Sair</button></div>
   </div>
 </header>
 
@@ -116,7 +116,7 @@
     <div class="subpanel" id="s-pedidos">
     <div class="panel-head"><div><h2>Pedidos</h2><div class="desc">Vendas e encomendas</div></div><button class="btn" onclick="openForm('pedido')">+ Pedido</button></div>
     <div class="filterbar"><input id="qPed" placeholder="Buscar cliente, produto, descrição…" oninput="fV.q=this.value;renderPedidos()"><select id="mesPed" onchange="fV.m=this.value;renderPedidos()"></select></div>
-    <div class="tablewrap"><table><thead><tr><th>Data</th><th>Cliente</th><th>Item</th><th>Prazo</th><th>Valor</th><th>Lucro</th><th>Situação</th><th></th></tr></thead><tbody id="tbPedidos"></tbody></table></div>
+    <div class="tablewrap"><table><thead><tr><th>Data</th><th data-titulo>Cliente</th><th>Item</th><th>Prazo</th><th>Valor</th><th>Lucro</th><th>Situação</th><th></th></tr></thead><tbody id="tbPedidos"></tbody></table></div>
     <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Clientes</h2><div class="desc">Quem compra e quanto já comprou</div></div><button class="btn" onclick="openForm('cliente')">+ Cliente</button></div>
     <div class="tablewrap"><table><thead><tr><th>Nome</th><th>WhatsApp</th><th>Pedidos</th><th>Total</th><th></th></tr></thead><tbody id="tbClientes"></tbody></table></div>
     <div class="panel-head" style="margin-top:32px"><div><h2 style="font-size:20px">Canais de venda</h2><div class="desc">Cada canal com sua taxa — o lucro do pedido usa a taxa do canal</div></div><button class="btn" onclick="openForm('canal')">+ Canal</button></div>
@@ -242,7 +242,7 @@
     <div class="panel-head"><div><h2>Produção</h2><div class="desc">O que você fez, quanto tempo levou</div></div><button class="btn" onclick="openForm('producao')">+ Registro</button></div>
     <div class="hint-box">Registrar produção baixa o estoque dos insumos e soma uso ao molde, automaticamente.</div>
     <div class="filterbar"><input id="qPro" placeholder="Buscar produto, variação, lote…" oninput="fP.q=this.value;renderProducao()"><select id="mesPro" onchange="fP.m=this.value;renderProducao()"></select></div>
-    <div class="tablewrap"><table><thead><tr><th>Data</th><th>Produto</th><th>Qtd</th><th>Tempo/peça</th><th>Molde</th><th>Lote</th><th></th></tr></thead><tbody id="tbProducao"></tbody></table></div>
+    <div class="tablewrap"><table><thead><tr><th>Data</th><th data-titulo>Produto</th><th>Qtd</th><th>Tempo/peça</th><th>Molde</th><th>Lote</th><th></th></tr></thead><tbody id="tbProducao"></tbody></table></div>
   </div>
     <div class="subpanel" id="s-moldes">
     <div class="panel-head"><div><h2>Moldes</h2><div class="desc">Vida útil de cada molde</div></div><button class="btn" onclick="openForm('molde')">+ Molde</button></div>
@@ -272,7 +272,7 @@
 
     <div class="subpanel" id="s-hist">
       <div class="panel-head"><div><h2>Histórico de compras</h2><div class="desc">Cada compra com valor recalcula o custo médio do insumo</div></div><button class="btn" onclick="openForm('compra')">+ Compra</button></div>
-      <div class="tablewrap"><table><thead><tr><th>Data</th><th>Insumo</th><th>Qtd</th><th>Valor pago</th><th>R$/un</th><th>Fornecedor</th><th></th></tr></thead><tbody id="tbCompras"></tbody></table></div>
+      <div class="tablewrap"><table><thead><tr><th>Data</th><th data-titulo>Insumo</th><th>Qtd</th><th>Valor pago</th><th>R$/un</th><th>Fornecedor</th><th></th></tr></thead><tbody id="tbCompras"></tbody></table></div>
       <div class="chartcard" style="margin-top:24px"><h3>Gasto com compras por mês (R$)</h3><canvas id="chCompras"></canvas></div>
     </div>
 
@@ -348,7 +348,7 @@
     <div class="guide-step"><div class="gn">4</div><div><h3>Venda com prazo e pagamentos</h3><p>Em <b>Pedidos</b>, ligue a venda ao produto, cliente e <b>canal</b> (a taxa certa entra no lucro). Defina o <b>prazo de entrega</b> — o Painel avisa atrasos e monta o <b>plano de produção</b>. Registre <b>sinal e parcelas</b> ao editar o pedido; use <b>🧾</b> para o recibo e <b>💬</b> para cobrar pelo WhatsApp.</p></div></div>
     <div class="guide-step"><div class="gn">5</div><div><h3>Compre com cotação</h3><p>Em <b>Compras</b>, a lista do que está baixo se monta sozinha. Use <b>Nova cotação</b> para gerar a planilha (escolhendo itens e quantidades), envie ao fornecedor, <b>importe a resposta</b> e compare os preços — o 🛒 registra a compra com o melhor preço e o custo médio se atualiza. O 📈 no insumo mostra a evolução de preços.</p></div></div>
     <div class="guide-step"><div class="gn">6</div><div><h3>Trabalhe em equipe</h3><p>Em <b>Equipe</b>, convide pessoas com um código que já define o papel: <b>admin</b> gere tudo, <b>sócio</b> vê o financeiro, <b>empregado</b> só opera. Distribua tarefas no kanban (arraste os cards), comente nelas e acompanhe a atividade e a produção de cada um.</p></div></div>
-    <div class="guide-step"><div class="gn">7</div><div><h3>Feche o mês e proteja os dados</h3><p>No <b>Painel</b>: metas, ponto de equilíbrio, teto MEI e o botão <b>Fechamento</b> (DRE do mês para o contador). O backup mensal é automático; baixe um <b>Backup</b> manual de vez em quando, e use <b>Arquivar ano</b> quando os dados crescerem. A busca 🔍 (atalho <b>/</b>) acha qualquer coisa.</p></div></div>
+    <div class="guide-step"><div class="gn">7</div><div><h3>Feche o mês e proteja os dados</h3><p>No <b>Painel</b>: metas, ponto de equilíbrio, teto MEI e o botão <b>Fechamento</b> (DRE do mês para o contador). O backup mensal é automático; baixe um <b>Backup</b> manual de vez em quando, e use <b>Arquivar ano</b> quando os dados crescerem. A busca no alto da tela (atalho <b>/</b>) acha qualquer coisa.</p></div></div>
     <div class="checklist"><h3>Primeiros passos</h3>
       <label><input type="checkbox" onchange="saveCheck()" data-c="c1"> Cadastrei insumos com preços reais</label>
       <label><input type="checkbox" onchange="saveCheck()" data-c="c2"> Montei o orçamento das minhas peças</label>

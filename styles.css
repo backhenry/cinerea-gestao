@@ -296,3 +296,119 @@
    de erro. */
 .uid-linha{display:flex;align-items:center;gap:6px;margin-top:3px}
 .uid-linha code{font-size:11px;color:var(--warm);word-break:break-all}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REVISÃO DE INTERFACE (ago/2026)
+   ═══════════════════════════════════════════════════════════════════════════
+   Um bloco no fim, e não cirurgia no arquivo inteiro: o que vem acima é o
+   desenho de cada tela, e o que vem aqui são as regras que valem para TODAS.
+   Separado, dá para ler o que mudou sem caçar diferença em 300 linhas densas.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Números que dá para comparar com o olho ────────────────────────────────
+   Inter e Fraunces desenham dígitos de larguras diferentes por padrão: o "1" é
+   estreito e o "0" é largo. Numa coluna de dinheiro isso faz as casas decimais
+   dançarem de linha em linha, e comparar R$ 112,00 com R$ 19,50 vira leitura
+   caractere a caractere. `tabular-nums` dá a todo dígito a mesma largura, que é
+   para isso que ele existe.
+
+   E dinheiro alinha à DIREITA. Alinhado à esquerda, o que salta aos olhos é a
+   quantidade de dígitos e não a grandeza — some a única vantagem de empilhar
+   número embaixo de número. Vale para os valores e para o cabeçalho deles, que
+   `rotularCelulas` marca sozinho quando a coluna inteira é numérica. */
+table{font-variant-numeric:tabular-nums}
+td.money,td.num,th.num{text-align:right}
+.stat .v,.cost-summary,.money{font-variant-numeric:tabular-nums}
+
+/* ── O cabeçalho da tabela acompanha a rolagem ──────────────────────────────
+   Uma lista de trinta pedidos passa da altura da tela, e sem isto a pessoa rola
+   até o meio e não sabe mais qual coluna é "valor" e qual é "lucro". Sai no
+   celular, onde a tabela vira cartão e o cabeçalho não existe. */
+@media(min-width:721px){
+  /* `position:sticky` não funciona dentro de `overflow:hidden`, que era como o
+     canto arredondado da moldura era feito. Tirando o recorte, o arredondado
+     tem de vir das próprias células dos cantos — senão o fundo do cabeçalho
+     vaza para fora da borda e a tabela fica com quina quadrada dentro de uma
+     moldura redonda. */
+  .tablewrap{overflow:visible}
+  .tablewrap th{position:sticky;top:96px;z-index:2}
+  .tablewrap tr:first-child th:first-child{border-top-left-radius:10px}
+  .tablewrap tr:first-child th:last-child{border-top-right-radius:10px}
+  .tablewrap tbody tr:last-child td:first-child{border-bottom-left-radius:10px}
+  .tablewrap tbody tr:last-child td:last-child{border-bottom-right-radius:10px}
+}
+
+/* ── Foco visível ───────────────────────────────────────────────────────────
+   Os campos tinham `outline:none` e só trocavam a cor da borda; os botões não
+   tinham nada. Quem navega por Tab ficava sem saber onde está — e num sistema
+   de digitar pedido o teclado é o caminho rápido, não a exceção. `:focus-visible`
+   não aparece no clique de mouse, então não custa nada a quem usa o mouse. */
+:where(button,input,select,textarea,a,summary,[tabindex]):focus-visible{
+  outline:2px solid var(--ember);outline-offset:2px;border-radius:4px;
+}
+.field input:focus-visible,.field select:focus-visible{outline-offset:0}
+
+/* ── Cada seção como um bloco ───────────────────────────────────────────────
+   Um painel empilha três assuntos diferentes (Peças, Coleções, Banner), todos
+   com título do mesmo tamanho do título do painel e nenhuma linha entre eles.
+   Não dá para ver onde um acaba. O primeiro cabeçalho é o do painel; do segundo
+   em diante é uma seção, e ganha um fio acima e um título menor. */
+/* `.panel-head ~ .panel-head` e não `:not(:first-of-type)`: `first-of-type`
+   conta por TIPO de elemento, e `.panel-head` é uma `div` entre outras divs —
+   a regra pegava o cabeçalho do painel também, e ele nascia com fio em cima e
+   título encolhido. O combinador de irmão diz o que se quer de verdade: só o
+   cabeçalho que vem DEPOIS de outro é uma seção. */
+.panel-head ~ .panel-head{
+  margin-top:44px;padding-top:28px;border-top:1px solid var(--line);
+}
+.panel-head ~ .panel-head h2{font-size:20px}
+
+/* ── As duas barras de abas param de se parecer ─────────────────────────────
+   Grupo e subgrupo usavam o mesmo desenho (texto com fio embaixo), no mesmo
+   tamanho, um debaixo do outro: dava para olhar e não saber qual nível é qual.
+   O grupo continua com o fio; o subgrupo vira pastilha. */
+.subtabs button{
+  border:none;border-radius:999px;padding:7px 14px;font-size:13px;
+  color:var(--smoke);background:none;white-space:nowrap;
+}
+.subtabs button.active{background:var(--char);color:var(--paper)}
+.subtabs button:not(.active):hover{background:var(--ash);color:var(--char)}
+
+/* A barra rola quando não cabe, e sem um sinal disso a última aba some sem
+   deixar rastro — no celular são 6 grupos e cabem 5. O esmaecido na direita é
+   o sinal, e some no fim da rolagem. */
+.tabs.tem-mais,.subtabs.tem-mais{
+  -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);
+  mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);
+}
+nav.tabs{scroll-behavior:smooth}
+nav.tabs::after{content:'';flex:0 0 12px}
+
+/* ── O cartão do celular ────────────────────────────────────────────────────
+   Com rótulo em toda célula (ver `rotularCelulas`), o cartão ficou legível mas
+   ainda sem hierarquia: o nome da peça era mais uma linha rotulada, do mesmo
+   tamanho do resto. Ele é o título do cartão — é por ele que se acha a linha. */
+@media(max-width:720px){
+  .tablewrap tr{padding:14px}
+  .tablewrap td.celula-titulo{
+    display:block;text-align:left;font-size:16px;
+    padding:0 0 8px;margin-bottom:6px;border-bottom:1px solid var(--line);
+  }
+  .tablewrap td.celula-titulo::before{display:none}
+  .tablewrap td[data-l=""]{justify-content:flex-end}
+}
+
+/* ── O desenho dos ícones ───────────────────────────────────────────────────
+   `currentColor` é o ponto todo: o ícone recebe a cor do botão que o contém, e
+   com isso acompanha o hover, o tema escuro e o acento da marca sem nenhuma
+   regra a mais. Era o que emoji não fazia. */
+.ico{width:16px;height:16px;display:block;flex-shrink:0}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;
+  width:30px;height:30px;padding:0;color:var(--warm)}
+.icon-btn:hover{color:var(--ember);background:var(--ash)}
+.mini-ico{display:inline-flex;align-items:center;justify-content:center;padding:7px 9px}
+.selo-loja{display:inline-flex;vertical-align:-3px;margin-left:6px;color:var(--warm)}
+.selo-loja .ico{width:14px;height:14px}
+/* Um ícone dentro de texto corrido (avisos do painel) alinha pela linha de base
+   do texto, não pelo topo da caixa. */
+.hint-box .ico,#dashAlerts .ico{display:inline-block;vertical-align:-3px;margin-right:4px}

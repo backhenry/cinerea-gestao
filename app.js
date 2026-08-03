@@ -500,7 +500,7 @@ function linhaMais(k,total,mostrando,cols){
   return `<tr><td colspan="${cols}" style="text-align:center;padding:14px"><button class="btn2" onclick="maisLinhas('${k}')">Mostrar mais ${Math.min(50,total-mostrando)} de ${total-mostrando} restantes</button></td></tr>`;
 }
 
-function rowActions(t,id,rep){return `<div class="row-actions">${rep?`<button class="icon-btn" title="Repetir" onclick="repetir('${t}','${id}')">⟳</button>`:''}<button class="icon-btn" onclick="openForm('${t}','${id}')">✎</button><button class="icon-btn" onclick="del('${t}','${id}')">🗑</button></div>`;}
+function rowActions(t,id,rep){return `<div class="row-actions">${rep?`<button class="icon-btn" title="Repetir" onclick="repetir('${t}','${id}')">⟳</button>`:''}<button class="icon-btn" onclick="openForm('${t}','${id}')">${ico("lapis","Editar")}</button><button class="icon-btn" onclick="del('${t}','${id}')">${ico("lixeira","Apagar")}</button></div>`;}
 function repetir(type,id){const src=db[plural(type)].find(x=>x.id===id);if(!src)return;openForm(type);FORMS[type].fields.forEach(f=>{const el=document.getElementById('f_'+f.k);if(!el)return;if(f.t==='date'){el.value=f.k==='data'?hoje():'';}else if(src[f.k]!==undefined&&src[f.k]!==null)el.value=src[f.k];});}
 function toggleTimer(){const b=document.getElementById('timerBtn'),v=document.getElementById('timerView');if(!b)return;
   if(timerT0){clearInterval(timerInt);timerInt=null;const min=(Date.now()-timerT0)/60000;timerT0=null;const f=document.getElementById('f_minutos');if(f)f.value=Math.max(1,Math.round(min));b.textContent='▶ Cronometrar uma peça';if(v)v.textContent='tempo registrado ✓';}
@@ -588,7 +588,7 @@ function renderDash(){
   if(pode('fin'))db.produtos.forEach(p=>{
     const d=precoDefasado(p);
     if(!d)return;
-    a.push(`💰 <b>${esc(p.nome)}</b>: margem caiu de ${d.margemRef}% para <b>${d.margemAtual}%</b> — preço sugerido ${brl(d.sugerido)} (hoje ${brl(d.precoAtual)})`);
+    a.push(`${ico("alerta")} <b>${esc(p.nome)}</b>: margem caiu de ${d.margemRef}% para <b>${d.margemAtual}%</b> — preço sugerido ${brl(d.sugerido)} (hoje ${brl(d.precoAtual)})`);
   });
   // alerta de inflação: última compra bem acima do custo médio anterior
   db.insumos.forEach(i=>{
@@ -655,8 +655,8 @@ function renderCharts(){
 }
 function renderEquip(){document.getElementById('tbEquip').innerHTML=db.equip.length?db.equip.map(e=>`<tr><td>${esc(e.nome)}</td><td>${esc(e.tipo)||'—'}</td><td>${esc(e.compra)||'—'}</td><td class="money">${brl(e.custo)}</td><td><span class="pill ok">${esc(e.situacao||'Ativo')}</span></td><td>${rowActions('equip',e.id)}</td></tr>`).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum equipamento.</div></td></tr>`;}
 function renderMoldes(){document.getElementById('tbMoldes').innerHTML=db.moldes.length?db.moldes.map(m=>{const st=moldeStatus(m);const pct=Math.min(100,Math.round(m.usos/(m.vida||1)*100));const l=st==='low'?'Trocar':st==='warn'?'Quase no fim':'Bom';return `<tr><td>${esc(m.nome)}</td><td>${esc(m.material)}</td><td>${m.usos} / ${m.vida}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div></td><td><span class="pill ${st}">${l}</span></td><td>${rowActions('molde',m.id)}</td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum molde.</div></td></tr>`;}
-function renderInsumos(){document.getElementById('tbInsumos').innerHTML=db.insumos.length?db.insumos.map(i=>{const st=insumoStatus(i);const l=st==='low'?'Repor':st==='warn'?'Baixo':'OK';const pct=Math.min(100,Math.round(i.estoque/((i.minimo||1)*2)*100));const dias=diasEstoque(i);return `<tr><td>${esc(i.nome)}</td><td>${i.estoque} ${esc(i.unidade)}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div><div style="font-size:11px;color:var(--warm);margin-top:3px">mín. ${i.minimo}${dias!==null&&dias<365?` · acaba em ~<b style="color:${dias<15?'var(--ember)':'inherit'}">${dias}d</b>`:''}</div></td><td class="money">${brl(i.custo)}/${esc(i.unidade)}</td><td><span class="pill ${st}">${l}</span>${(()=>{const pv=previsao(i);return pv&&(pv.urgente||pv.atencao)?`<div style="font-size:11px;color:var(--ember);margin-top:3px">🛒 pedir ${pv.urgente?'hoje':'até '+pv.pedirAte.slice(8,10)+'/'+pv.pedirAte.slice(5,7)}</div>`:'';})()}</td><td><div class="row-actions"><button class="icon-btn" title="Histórico de preços" onclick="verPrecos('${i.id}')">📈</button><button class="icon-btn" onclick="openForm('insumo','${i.id}')">✎</button><button class="icon-btn" onclick="del('insumo','${i.id}')">🗑</button></div></td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum insumo.</div></td></tr>`;}
-function renderProdutos(){document.getElementById('tbProdutos').innerHTML=db.produtos.length?db.produtos.map(p=>{const c=calcCusto(p);const sug=c.total*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const margem=prat-taxa-c.total;const mpct=prat?Math.round(margem/prat*100):0;const h=Number(p.minutos||0)/60;const lph=h>0?margem/h:0;const def=precoDefasado(p);return `<tr><td>${esc(p.nome)}${p.publico?' <span title="no catálogo" style="color:var(--warm);font-size:11px">◈</span>':''}${def?`<div style="font-size:11px;color:var(--ember)">💰 defasado · sugerido ${brl(def.sugerido)}</div>`:''}</td><td class="money">${brl(c.total)}</td><td class="money" style="color:var(--smoke)">${brl(sug)}</td><td class="money">${brl(prat)}</td><td><span class="pill ${mpct>50?'ok':mpct>30?'warn':'low'}">${mpct}%</span></td><td class="money">${h>0?brl(lph):'—'}</td><td>${Number(p.pronto||0)}</td><td><div class="row-actions"><button class="icon-btn" title="Duplicar" onclick="duplicarProduto('${p.id}')">⧉</button><button class="icon-btn" onclick="openForm('produto','${p.id}')">✎</button><button class="icon-btn" onclick="del('produto','${p.id}')">🗑</button></div></td></tr>`;}).join(''):`<tr><td colspan=8><div class="empty-t">Nenhum produto.</div></td></tr>`;}
+function renderInsumos(){document.getElementById('tbInsumos').innerHTML=db.insumos.length?db.insumos.map(i=>{const st=insumoStatus(i);const l=st==='low'?'Repor':st==='warn'?'Baixo':'OK';const pct=Math.min(100,Math.round(i.estoque/((i.minimo||1)*2)*100));const dias=diasEstoque(i);return `<tr><td>${esc(i.nome)}</td><td>${i.estoque} ${esc(i.unidade)}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div><div style="font-size:11px;color:var(--warm);margin-top:3px">mín. ${i.minimo}${dias!==null&&dias<365?` · acaba em ~<b style="color:${dias<15?'var(--ember)':'inherit'}">${dias}d</b>`:''}</div></td><td class="money">${brl(i.custo)}/${esc(i.unidade)}</td><td><span class="pill ${st}">${l}</span>${(()=>{const pv=previsao(i);return pv&&(pv.urgente||pv.atencao)?`<div style="font-size:11px;color:var(--ember);margin-top:3px">🛒 pedir ${pv.urgente?'hoje':'até '+pv.pedirAte.slice(8,10)+'/'+pv.pedirAte.slice(5,7)}</div>`:'';})()}</td><td><div class="row-actions"><button class="icon-btn" title="Histórico de preços" onclick="verPrecos('${i.id}')">📈</button><button class="icon-btn" onclick="openForm('insumo','${i.id}')">${ico("lapis","Editar")}</button><button class="icon-btn" onclick="del('insumo','${i.id}')">${ico("lixeira","Apagar")}</button></div></td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum insumo.</div></td></tr>`;}
+function renderProdutos(){document.getElementById('tbProdutos').innerHTML=db.produtos.length?db.produtos.map(p=>{const c=calcCusto(p);const sug=c.total*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const margem=prat-taxa-c.total;const mpct=prat?Math.round(margem/prat*100):0;const h=Number(p.minutos||0)/60;const lph=h>0?margem/h:0;const def=precoDefasado(p);return `<tr><td>${esc(p.nome)}${p.publico?' <span class="selo-loja" title="no catálogo">${ico("loja","no catálogo")}</span>':''}${def?`<div style="font-size:11px;color:var(--ember)">${ico("alerta")} defasado · sugerido ${brl(def.sugerido)}</div>`:''}</td><td class="money">${brl(c.total)}</td><td class="money" style="color:var(--smoke)">${brl(sug)}</td><td class="money">${brl(prat)}</td><td><span class="pill ${mpct>50?'ok':mpct>30?'warn':'low'}">${mpct}%</span></td><td class="money">${h>0?brl(lph):'—'}</td><td>${Number(p.pronto||0)}</td><td><div class="row-actions"><button class="icon-btn" title="Duplicar" onclick="duplicarProduto('${p.id}')">${ico("copiar","Duplicar")}</button><button class="icon-btn" onclick="openForm('produto','${p.id}')">${ico("lapis","Editar")}</button><button class="icon-btn" onclick="del('produto','${p.id}')">${ico("lixeira","Apagar")}</button></div></td></tr>`;}).join(''):`<tr><td colspan=8><div class="empty-t">Nenhum produto.</div></td></tr>`;}
 function renderProducao(){
   fillMeses('mesPro',db.producao,fP.m);
   const todas=[...db.producao].reverse().filter(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const txt=((prod?prod.nome:'')+' '+(p.variacao||'')+' '+(p.lote||'')).toLowerCase();return(!fP.q||txt.includes(fP.q.toLowerCase()))&&(!fP.m||(p.data||'').slice(0,7)===fP.m);});
@@ -677,7 +677,7 @@ function renderPedidos(){
     const lucro=l===null||p.situacao==='Cancelado'?'—':`<span class="money" style="color:${l>=0?'var(--ok)':'var(--ember)'}">${brl(l)}</span>`;
     const aberto=p.situacao!=='Entregue'&&p.situacao!=='Cancelado';
     const prazo=p.prazo?(aberto&&p.prazo<hj?`<span class="pill low">${esc(p.prazo)}</span>`:esc(p.prazo)):'—';
-    const acts=`<div class="row-actions"><button class="icon-btn" title="${p.portalToken?'Reenviar link de acompanhamento':'Compartilhar acompanhamento com o cliente'}" onclick="compartilharPedido('${p.id}')">${p.portalToken?'🔗':'🔗'}</button><button class="icon-btn" title="Recibo" onclick="reciboPedido('${p.id}')">🧾</button>${aberto&&cli?`<button class="icon-btn" title="Cobrar no WhatsApp" onclick="cobrarPedido('${p.id}')">💬</button>`:''}<button class="icon-btn" title="Repetir" onclick="repetir('pedido','${p.id}')">⟳</button><button class="icon-btn" onclick="openForm('pedido','${p.id}')">✎</button><button class="icon-btn" onclick="del('pedido','${p.id}')">🗑</button></div>`;
+    const acts=`<div class="row-actions"><button class="icon-btn" title="${p.portalToken?'Reenviar link de acompanhamento':'Compartilhar acompanhamento com o cliente'}" onclick="compartilharPedido('${p.id}')">${p.portalToken?'🔗':'🔗'}</button><button class="icon-btn" title="Recibo" onclick="reciboPedido('${p.id}')">🧾</button>${aberto&&cli?`<button class="icon-btn" title="Cobrar no WhatsApp" onclick="cobrarPedido('${p.id}')">💬</button>`:''}<button class="icon-btn" title="Repetir" onclick="repetir('pedido','${p.id}')">⟳</button><button class="icon-btn" onclick="openForm('pedido','${p.id}')">${ico("lapis","Editar")}</button><button class="icon-btn" onclick="del('pedido','${p.id}')">${ico("lixeira","Apagar")}</button></div>`;
     return `<tr><td>${esc(p.data)||'—'}</td><td>${cli?esc(cli.nome):esc(p.cliente)||'—'}</td><td>${nome}</td><td>${prazo}</td><td class="money">${brl(p.valor)}</td><td>${lucro}</td><td><span class="pill ${sc[p.situacao]||'warn'}">${esc(p.situacao||'Pendente')}</span></td><td>${acts}</td></tr>`;
   }).join(''):`<tr><td colspan=8><div class="empty-t">${db.pedidos.length?'Nada encontrado com esse filtro.':'Nenhum pedido.'}</div></td></tr>`)+linhaMais('pedidos',todos.length,rows.length,8);
   // totais do filtro atual (soma TODOS os filtrados, não só a página visível)
@@ -697,7 +697,7 @@ function renderEquipe(){
   box.innerHTML=Object.entries(membros).map(([id,m])=>{
     const papel=id===empresaDono?'dono':(m.papel||'empregado');
     const badge=`<span class="papel ${papel}" ${ger&&id!==empresaDono?`style="cursor:pointer" title="Trocar papel" onclick="mudarPapel('${id}')"`:''}>${PAPEL_LABEL[papel]}</span>`;
-    return `<div class="membro-chip">${esc(m.nome||'membro')} ${badge}${id===uid?' <button class="icon-btn" title="Editar meu nome" onclick="renomearMe()">✎</button>':(ger&&id!==empresaDono?` <button class="icon-btn" title="Remover" onclick="removerMembro('${id}')">✕</button>`:'')}</div>`;
+    return `<div class="membro-chip">${esc(m.nome||'membro')} ${badge}${id===uid?' <button class="icon-btn" title="Editar meu nome" onclick="renomearMe()">${ico("lapis","Editar")}</button>':(ger&&id!==empresaDono?` <button class="icon-btn" title="Remover" onclick="removerMembro('${id}')">✕</button>`:'')}</div>`;
   }).join('')||'<span style="color:var(--smoke);font-size:13px">Carregando membros…</span>';
   const cols=['aberta','fazendo','feita'];const hj=hoje();
   cols.forEach((st,i)=>{
@@ -706,7 +706,7 @@ function renderEquipe(){
     document.getElementById('kb'+i).innerHTML=cards.map(t=>{
       const resp=membros[t.resp]?esc(membros[t.resp].nome):'';
       const atrasada=t.prazo&&st!=='feita'&&t.prazo<hj;
-      return `<div class="kb-card ${st==='feita'?'done':''}" draggable="true" ondragstart="dragTarefa(event,'${t.id}')"><div class="t">${esc(t.titulo)}</div>${t.desc?`<div class="m">${esc(t.desc)}</div>`:''}<div class="m ${atrasada?'late':''}">${resp?'👤 '+resp:''}${t.prazo?(resp?' · ':'')+(atrasada?'⚠ ':'')+esc(t.prazo):''}${(t.coments||[]).length?` · 💬 ${t.coments.length}`:''}</div><div class="acts">${i>0?`<button class="icon-btn" title="Voltar" onclick="moveTarefa('${t.id}',-1)">◀</button>`:''}${i<2?`<button class="icon-btn" title="Avançar" onclick="moveTarefa('${t.id}',1)">▶</button>`:''}<button class="icon-btn" onclick="openForm('tarefa','${t.id}')">✎</button><button class="icon-btn" onclick="del('tarefa','${t.id}')">🗑</button></div></div>`;
+      return `<div class="kb-card ${st==='feita'?'done':''}" draggable="true" ondragstart="dragTarefa(event,'${t.id}')"><div class="t">${esc(t.titulo)}</div>${t.desc?`<div class="m">${esc(t.desc)}</div>`:''}<div class="m ${atrasada?'late':''}">${resp?'👤 '+resp:''}${t.prazo?(resp?' · ':'')+(atrasada?'⚠ ':'')+esc(t.prazo):''}${(t.coments||[]).length?` · 💬 ${t.coments.length}`:''}</div><div class="acts">${i>0?`<button class="icon-btn" title="Voltar" onclick="moveTarefa('${t.id}',-1)">◀</button>`:''}${i<2?`<button class="icon-btn" title="Avançar" onclick="moveTarefa('${t.id}',1)">▶</button>`:''}<button class="icon-btn" onclick="openForm('tarefa','${t.id}')">${ico("lapis","Editar")}</button><button class="icon-btn" onclick="del('tarefa','${t.id}')">${ico("lixeira","Apagar")}</button></div></div>`;
     }).join('')||'<div style="color:var(--warm);font-size:12px;font-style:italic">vazio</div>';
   });
 }
@@ -1651,7 +1651,7 @@ function renderCotacoes(){const tb=document.getElementById('tbCotacoes');if(!tb)
     const alvosNomes=(c.alvos||[]).map(a=>{const f=(db.fornecedores||[]).find(x=>x.id===a);return f?f.nome:'';}).filter(Boolean);
     const pendComWhats=(c.alvos||[]).map(a=>(db.fornecedores||[]).find(x=>x.id===a)).filter(f=>f&&String(f.whats||'').replace(/\D/g,'').length>=10&&!(c.respostas||[]).some(r=>r.fornecedorId===f.id));
     const online=c.rfqToken?(c.rfqFechada?'<div style="font-size:11px;color:var(--warm)">🌐 portal encerrado</div>':'<div style="font-size:11px;color:var(--ok)">🌐 aberto no portal</div>'):'';
-    return `<tr><td style="font-family:monospace">${esc(c.id)}${alvosNomes.length?`<div style="font-size:11px;color:var(--warm)">→ ${esc(alvosNomes.join(', '))}</div>`:''}${c.cond?`<div style="font-size:11px;color:var(--warm)">${esc(c.cond)}</div>`:''}${online}</td><td>${esc(c.data)}</td><td>${c.itens.length}</td><td>${st}</td><td><div class="row-actions"><button class="icon-btn" title="${c.rfqToken?'Copiar link do portal':'Publicar cotação online'}" onclick="linkCotacao('${c.id}')">🌐</button>${c.rfqToken?`<button class="icon-btn" title="Buscar respostas enviadas pelo portal" onclick="buscarRespostasOnline('${c.id}')">⬇</button>`:''}${c.rfqToken&&!c.rfqFechada?`<button class="icon-btn" title="Encerrar cotação online" onclick="fecharRfq('${c.id}')">🔒</button>`:''}${pendComWhats.length?`<button class="icon-btn" title="Enviar/cobrar no WhatsApp" onclick="enviarCotacaoWhats('${c.id}')">💬</button>`:''}${nResp?`<button class="icon-btn" title="Comparar preços" onclick="verCotacao('${c.id}')">⇄</button>`:''}<button class="icon-btn" onclick="del('cotacao','${c.id}')">🗑</button></div></td></tr>`;
+    return `<tr><td style="font-family:monospace">${esc(c.id)}${alvosNomes.length?`<div style="font-size:11px;color:var(--warm)">→ ${esc(alvosNomes.join(', '))}</div>`:''}${c.cond?`<div style="font-size:11px;color:var(--warm)">${esc(c.cond)}</div>`:''}${online}</td><td>${esc(c.data)}</td><td>${c.itens.length}</td><td>${st}</td><td><div class="row-actions"><button class="icon-btn" title="${c.rfqToken?'Copiar link do portal':'Publicar cotação online'}" onclick="linkCotacao('${c.id}')">🌐</button>${c.rfqToken?`<button class="icon-btn" title="Buscar respostas enviadas pelo portal" onclick="buscarRespostasOnline('${c.id}')">⬇</button>`:''}${c.rfqToken&&!c.rfqFechada?`<button class="icon-btn" title="Encerrar cotação online" onclick="fecharRfq('${c.id}')">🔒</button>`:''}${pendComWhats.length?`<button class="icon-btn" title="Enviar/cobrar no WhatsApp" onclick="enviarCotacaoWhats('${c.id}')">💬</button>`:''}${nResp?`<button class="icon-btn" title="Comparar preços" onclick="verCotacao('${c.id}')">⇄</button>`:''}<button class="icon-btn" onclick="del('cotacao','${c.id}')">${ico("lixeira","Apagar")}</button></div></td></tr>`;
   }).join(''):`<tr><td colspan=5><div class="empty-t">Nenhuma cotação — gere uma a partir da lista de compras.</div></td></tr>`;
   // gasto com compras por mês
   if(typeof Chart!=='undefined'&&document.getElementById('chCompras')){
@@ -2344,14 +2344,14 @@ function renderAcessos(){
       <td>${esc(par ? (par[1].nome || a.nome || '') : (a.nome||'—'))}
         ${par?`<div class="uid-linha">
           <code>${esc(par[0])}</code>
-          <button class="icon-btn" title="Copiar o uid" onclick="copiarUid('${esc(par[0])}')">⧉</button>
+          <button class="icon-btn" title="Copiar o uid" onclick="copiarUid('${esc(par[0])}')">${ico("copiar","Copiar o uid")}</button>
         </div>`:''}</td>
       <td>${esc(PAPEL_LABEL[a.papel]||a.papel)}${divergiu?`<div style="font-size:11px;color:var(--ember)">na empresa está como ${esc(PAPEL_LABEL[papelReal]||papelReal)}</div>`:''}</td>
       <td>${situacao}</td>
       <td>${ger?`<div class="row-actions">
         ${par?'':`<button class="icon-btn" title="Enviar convite por e-mail" onclick="convidarPorEmail('${esc(a.email)}')">✉</button>`}
-        <button class="icon-btn" onclick="openForm('acesso','${a.id}')">✎</button>
-        <button class="icon-btn" onclick="del('acesso','${a.id}')">🗑</button>
+        <button class="icon-btn" onclick="openForm('acesso','${a.id}')">${ico("lapis","Editar")}</button>
+        <button class="icon-btn" onclick="del('acesso','${a.id}')">${ico("lixeira","Apagar")}</button>
       </div>`:''}</td>
     </tr>`;
   }).join('') : `<tr><td colspan=5><div class="empty-t">Ninguém cadastrado além de você. Cadastre o e-mail de quem vai usar a gestão.</div></td></tr>`;
@@ -2390,7 +2390,7 @@ function renderAcessos(){
     <code>gestores</code> do Firebase, e ela só se mexe por lá. Para ${esc(PAPEL_LABEL.socio)}
     ou ${esc(PAPEL_LABEL.admin)} enxergar a caixa de entrada, crie no Console o
     documento <code>gestores/{uid}</code> com o uid que aparece ao lado do nome
-    da pessoa (o ⧉ copia). Qualquer campo serve.
+    da pessoa (o botão ao lado copia). Qualquer campo serve.
     <br><br>
     São dois conceitos que não conversam, e é de propósito:
     <code>gestores</code> é "quem é da casa" e vale para o projeto inteiro,
@@ -2879,3 +2879,161 @@ async function confirmarPublicacao(){
 }
 
 Object.assign(window,{revisarPublicacao,confirmarPublicacao});
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ÍCONES
+   ═══════════════════════════════════════════════════════════════════════════
+   Eram emoji: 🗑 ✎ ⧉ 🔍 💰 ◈. Emoji não é ícone de sistema, e por três razões
+   que aparecem todas na tela do dono:
+
+   - quem desenha é o SISTEMA OPERACIONAL. O mesmo 🗑 sai como lixeira cinza no
+     macOS, verde no Android e azul no Windows — a paleta da marca não alcança;
+   - a cor é fixa. `color:var(--warm)` não pinta emoji, então o botão de apagar
+     ficava colorido no meio de uma interface de dois tons, e o tema escuro não
+     mexia nele;
+   - `✎` e `◈` não são emoji, são símbolos de texto: caem para a fonte que o
+     aparelho tiver, e num celular sem esse glifo saem como retângulo vazio.
+
+   SVG em traço herda `currentColor`, alinha com o texto e é o mesmo desenho em
+   todo lugar. São seis, todos no mesmo grid de 24 e com o mesmo peso de traço
+   da marca.
+*/
+const ICONES={
+  lapis:'<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/>',
+  lixeira:'<path d="M4 7h16"/><path d="M10 4h4M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/>',
+  copiar:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
+  lupa:'<circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/>',
+  baixar:'<path d="M12 4v11"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/>',
+  subir:'<path d="M12 20V9"/><path d="m7 13 5-5 5 5"/><path d="M5 4h14"/>',
+  alerta:'<path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/><circle cx="12" cy="12" r="8.5"/>',
+  loja:'<path d="M4 9h16l-1.2 10.2a1 1 0 0 1-1 .8H6.2a1 1 0 0 1-1-.8L4 9Z"/><path d="M9 9V6.5a3 3 0 0 1 6 0V9"/>',
+};
+
+/** Um ícone de traço, do tamanho do texto ao lado. `rotulo` vira o title. */
+function ico(nome,rotulo){
+  const d=ICONES[nome];
+  if(!d) return '';
+  return `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" `
+    +`stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"`
+    +(rotulo?` role="img"><title>${esc(rotulo)}</title>`:`>`)+d+'</svg>';
+}
+Object.assign(window,{ico});
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   O RÓTULO DAS CÉLULAS NO CELULAR
+   ═══════════════════════════════════════════════════════════════════════════
+
+   No celular a tabela deixa de ser tabela: cada linha vira um cartão, e o
+   cabeçalho some. Quem diz o que é cada valor é o `data-l` da célula, que o CSS
+   desenha com `td::before{content:attr(data-l)}`.
+
+   O mecanismo existia desde sempre e estava praticamente sem uso: 5 células
+   tinham `data-l` e 136 não. Ou seja, no aparelho em que o dono mais abre isto
+   — o celular, no meio do ateliê — a tabela de peças aparecia assim:
+
+       Ondina
+       Coleção Areia
+       R$ 112,00
+       R$ 280,00
+       60,0%
+
+   Sete números empilhados e nenhum dizendo se é custo, preço ou margem. Num
+   sistema em que a pessoa decide preço olhando margem, isso não é feio: é
+   ilegível.
+
+   A correção NÃO é sair escrevendo `data-l` em 136 lugares. Isso conserta hoje
+   e volta a quebrar na próxima coluna que alguém adicionar, sem erro nenhum
+   para avisar — foi exatamente assim que se chegou a 136. O rótulo passa a vir
+   do `<thead>` da própria tabela, que já tem o nome de cada coluna e já é a
+   fonte da verdade quando a tela é larga. Uma coluna nova nasce rotulada.
+
+   Um `MutationObserver` em vez de chamar depois de cada render: as tabelas são
+   preenchidas em dezenas de funções diferentes (`renderProdutos`,
+   `renderPedidos`, `carregarEncomendas`…), e qualquer lista de chamadas fica
+   incompleta do mesmo jeito que a lista de `data-l` ficou. O observador não
+   depende de ninguém lembrar dele.
+
+   `colSpan` é respeitado: a linha de "nenhum produto" ocupa a tabela inteira e
+   não pode receber o rótulo da primeira coluna.
+*/
+function rotularCelulas(tabela){
+  if(!tabela) return;
+  const colunas=[...tabela.querySelectorAll('thead th')];
+  const cabecalhos=colunas.map(th=>th.textContent.trim());
+  if(!cabecalhos.length) return;
+  /* Qual coluna vira o TÍTULO do cartão no celular.
+     A primeira coluna serve para quase todas as tabelas, e mente em três:
+     Pedidos, Produção e Compras começam pela data, e um cartão intitulado
+     "12/07" não diz de quem é o pedido — que é justamente o que se procura ao
+     correr o olho pela lista. Por isso o `<th data-titulo>` no HTML: é decisão
+     de cada tabela, fica visível ao lado do nome da coluna, e quem não declara
+     cai na primeira, que é o certo na maioria. */
+  const iTitulo=Math.max(0,colunas.findIndex(th=>th.hasAttribute('data-titulo')));
+  for(const linha of tabela.querySelectorAll('tbody tr')){
+    let coluna=0;
+    for(const celula of linha.children){
+      // Célula que atravessa a tabela é aviso de vazio, não dado de coluna.
+      if(celula.colSpan>1){ celula.setAttribute('data-l',''); coluna+=celula.colSpan; continue; }
+      // Quem já traz o próprio rótulo manda: há colunas cujo cabeçalho é curto
+      // demais para servir de rótulo solto no celular.
+      if(!celula.hasAttribute('data-l')) celula.setAttribute('data-l',cabecalhos[coluna]||'');
+      celula.classList.toggle('celula-titulo',coluna===iTitulo);
+      coluna++;
+    }
+  }
+}
+
+/* Colunas numéricas alinham à direita, e o cabeçalho vai junto.
+   Decidido pelo CONTEÚDO e não por uma lista de nomes de coluna: a marca
+   `.money` já é posta pelo render de cada tabela, e uma lista de nomes voltaria
+   a ficar desatualizada do mesmo jeito que os `data-l` ficaram. */
+function alinharColunasNumericas(tabela){
+  const cabecalhos=[...tabela.querySelectorAll('thead th')];
+  const linhas=[...tabela.querySelectorAll('tbody tr')].filter(l=>!l.querySelector('[colspan]'));
+  if(!linhas.length) return;
+  cabecalhos.forEach((th,i)=>{
+    const celulas=linhas.map(l=>l.children[i]).filter(Boolean);
+    if(!celulas.length) return;
+    const numerica=celulas.every(td=>td.classList.contains('money')||td.classList.contains('num'));
+    th.classList.toggle('num',numerica);
+  });
+}
+
+/* A barra de grupos rola quando não cabe, e sem sinal a última aba some sem
+   deixar rastro: no celular são 6 grupos e cabem 5. O esmaecido na direita é o
+   sinal, e some ao chegar no fim — mostrar "tem mais" quando não tem é o mesmo
+   defeito ao contrário. */
+function marcarRolagemDasAbas(){
+  // Vale para os dois níveis: a barra de grupos tem 6 e cabem 5 no celular, e a
+  // de subgrupos de Vender tem 4 que também não cabem.
+  const barras=[...document.querySelectorAll('nav.tabs, .subtabs')];
+  const atualizar=()=>barras.forEach(b=>b.classList.toggle('tem-mais',
+    b.scrollWidth-b.clientWidth-b.scrollLeft>4));
+  atualizar();
+  barras.forEach(b=>b.addEventListener('scroll',atualizar,{passive:true}));
+  addEventListener('resize',atualizar);
+  // Trocar de grupo troca a barra de subgrupos visível, e uma barra escondida
+  // mede zero: remedir depois da troca.
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>setTimeout(atualizar,0)));
+}
+
+function observarTabelas(){
+  const olho=new MutationObserver(mudancas=>{
+    const tabelas=new Set();
+    for(const m of mudancas){
+      const t=(m.target.closest && m.target.closest('table'));
+      if(t) tabelas.add(t);
+    }
+    tabelas.forEach(t=>{rotularCelulas(t);alinharColunasNumericas(t);});
+  });
+  olho.observe(document.body,{childList:true,subtree:true});
+  document.querySelectorAll('.tablewrap table').forEach(t=>{rotularCelulas(t);alinharColunasNumericas(t);});
+  marcarRolagemDasAbas();
+}
+
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',observarTabelas);
+else observarTabelas();
+
+Object.assign(window,{rotularCelulas});
