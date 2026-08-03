@@ -970,7 +970,7 @@ const RENDER_ABA={
   vender:()=>{renderPedidos();renderClientes();renderCanais();renderPostProdutos();renderVendedores();renderCupons();renderComissoes();},
   produzir:()=>{renderProducao();renderMoldes();renderEquip();},
   comprar:()=>{renderCompras();renderComprasHist();renderCotacoes();renderFornecedores();renderInsumos();},
-  numeros:()=>{renderProdutos();renderFixos();renderColecoes();renderBanner();avisoCatalogo();},
+  numeros:()=>{renderProdutos();renderFixos();renderColecoes();renderBanner();renderFrete();avisoCatalogo();},
   // Encomendas nao entra aqui: e busca de rede, e renderAll roda a cada
   // salvamento. Ela carrega quando a sub-aba e aberta.
   ajustes:()=>{renderEquipe();renderProdMembro();renderAtividade();renderAcessos();},
@@ -1037,6 +1037,19 @@ const FORMS={
     {k:'ate',l:'Até',t:'date',def:'',hint:'Opcional. Passou a data, o banner some sozinho da loja'},
     {k:'cor',l:'Cor do banner',t:'select',opts:['brasa','carvão','areia']},
   ]},
+  frete:{title:'Frete',fields:[
+    {k:'ativo',l:'Situação',t:'select',opts:['ligado','desligado'],
+     hint:'Desligado, a loja não fecha venda com entrega — só retirada. Use enquanto a tabela não estiver pronta, em vez de deixar valores errados no ar'},
+    {k:'corte',l:'Frete grátis a partir de (R$)',t:'number',def:0,
+     hint:'0 desliga o frete grátis. É o único item desta tela que VENDE: o refil custa R$ 50 e as peças de R$ 200 a R$ 280, então um corte em R$ 250 é um degrau que se sobe com exatamente um refil — e o refil é o que traz o cliente de volta. Escolha olhando o quadro abaixo, não a média'},
+    {k:'sudeste',l:'Sudeste (R$)',t:'number',def:0,hint:'SP, RJ, MG, ES'},
+    {k:'sul',l:'Sul (R$)',t:'number',def:0,hint:'PR, SC, RS'},
+    {k:'centrooeste',l:'Centro-Oeste (R$)',t:'number',def:0,hint:'DF, GO, MT, MS'},
+    {k:'nordeste',l:'Nordeste (R$)',t:'number',def:0,hint:'BA, SE, AL, PE, PB, RN, CE, PI, MA'},
+    {k:'norte',l:'Norte (R$)',t:'number',def:0,hint:'PA, AP, AM, RR, AC, RO, TO'},
+    {k:'origemCep',l:'CEP do ateliê',t:'text',hint:'De onde as peças saem. Não entra na conta hoje; é o que a cotação automática vai exigir quando entrar'},
+    {k:'prazo',l:'Prazo que você promete',t:'text',hint:'Opcional. Ex.: "5 a 10 dias úteis". Aparece na sacola, ao lado do valor'},
+  ]},
   vendedor:{title:'Vendedor',fields:[
     {k:'nome',l:'Nome',t:'text'},
     {k:'whats',l:'WhatsApp',t:'text',hint:'Só números com DDD — vira link para combinar o pagamento'},
@@ -1071,6 +1084,14 @@ function openForm(type,id){
     renderRecipe();
   } else {
     if(type==='banner') ex = db.banner || {};
+    if(type==='frete'){
+      // O formulário é achatado (um campo por região) e a tabela é aninhada,
+      // porque é assim que o servidor a lê. A tradução acontece aqui e no
+      // salvar, e em nenhum outro lugar.
+      const f=db.frete||{}; const v=f.valores||{};
+      ex={...f, sudeste:v.sudeste, sul:v.sul, centrooeste:v['centro-oeste'],
+          nordeste:v.nordeste, norte:v.norte};
+    }
     body.innerHTML=FORMS[type].fields.map(f=>{let inp;const cur=ex[f.k]!==undefined?ex[f.k]:(id?'':(f.def!==undefined?f.def:(f.t==='date'?hoje():'')));if(f.t==='select')inp=`<select id="f_${f.k}">${f.opts.map(o=>`<option ${ex[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;else if(f.t==='selectProd')inp=`<select id="f_${f.k}"><option value="">—</option>${db.produtos.map(p=>`<option value="${p.id}" ${ex[f.k]===p.id?'selected':''}>${esc(p.nome)}</option>`).join('')}</select>`;else if(f.t==='selectMolde')inp=`<select id="f_${f.k}"><option value="">— nenhum —</option>${db.moldes.map(m=>`<option value="${m.id}" ${ex[f.k]===m.id?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>`;else if(f.t==='selectIns')inp=`<select id="f_${f.k}"><option value="">—</option>${db.insumos.map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectCliente')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickCliente(this)"><option value="">—</option>${(db.clientes||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}<option value="__new">➕ Novo cliente…</option></select>`;else if(f.t==='selectCanal')inp=`<select id="f_${f.k}"><option value="">— taxa do produto —</option>${(db.canais||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)} (${Number(c.taxa||0)}%)</option>`).join('')}</select>`;else if(f.t==='selectMembro')inp=`<select id="f_${f.k}"><option value="">—</option>${Object.entries(membros).map(([id,m])=>`<option value="${id}" ${ex[f.k]===id?'selected':''}>${esc(m.nome||'membro')}</option>`).join('')}</select>`;else if(f.t==='selectVendedor')inp=`<select id="f_${f.k}"><option value="">—</option>${(db.vendedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectFornecedor')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickFornecedor(this)"><option value="">—</option>${(db.fornecedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}<option value="__new">➕ Novo fornecedor…</option></select>`;else if(f.t==='imagem')inp=`<label class="fotoup">Escolher imagem<input type="file" accept="image/jpeg,image/png,image/webp" onchange="escolherImagem(this,'${f.k}','${f.pasta||'banners'}',${f.lado||1600},${f.teto||400})" hidden></label><img id="f_${f.k}Prev" class="fotoprev" src="${esc(cur||'')}" style="display:${cur?'block':'none'}" alt=""><div class="hint" id="f_${f.k}Status"></div><input id="f_${f.k}" value="${esc(cur||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px">`;else inp=`<input id="f_${f.k}" type="${f.t}" value="${esc(cur)}">`;return `<div class="field"><label>${f.l}</label>${inp}${f.hint?`<div class="hint">${f.hint}</div>`:''}</div>`;}).join('');
   }
   if(type==='producao'){const mf=document.getElementById('f_minutos');if(mf){const w=document.createElement('div');w.style.marginTop='6px';w.innerHTML='<button type="button" class="btn2" id="timerBtn" onclick="toggleTimer()">'+ico('play')+' Cronometrar uma peça</button> <span id="timerView" style="font-size:12px;color:var(--warm)"></span>';mf.parentElement.appendChild(w);}}
@@ -1157,6 +1178,24 @@ function saveForm(){
     logAtv('editou o banner da loja');
     cloudSave();closeModal();renderAll();
     toast('Banner salvo. <b>Publique a loja</b> para ele entrar no ar.');
+    return;
+  }
+  // A tabela de frete também é UMA só, e mora direto no `db` pelo mesmo motivo
+  // do banner. O que ela guarda é o VALOR por região; quem cruza CEP com região
+  // é o servidor, na hora de cobrar — aqui não se decide dinheiro de ninguém.
+  if(type==='frete'){
+    const n=k=>Math.max(0,Number(String(val('f_'+k)).replace(',','.'))||0);
+    db.frete={
+      ativo:val('f_ativo')||'ligado',
+      corte:n('corte'),
+      valores:{sudeste:n('sudeste'),sul:n('sul'),'centro-oeste':n('centrooeste'),
+               nordeste:n('nordeste'),norte:n('norte')},
+      origemCep:String(val('f_origemCep')||'').replace(/\D/g,'').slice(0,8),
+      prazo:String(val('f_prazo')||'').trim().slice(0,60),
+    };
+    logAtv('editou a tabela de frete');
+    cloudSave();closeModal();renderAll();
+    toast('Frete salvo. <b>Publique a loja</b> para ele valer nas vendas.');
     return;
   }
   if(type==='colecao'){obj={nome:val('f_nome'),desc:val('f_desc'),ordem:Number(val('f_ordem'))||10};}
@@ -1371,6 +1410,35 @@ function semearColecoes(){
  * site na frente do cliente. A loja confere a data de novo ao desenhar, porque
  * o catálogo publicado hoje continua no ar amanhã.
  */
+/**
+ * O recorte público da tabela de frete.
+ *
+ * Desligada, devolve `null` e o documento sai SEM o campo — e o servidor, ao
+ * não achar tabela, recusa a venda com entrega em vez de assumir frete zero.
+ * Essa é a diferença que importa: uma tabela ausente tem de parar a venda, não
+ * baratear silenciosamente o Brasil inteiro.
+ *
+ * `origemCep` e `prazo` não sobem: o primeiro é dado interno (só serve para a
+ * cotação automática, que ainda não existe) e o segundo é texto de vitrine que
+ * ainda não tem lugar na loja. Recorte público é o que a loja PRECISA, como no
+ * catálogo e nos cupons.
+ */
+function fretePublicavel(){
+  const f = db.frete;
+  if(!f || f.ativo === 'desligado') return null;
+  const v = f.valores || {};
+  const num = x => Math.max(0, Number(x) || 0);
+  return {
+    ativo: true,
+    corte: num(f.corte),
+    valores: {
+      sudeste: num(v.sudeste), sul: num(v.sul), 'centro-oeste': num(v['centro-oeste']),
+      nordeste: num(v.nordeste), norte: num(v.norte),
+    },
+    ...(f.prazo ? {prazo: String(f.prazo).slice(0,60)} : {}),
+  };
+}
+
 function bannerPublicavel(){
   const b = db.banner;
   if(!b || b.ativo === 'desligado' || !b.titulo) return null;
@@ -1446,7 +1514,10 @@ function cupomDoBannerFalha(b){
 function assinaturaCatalogo(){
   // O banner entra na assinatura: sem isso, mudar só o banner deixava o aviso
   // de "catálogo desatualizado" calado, e a promoção nunca chegava na loja.
-  return JSON.stringify([itensDoCatalogo(), bannerPublicavel()]);
+  // O frete entra na assinatura pela mesma razão do banner: sem isso, mudar só
+  // a tabela deixava o aviso de "catálogo desatualizado" calado, e a loja
+  // seguiria cobrando o frete antigo.
+  return JSON.stringify([itensDoCatalogo(), bannerPublicavel(), fretePublicavel()]);
 }
 
 /** O recorte público de cada produto marcado para o catálogo. */
@@ -1511,6 +1582,10 @@ async function publicarCatalogo(){
     // O banner viaja com o catálogo de propósito: é dado da loja, e um segundo
     // botão de publicar seria mais uma coisa para esquecer de apertar.
     ...(bannerPublicavel() ? {banner:bannerPublicavel()} : {}),
+    // O frete viaja no MESMO documento dos preços, e não num à parte. Se
+    // viessem separados, uma publicação pela metade cobraria o preço novo com
+    // o frete velho, e ninguém descobriria isso olhando a loja.
+    ...(fretePublicavel() ? {frete:fretePublicavel()} : {}),
     atualizado:Date.now(),
   });
 
@@ -3002,6 +3077,93 @@ function montarAvisos(lista){
   }).join('')+'</ul>';
 }
 Object.assign(window,{montarAvisos});
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   O QUADRO DO CORTE DE FRETE GRÁTIS
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Existe porque o dono decidiu, em ago/2026, que quando o frete real sai mais
+   caro que a tabela **a casa absorve** e a tabela se corrige depois. É a
+   decisão certa para quem compra (pagou o que viu), e ela transfere todo o
+   risco para um número só: o corte.
+
+   E esse número não se escolhe pela média. Uma escultura de gesso é volumosa,
+   e o que os Correios cobram é cubagem: um envio grátis para Manaus pode custar
+   quase o lucro inteiro de um pedido que mal encostou no corte. Escolher R$ 250
+   olhando "o frete médio é R$ 40" é escolher no escuro.
+
+   Por isso o quadro mostra o PIOR caso de cada região — o pedido que atingiu o
+   corte na régua, que é onde o frete pesa mais — e diz em vermelho onde a venda
+   dá prejuízo.
+
+   A margem usada é a MÉDIA REAL das peças do catálogo, e não um chute: a gestão
+   já sabe custo e preço de cada uma. Com o catálogo vazio ela cai em 50%, e o
+   quadro diz que está estimando.
+*/
+const REGIOES_FRETE=[
+  ['sudeste','Sudeste'],['sul','Sul'],['centro-oeste','Centro-Oeste'],
+  ['nordeste','Nordeste'],['norte','Norte'],
+];
+
+/** A margem média das peças publicadas, entre 0 e 1. `null` se não dá para saber. */
+function margemMediaDoCatalogo(){
+  const publicas=db.produtos.filter(p=>p.publico);
+  if(!publicas.length) return null;
+  const margens=publicas.map(p=>{
+    const custo=calcCusto(p).total;
+    const preco=Number(p.preco)||custo*Number(p.markup||3);
+    if(!(preco>0)) return null;
+    const taxa=preco*Number(p.taxa||0)/100;
+    return (preco-taxa-custo)/preco;
+  }).filter(m=>m!==null&&isFinite(m));
+  if(!margens.length) return null;
+  return margens.reduce((s,m)=>s+m,0)/margens.length;
+}
+
+function renderFrete(){
+  const box=document.getElementById('fretePreview');
+  if(!box) return;
+  const f=db.frete;
+  if(!f||f.ativo==='desligado'){
+    box.innerHTML='<div class="hint-box">Sem tabela de frete no ar, a loja só fecha venda com <b>retirada</b>. '
+      +'Isso é de propósito: sem tabela o servidor recusa a entrega em vez de cobrar zero.</div>';
+    return;
+  }
+  const v=f.valores||{};
+  const corte=Number(f.corte)||0;
+  const margemReal=margemMediaDoCatalogo();
+  const margem=margemReal===null?0.5:margemReal;
+  const lucro=corte*margem;
+
+  const linhas=REGIOES_FRETE.map(([id,nome])=>{
+    const frete=Number(v[id])||0;
+    const sobra=Math.round((lucro-frete)*100)/100;
+    const pct=lucro>0?Math.round(frete/lucro*100):null;
+    return `<tr>
+      <td>${nome}</td>
+      <td class="money">${brl(frete)}</td>
+      <td class="money">${corte>0?brl(sobra):'—'}</td>
+      <td>${pct===null?'—':`<span class="pill ${pct>=100?'low':pct>=60?'warn':'ok'}">${pct}% do lucro</span>`}</td>
+    </tr>`;
+  }).join('');
+
+  box.innerHTML=`
+    <div class="hint-box">
+      ${corte>0
+        ? `Frete grátis a partir de <b>${brl(corte)}</b>. O quadro mostra o <b>pior caso</b>: o pedido que
+           atingiu o corte na régua, que é onde o frete mais pesa.`
+        : `Sem frete grátis: todo pedido paga o valor da região. O quadro fica sem conta de margem.`}
+      ${margemReal===null
+        ? ' Nenhuma peça publicada ainda, então estou <b>estimando 50% de margem</b>.'
+        : ` Margem média das peças publicadas: <b>${Math.round(margem*100)}%</b>.`}
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th data-titulo>Região</th><th>Frete</th><th>Sobra no corte</th><th>Peso no lucro</th></tr></thead>
+      <tbody>${linhas}</tbody>
+    </table></div>`;
+}
+Object.assign(window,{renderFrete,margemMediaDoCatalogo});
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
