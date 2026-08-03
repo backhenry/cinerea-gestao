@@ -1047,6 +1047,10 @@ const FORMS={
     {k:'centrooeste',l:'Centro-Oeste (R$)',t:'number',def:0,hint:'DF, GO, MT, MS'},
     {k:'nordeste',l:'Nordeste (R$)',t:'number',def:0,hint:'BA, SE, AL, PE, PB, RN, CE, PI, MA'},
     {k:'norte',l:'Norte (R$)',t:'number',def:0,hint:'PA, AP, AM, RR, AC, RO, TO'},
+    {k:'adicional',l:'Cada peça a mais custa (% do valor da região)',t:'number',def:60,
+     hint:'Seis esculturas não cabem na caixa de uma: o volume cresce e a cubagem manda no preço. 60 quer dizer que a segunda peça paga 60% do que a primeira pagou. Refis e chaveiros NÃO entram nesta conta — marque "vai na sobra da caixa" no cadastro da peça'},
+    {k:'gratisAte',l:'Frete grátis cobre até quantas peças',t:'number',def:3,
+     hint:'0 é ilimitado, que era como estava. Acima do limite, só o excedente é cobrado — cobrar o frete inteiro puniria quem levou uma peça a mais mais do que quem levou uma a menos'},
     {k:'origemCep',l:'CEP do ateliê',t:'text',hint:'De onde as peças saem. Não entra na conta hoje; é o que a cotação automática vai exigir quando entrar'},
     {k:'prazo',l:'Prazo que você promete',t:'text',hint:'Opcional. Ex.: "5 a 10 dias úteis". Aparece na sacola, ao lado do valor'},
   ]},
@@ -1089,7 +1093,10 @@ function openForm(type,id){
       // porque é assim que o servidor a lê. A tradução acontece aqui e no
       // salvar, e em nenhum outro lugar.
       const f=db.frete||{}; const v=f.valores||{};
-      ex={...f, sudeste:v.sudeste, sul:v.sul, centrooeste:v['centro-oeste'],
+      // O `adicional` é guardado como fração e mostrado como porcentagem: a
+      // conta usa 0,6 e ninguém digita "0,6" num campo chamado "por cento".
+      ex={...f, adicional: f.adicional===undefined?60:Math.round(f.adicional*100),
+          sudeste:v.sudeste, sul:v.sul, centrooeste:v['centro-oeste'],
           nordeste:v.nordeste, norte:v.norte};
     }
     body.innerHTML=FORMS[type].fields.map(f=>{let inp;const cur=ex[f.k]!==undefined?ex[f.k]:(id?'':(f.def!==undefined?f.def:(f.t==='date'?hoje():'')));if(f.t==='select')inp=`<select id="f_${f.k}">${f.opts.map(o=>`<option ${ex[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;else if(f.t==='selectProd')inp=`<select id="f_${f.k}"><option value="">—</option>${db.produtos.map(p=>`<option value="${p.id}" ${ex[f.k]===p.id?'selected':''}>${esc(p.nome)}</option>`).join('')}</select>`;else if(f.t==='selectMolde')inp=`<select id="f_${f.k}"><option value="">— nenhum —</option>${db.moldes.map(m=>`<option value="${m.id}" ${ex[f.k]===m.id?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>`;else if(f.t==='selectIns')inp=`<select id="f_${f.k}"><option value="">—</option>${db.insumos.map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectCliente')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickCliente(this)"><option value="">—</option>${(db.clientes||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}<option value="__new">➕ Novo cliente…</option></select>`;else if(f.t==='selectCanal')inp=`<select id="f_${f.k}"><option value="">— taxa do produto —</option>${(db.canais||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)} (${Number(c.taxa||0)}%)</option>`).join('')}</select>`;else if(f.t==='selectMembro')inp=`<select id="f_${f.k}"><option value="">—</option>${Object.entries(membros).map(([id,m])=>`<option value="${id}" ${ex[f.k]===id?'selected':''}>${esc(m.nome||'membro')}</option>`).join('')}</select>`;else if(f.t==='selectVendedor')inp=`<select id="f_${f.k}"><option value="">—</option>${(db.vendedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectFornecedor')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickFornecedor(this)"><option value="">—</option>${(db.fornecedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}<option value="__new">➕ Novo fornecedor…</option></select>`;else if(f.t==='imagem')inp=`<label class="fotoup">Escolher imagem<input type="file" accept="image/jpeg,image/png,image/webp" onchange="escolherImagem(this,'${f.k}','${f.pasta||'banners'}',${f.lado||1600},${f.teto||400})" hidden></label><img id="f_${f.k}Prev" class="fotoprev" src="${esc(cur||'')}" style="display:${cur?'block':'none'}" alt=""><div class="hint" id="f_${f.k}Status"></div><input id="f_${f.k}" value="${esc(cur||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px">`;else inp=`<input id="f_${f.k}" type="${f.t}" value="${esc(cur)}">`;return `<div class="field"><label>${f.l}</label>${inp}${f.hint?`<div class="hint">${f.hint}</div>`:''}</div>`;}).join('');
@@ -1188,6 +1195,8 @@ function saveForm(){
     db.frete={
       ativo:val('f_ativo')||'ligado',
       corte:n('corte'),
+      adicional:Math.min(100,n('adicional'))/100,
+      gratisAte:Math.floor(n('gratisAte')),
       valores:{sudeste:n('sudeste'),sul:n('sul'),'centro-oeste':n('centrooeste'),
                nordeste:n('nordeste'),norte:n('norte')},
       origemCep:String(val('f_origemCep')||'').replace(/\D/g,'').slice(0,8),
@@ -1431,6 +1440,8 @@ function fretePublicavel(){
   return {
     ativo: true,
     corte: num(f.corte),
+    adicional: Math.min(1, num(f.adicional)),
+    gratisAte: Math.floor(num(f.gratisAte)),
     valores: {
       sudeste: num(v.sudeste), sul: num(v.sul), 'centro-oeste': num(v['centro-oeste']),
       nordeste: num(v.nordeste), norte: num(v.norte),
@@ -1536,7 +1547,10 @@ function itensDoCatalogo(){
       // Mapa preservaria a estrutura, mas o Firestore não garante a ordem das
       // chaves, e ficha técnica fora de ordem não serve. Texto preserva.
       ficha:(p.ficha||[]).map(l=>Array.isArray(l)?l.join(': '):String(l)).join('\n'),
-      destaque:!!p.destaque,pronto:Number(p.pronto)||0};
+      destaque:!!p.destaque,pronto:Number(p.pronto)||0,
+      // Peça que vai na sobra da caixa não faz o frete crescer. Sobe no recorte
+      // público porque quem conta as peças é o servidor, na hora de cobrar.
+      leve:p.leve==='sim'};
   })
   // Já sai na ordem em que a loja mostra: a vitrine não precisa saber ordenar,
   // e site e app ficam iguais sem combinarem nada entre si.
