@@ -365,8 +365,8 @@ service cloud.firestore {
         && request.resource.data.clienteUid == request.auth.uid
         && request.resource.data.situacao == 'nova'
         && request.resource.data.keys().hasOnly(['clienteUid','clienteNome','clienteEmail',
-             'clienteTelefone','endereco','recado','itens','totalVisto','situacao','criadaEm',
-             'cupom'])
+             'clienteTelefone','endereco','cep','entrega','recado','itens','totalVisto',
+             'situacao','criadaEm','cupom'])
         // O CÓDIGO do cupom, e só. O desconto NÃO vem do cliente: se viesse,
         // alguém mandaria "desconto: 300" e a casa pagaria comissão por cima
         // disso. A gestão lê `cupons/{codigo}` e refaz a conta antes de aceitar,
@@ -380,6 +380,15 @@ service cloud.firestore {
         && request.resource.data.get('clienteEmail','').size() <= 160
         && request.resource.data.get('clienteTelefone','').size() <= 20
         && request.resource.data.get('endereco','').size() <= 400
+        // O CEP e a FORMA de entrega entram; o VALOR do frete não.
+        //
+        // É a mesma regra do cupom, e pela mesma razão: se o cliente pudesse
+        // mandar `frete: 0`, alguém mandaria. O que sobe daqui é para ONDE e
+        // COMO; quem diz quanto custa é a tabela publicada, relida pelo
+        // servidor em `criarPagamento`. A lista de chaves acima é o que
+        // impede um campo de frete de entrar pela porta dos fundos.
+        && request.resource.data.get('cep','').size() <= 9
+        && request.resource.data.get('entrega','') in ['', 'correio', 'retirada']
         && request.resource.data.get('recado','').size() <= 500
         && request.resource.data.totalVisto is number
         && request.resource.data.totalVisto >= 0;
