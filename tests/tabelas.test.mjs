@@ -85,7 +85,17 @@ test('ninguém voltou a usar emoji como ícone', () => {
   // olhado. `⟳ ▶ ◀ ✕ ✉` não são emoji, são símbolos de texto — pior ainda,
   // porque caem para a fonte do aparelho e viram retângulo onde não existem.
   const proibidos = /[🗑✎⧉🔍💰◈🛒📈🔗🧾💬🔔🌐👤🖨🔒⚠⟳▶◀✕✉]/gu;
-  const semComentarios = js.replace(/\/\*[\s\S]*?\*\//g, '');
+  /* VARRE O ARQUIVO INTEIRO, comentário incluído, e isso é decisão.
+     Tentei duas formas mais espertas e as duas quebraram no mesmo ponto: tirar
+     comentários por expressão regular emparelha errado quando há `/*` dentro de
+     uma string, e procurar só dentro de literais se confunde com as crases que
+     um comentário usa para citar código. Nos dois casos o teste passou a mentir
+     conforme se editava OUTRO trecho do arquivo.
+
+     Varrer tudo só funciona porque os comentários NOMEIAM os glifos em vez de
+     exibi-los ("o lápis e o losango"), e essa é a regra que fica: documentação
+     que mostra o caractere proibido é documentação que desliga o próprio teste. */
+  const semComentarios = js;
   const achados = semComentarios.match(proibidos) || [];
   assert.deepEqual(achados, [], `emoji de volta na interface: ${achados.join(' ')}`);
   assert.deepEqual(html.match(proibidos) || [], []);
