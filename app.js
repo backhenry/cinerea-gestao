@@ -517,10 +517,52 @@ function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);
     if(encolheu.length) console.error('ATENÇÃO: lista encolheu sem exclusão —', encolheu.join(', '));
   }
 
+  /* ═══ O LIMITE DE 1 MB, CONFERIDO ANTES DE TENTAR ════════════════════════
+     Um documento do Firestore não passa de 1.048.576 bytes. Passando, a
+     escrita é RECUSADA — e a recusa chegava só no console: a etiqueta ficava
+     em "salvando…" para sempre e a peça recém-criada morria no próximo
+     recarregamento. Foi assim que a mesma peça se perdeu quatro vezes.
+
+     Conferir antes não evita o problema de fundo (os dados cresceram), mas
+     troca uma falha muda por uma frase que diz o que fazer. E o número
+     aparece: sem ele, "arquive" é conselho sem tamanho. */
+  const tamanho=JSON.stringify({dados:payloadOp,atualizado:Date.now()}).length;
+  const LIMITE=1048576;
+  if(tamanho>LIMITE-4096){
+    gravacaoPendente=false;
+    flashErro(`Dados em ${Math.round(tamanho/1024)} KB, e o limite é 1024 KB`);
+    toast('<b>Não consegui salvar:</b> os dados passaram do limite de 1 MB por documento ('
+      +Math.round(tamanho/1024)+' KB). Use <b>Ferramentas → Arquivar ano</b> para mover registros antigos, e salve de novo.');
+    console.error('gravação abortada: payload de',tamanho,'bytes');
+    return;
+  }
+
   const p=updateDoc(doc(fdb,'empresas',eid),{dados:payloadOp,atualizado:Date.now()});
-  if(finToWrite)setDoc(doc(fdb,'empresas',eid,'fin','dados'),finToWrite).catch(e=>console.error(e));
+  if(finToWrite)setDoc(doc(fdb,'empresas',eid,'fin','dados'),finToWrite)
+    .catch(e=>{console.error('financeiro não gravou',e);toast('Salvei o cadastro, mas <b>não consegui gravar os valores</b> (custo, preço, markup). '+esc(e&&e.code||''));});
   const solta=()=>{gravacaoPendente=false;};
-  if(navigator.onLine){p.then(()=>{solta();flashSync(true);}).catch(e=>{solta();console.error(e);});}
+  if(navigator.onLine){
+    p.then(()=>{solta();flashSync(true);})
+     .catch(e=>{
+       /* FALHA DE GRAVAÇÃO NUNCA MAIS É SILENCIOSA.
+          Antes daqui saía só um `console.error`, e a etiqueta continuava em
+          "salvando…". Quem estava olhando a tela via o sistema trabalhando; o
+          que estava acontecendo era o oposto — o trabalho não existia em lugar
+          nenhum, e sumia no primeiro recarregamento. Mentir sobre o estado de
+          uma gravação é o pior que uma tela pode fazer. */
+       solta();
+       console.error('gravação recusada pelo servidor',e);
+       const cod=(e&&e.code)||'';
+       flashErro('não salvou');
+       toast(
+         /permission|denied/i.test(cod)
+           ? '<b>Não consegui salvar:</b> o servidor recusou a permissão. Saia e entre de novo.'
+         : /invalid|argument/i.test(cod)
+           ? '<b>Não consegui salvar:</b> o servidor recusou os dados ('+esc(cod)+'). Nada foi perdido na tela — me avise antes de recarregar.'
+           : '<b>Não consegui salvar.</b> '+esc(cod||'sem conexão com o servidor')+'. <b>Não recarregue a página</b> até salvar.'
+       );
+     });
+  }
   else{
     /* OFFLINE: o Firestore só resolve a promessa quando a rede volta, e até lá
        a trava ficaria de pé — o que é o comportamento certo, mas deixaria a
@@ -528,8 +570,33 @@ function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);
        aparelho, que é a verdade: a escrita já está na fila local. */
     solta();flashSync(true);
   }
-}catch(e){gravacaoPendente=false;console.error(e);}},400);}
-function flashSync(ok){const el=document.getElementById('syncState');if(!ok){el.innerHTML='<span class="dot off"></span> salvando…';return;}el.innerHTML=navigator.onLine?'<span class="dot"></span> sincronizado':'<span class="dot off"></span> offline · salvo no aparelho';}
+}catch(e){
+  gravacaoPendente=false;
+  console.error('gravação estourou antes de sair',e);
+  flashErro('não salvou');
+  toast('<b>Não consegui salvar:</b> '+esc((e&&e.message)||'erro inesperado')+'. <b>Não recarregue a página.</b>');
+}},400);}
+
+/** O aviso do cabeçalho quando a gravação FALHA. Vermelho, e fica. */
+function flashErro(motivo){
+  const el=document.getElementById('syncState');
+  if(!el)return;
+  el.innerHTML='<span class="dot off"></span> <b style="color:var(--ember)">não salvou</b>'
+    +(motivo?' · '+esc(motivo):'');
+}
+function flashSync(ok){
+  const el=document.getElementById('syncState');if(!el)return;
+  /* O TAMANHO FICA SEMPRE À VISTA, no `title`. O documento do Firestore morre
+     em 1 MB, e até hoje isso só aparecia como um aviso no Painel acima de 700
+     KB — tarde demais, porque a falha de gravação não dizia o motivo e a peça
+     recém-criada sumia no recarregamento. Passar o mouse aqui responde "quanto
+     falta" sem procurar. */
+  let tam='';
+  try{ tam=' · '+Math.round(JSON.stringify(db).length/1024)+' KB de 1024'; }catch(e){}
+  if(!ok){el.innerHTML='<span class="dot off"></span> salvando…';el.title='gravando'+tam;return;}
+  el.innerHTML=navigator.onLine?'<span class="dot"></span> sincronizado':'<span class="dot off"></span> offline · salvo no aparelho';
+  el.title=(navigator.onLine?'tudo gravado no servidor':'salvo no aparelho, sobe quando a rede voltar')+tam;
+}
 
 // helpers e cálculo vêm de core.js (puro e coberto por testes)
 const {uidGen,brl,esc,num,insumoStatus,moldeStatus,validar,saldoPedido,custoMedio,curvaABC,cestaOtima,precoProduto,baixasProducao,pontoEquilibrio,RAMOS,sementeRamo}=Core;

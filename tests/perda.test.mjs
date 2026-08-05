@@ -78,7 +78,10 @@ test('a pendência é solta no sucesso, no erro e offline', () => {
   const bloco = js.slice(i, js.indexOf('function flashSync'));
   const quedas = (bloco.match(/gravacaoPendente=false|solta\(\)/g) || []).length;
   assert.ok(quedas >= 4, `só achei ${quedas} pontos que soltam a trava`);
-  assert.match(bloco, /catch\(e=>\{solta\(\)/, 'o erro de rede não solta a trava');
+  // O catch de rede tem de soltar a trava: sem isso, um erro deixa o app sem
+  // aceitar snapshot para sempre.
+  const catchDeRede = bloco.slice(bloco.indexOf('.catch(e=>'));
+  assert.match(catchDeRede.slice(0, 300), /solta\(\)/, 'o erro de rede não solta a trava');
 });
 
 test('o guarda da lista que encolhe AVISA, e não bloqueia', () => {
@@ -89,7 +92,9 @@ test('o guarda da lista que encolhe AVISA, e não bloqueia', () => {
   // deixa rastro nenhum.
   const i = js.indexOf('const IGNORAR_NO_GUARDA');
   assert.notEqual(i, -1, 'sumiu o guarda da lista que encolhe');
-  const bloco = js.slice(i, js.indexOf("const p=updateDoc", i));
+  // A fatia vai só até a conferência de tamanho, que é outro assunto e tem o
+  // próprio `return` legítimo.
+  const bloco = js.slice(i, js.indexOf('const tamanho=', i));
   assert.match(bloco, /console\.error/, 'o guarda deixou de avisar');
   assert.doesNotMatch(bloco, /rebuildDb\(\)/,
     'o guarda voltou a remontar o db, que é o que apagava o trabalho');
@@ -119,4 +124,46 @@ test('o guarda vale para todas as listas, não só peças', () => {
   // Cliente, insumo e pedido somem do mesmo jeito e doem igual.
   const bloco = js.slice(js.indexOf('const encolheu=[]'), js.indexOf('const encolheu=[]') + 700);
   assert.match(bloco, /Object\.keys\(payloadOp/, 'o guarda voltou a olhar uma lista só');
+});
+
+
+// ─── a gravação que falhava calada ───────────────────────────────────────────
+
+test('falha de gravação NUNCA fica calada', () => {
+  // O sintoma que custou quatro perdas da mesma peça: a etiqueta ficava em
+  // "salvando…" para sempre, o erro ia só para o console, e o trabalho morria
+  // no recarregamento seguinte. Mentir sobre o estado de uma gravação é o pior
+  // que uma tela pode fazer.
+  const i = js.indexOf('function cloudSave');
+  const bloco = js.slice(i, js.indexOf('function flashErro'));
+  assert.match(bloco, /flashErro\(/, 'o erro voltou a não mudar a etiqueta');
+  assert.match(bloco, /catch\(e=>\{[\s\S]{0,400}?toast\(/,
+    'o erro de gravação voltou a não avisar a pessoa');
+  assert.doesNotMatch(bloco, /\.catch\(e=>\{solta\(\);console\.error\(e\);\}\)/,
+    'voltou o catch que só logava');
+});
+
+test('o limite de 1 MB é conferido ANTES de tentar gravar', () => {
+  // Um documento do Firestore não passa de 1.048.576 bytes, e a recusa chegava
+  // só no console. Conferir antes troca uma falha muda por uma frase que diz o
+  // que fazer — e mostra o número, porque "arquive" sem tamanho não é conselho.
+  const i = js.indexOf('const LIMITE=1048576');
+  assert.notEqual(i, -1, 'sumiu a conferência do limite');
+  assert.ok(i < js.indexOf("updateDoc(doc(fdb,'empresas',eid),{dados:payloadOp"),
+    'a conferência ficou depois da gravação');
+  const bloco = js.slice(i - 400, i + 700);
+  assert.match(bloco, /Arquivar ano/, 'a mensagem não diz o que fazer');
+});
+
+test('o erro do documento financeiro também avisa', () => {
+  // Ele é gravado separado: falhar só ali significa perder custo, preço e
+  // markup enquanto o resto salva — a divergência mais difícil de perceber.
+  const i = js.indexOf("setDoc(doc(fdb,'empresas',eid,'fin','dados'),finToWrite)");
+  const bloco = js.slice(i, i + 400);
+  assert.match(bloco, /toast\(/, 'a falha do financeiro voltou a ser só console');
+});
+
+test('o tamanho fica à vista no indicador de sincronia', () => {
+  const bloco = js.slice(js.indexOf('function flashSync'), js.indexOf('function flashSync') + 900);
+  assert.match(bloco, /KB de 1024/, 'o tamanho saiu do indicador');
 });
