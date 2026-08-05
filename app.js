@@ -1550,7 +1550,11 @@ function itensDoCatalogo(){
       destaque:!!p.destaque,pronto:Number(p.pronto)||0,
       // Peça que vai na sobra da caixa não faz o frete crescer. Sobe no recorte
       // público porque quem conta as peças é o servidor, na hora de cobrar.
-      leve:p.leve==='sim'};
+      leve:p.leve==='sim',
+      // Só endereço do próprio site: um .glb apontado para servidor de terceiro
+      // seria script de fora rodando no domínio da marca, pela mesma razão que
+      // já trava o logo e a arte do banner.
+      modelo:/^\/3d\/[\w.-]+\.glb$/.test(p.modelo||'') ? p.modelo : ''};
   })
   // Já sai na ordem em que a loja mostra: a vitrine não precisa saber ordenar,
   // e site e app ficam iguais sem combinarem nada entre si.
