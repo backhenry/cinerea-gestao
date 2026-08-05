@@ -1,23 +1,23 @@
-# Contexto para o Claude Code — Projeto Cinérea Gestão
+# Contexto para o Claude Code, Projeto Cinérea Gestão
 
 Este arquivo orienta o Claude Code ao trabalhar neste repositório.
 
 ## O que é
 App de gestão de um ateliê de velas e objetos de gesso (marca Cinérea). Um único
 `index.html` estático, com Firebase (Auth + Firestore) para login e sincronização
-em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN.
+em nuvem. Sem build, sem framework, HTML, CSS e JS puro, com Chart.js via CDN.
 
 ## Arquitetura
-- `core.js` — NÚCLEO PURO (sem DOM/Firestore): calcCusto, precoProduto, lucroPedido,
+- `core.js`, NÚCLEO PURO (sem DOM/Firestore): calcCusto, precoProduto, lucroPedido,
   saldoPedido, custoMedio, baixasProducao, diasEstoque, pontoEquilibrio,
   scoreFornecedor, cestaOtima, curvaABC, fechamentoMes, validar() e RAMOS/sementeRamo.
   É o que `tests/core.test.mjs` cobre (31 testes, `npm test`, sem emulador).
   `app.js` importa e injeta `db` via wrappers; calcCusto é memoizado (limparMemo()
   em rebuildDb/cloudSave).
-- Renderização por aba: RENDER_ABA + abaAtiva() — só a aba visível é redesenhada.
+- Renderização por aba: RENDER_ABA + abaAtiva(), só a aba visível é redesenhada.
   Paginação de 50 em 50 (PAG/maisLinhas/linhaMais) em produção, pedidos e compras.
-- `index.html` — todo o app (estilos no `<style>`, lógica num `<script type="module">`)
-- `config.js` — chaves do Firebase, carregado antes do módulo. FICA FORA DO GIT.
+- `index.html`, todo o app (estilos no `<style>`, lógica num `<script type="module">`)
+- `config.js`, chaves do Firebase, carregado antes do módulo. FICA FORA DO GIT.
 - MULTI-USUÁRIO: dados ficam em `empresas/{eid}`, campo `dados`, estrutura
   `{equip, moldes, insumos, produtos, producao, pedidos, compras, fixos, clientes,
   canais, tarefas, meta, meiTeto, catWhats, conviteAtual, ultimoBackup, checks}`.
@@ -41,14 +41,14 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
 ## Segurança
 - NUNCA commitar `config.js` nem chaves. Já está no `.gitignore`.
 - As regras do Firestore (em `docs/firestore.rules`) restringem cada usuário aos
-  próprios dados — não afrouxar.
+  próprios dados, não afrouxar.
 - O arquivo de regras é **um só para o projeto Firebase inteiro**, e o projeto é
   dividido com o app dos clientes (`backhenry/cinerea-app`, privado): as regras
   de `clientes/` moram no mesmo arquivo. Publicar só a metade daqui apaga a de
-  lá. O arquivo é idêntico nos dois repos — mudou em um, copie no outro. Publica-
+  lá. O arquivo é idêntico nos dois repos, mudou em um, copie no outro. Publica-
   se a partir do `cinerea-app`.
 - Criar empresa exige um documento em `gestores/{uid}`. Sem isso, qualquer conta
-  autenticada abria empresa — inclusive um cliente do app, que usa o mesmo Auth.
+  autenticada abria empresa, inclusive um cliente do app, que usa o mesmo Auth.
   A coleção é `read, write: if false`: invisível para os dois apps, só o Console
   escreve. O `exists()` das regras roda no servidor e não passa pelas regras.
 
@@ -77,12 +77,12 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
 - PAPÉIS/governança: membros/{uid}.papel ∈ {admin, socio, empregado}; dono = empresa.dono.
   meuPapel()/pode(cap): 'gerir' = dono/admin (convites, papéis, remover, nome da
   empresa, restaurar backup); 'fin' = dono/admin/socio (orçamento, lucro, fechamento,
-  metas, MEI, exports, catálogo). Empregado: só operação — aplicarPapel() esconde
+  metas, MEI, exports, catálogo). Empregado: só operação, aplicarPapel() esconde
   aba Orçamento, cartões/gráficos financeiros e colunas Valor/Lucro (classe .no-fin).
   Convites carregam papel (db.convitesPorPapel). Regras do Firestore validam:
   papel do membro = papel do convite, self-update só do nome, update da empresa
   por não-gestor limitado a dados/atualizado, dono imutável.
-  LIMITAÇÃO: dados ficam num doc único — a ocultação financeira é de interface;
+  LIMITAÇÃO: dados ficam num doc único, a ocultação financeira é de interface;
   um empregado tecnicamente hábil lê o doc via console. Enforcement real exige
   dividir os dados em docs separados por sensibilidade (próximo passo se necessário).
 - Perfil (openPerfil/salvarPerfil): nome no time, e-mail (updateEmail com reauth,
@@ -107,7 +107,7 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
   comentários em tarefas (t.coments), drag-and-drop no kanban, calendário de
   entregas no Painel (renderCal), slider de markup no produto, múltiplas empresas
   por conta (usuarios/{uid}.minhasEmpresas + troca no perfil).
-- SOURCING: db.cotacoes — gerarCotacao() cria .xlsx (SheetJS via CDN) da lista de
+- SOURCING: db.cotacoes, gerarCotacao() cria .xlsx (SheetJS via CDN) da lista de
   compras com colunas ocultas (H1 = 'CINEREA-RFQ:{id}', col H = id do insumo);
   fornecedor preenche D/E/F; importarCotacao() lê o arquivo, casa pelo marcador e
   guarda resposta por fornecedor; verCotacao() compara preços (melhor em verde).
@@ -123,7 +123,7 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
   ano para empresas/{eid}/arquivo/{ano}; aviso no Painel quando dados >700 KB.
 - Diagnóstico: window.onerror/unhandledrejection → empresas/{eid}/diag/erros.
 - Notificações locais: pedirNotifs() no Perfil; checarNotifs() avisa tarefas novas
-  atribuídas a mim e entregas do dia (sem FCM — push real com servidor fica p/ depois).
+  atribuídas a mim e entregas do dia (sem FCM, push real com servidor fica p/ depois).
 
 - Fornecedor completo: categoria, risco (Baixo/Médio/Alto), endereço e contatos
   internos (lista nome/cargo/whats em f.contatos, editados via currentForm.contatos).
@@ -132,7 +132,7 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
   destacadas e desbloqueadas, resto protegido (senha 'cinerea'), aba "Contato"
   (empresa, responsável, WhatsApp=catWhats, e-mail, endereço=db.endereco definido
   no Perfil). Layout: marcador em H1, header linha 4, itens da linha 5, ids na
-  col H oculta — o importador continua compatível.
+  col H oculta, o importador continua compatível.
 - SOURCING v3: cotação com validade, condições de pagamento e fornecedores-alvo
   (status parcial/completa/vencida; 💬 envia/cobra via WhatsApp com fila em
   c.enviados); comparação com coluna "Seu custo" + savings %, linha Cesta ótima,
@@ -151,7 +151,7 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
 
 ## Consolidação (jul/2026)
 - Onboarding pergunta o RAMO (velas/confeitaria/costura/marcenaria/vazio) e semeia
-  conforme — antes toda empresa nova nascia com insumos e moldes da Cinérea.
+  conforme, antes toda empresa nova nascia com insumos e moldes da Cinérea.
   Rótulos por ramo (db.rotulos + rot()/aplicarRotulos): "Moldes" vira "Formas"
   ou "Gabaritos". seedIfEmpty agora só garante os canais de venda.
 - Nome real da empresa gravado em usuarios/{uid}.minhasEmpresas no primeiro
@@ -160,7 +160,7 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
   negativos, taxa fora de 0-100, data fora de 2000-2100); erros via toast.
 - Acessibilidade: role=tablist/aria-selected nas abas, aria-modal + foco que entra,
   circula (trap de Tab) e volta ao fechar, toast com aria-live, :focus-visible,
-  alvos de 32px. Tema escuro recalibrado — texto secundário 7,4:1 (WCAG AA).
+  alvos de 32px. Tema escuro recalibrado, texto secundário 7,4:1 (WCAG AA).
 - Aba Compras dividida em sub-abas (lista/histórico/cotações/fornecedores).
 
 ## Expansões (jul/2026)
@@ -182,7 +182,7 @@ em nuvem. Sem build, sem framework — HTML, CSS e JS puro, com Chart.js via CDN
   restrito por regra: só 3 campos, nome ≤120, ≤100 preços, bloqueado se `fechada`;
   sem read/update/delete para anônimos). No app: 🌐 publica/copia link, ⬇ importa
   respostas novas (dedupe por `rfqLidas`, cria fornecedor se preciso), 🔒 encerra.
-  O Excel continua valendo — os dois caminhos caem na mesma lista de respostas.
+  O Excel continua valendo, os dois caminhos caem na mesma lista de respostas.
   Campos de preço são type=text + inputmode=decimal (aceitam vírgula e ponto).
 
 ## Revisão de interface (ago/2026)
@@ -194,12 +194,12 @@ uma. O que ficou como regra:
 tabela vira cartão e o cabeçalho some; quem diz o que é cada valor é o `data-l`
 da célula, desenhado por `td::before{content:attr(data-l)}`. O mecanismo existia
 desde sempre e estava praticamente sem uso: **5 células tinham `data-l` e 136
-não** — a tabela de peças saía como sete números empilhados sem dizer qual é
+não**, a tabela de peças saía como sete números empilhados sem dizer qual é
 custo, qual é preço e qual é margem.
 
 Sair escrevendo `data-l` em 136 lugares consertaria hoje e voltaria a quebrar na
 próxima coluna, sem erro nenhum para avisar: foi assim que se chegou a 136. Um
-`MutationObserver` chama `rotularCelulas`, que lê o cabeçalho — as tabelas são
+`MutationObserver` chama `rotularCelulas`, que lê o cabeçalho, as tabelas são
 preenchidas em dezenas de funções, e qualquer lista de chamadas fica incompleta
 do mesmo jeito. **Coluna nova nasce rotulada.**
 
@@ -208,11 +208,11 @@ Pedidos, Produção e Compras começam pela data, e um cartão intitulado "12/07
 não diz de quem é o pedido. Quem não declara cai na primeira coluna.
 
 **Nada de emoji na interface.** Eram 18, entre botões e avisos. Quem desenha
-emoji é o sistema operacional — lixeira cinza no macOS, verde no Android — e a
+emoji é o sistema operacional, lixeira cinza no macOS, verde no Android, e a
 cor da marca não alcança, nem o tema escuro. Pior: `✎ ◈ ⟳ ▶ ◀ ✕ ✉` nem são
 emoji, são símbolos de texto, e viram retângulo vazio onde o glifo não existe.
 São 21 ícones em `ICONES`, desenhados no mesmo grid de 24 e herdando
-`currentColor` — é isso que os faz acompanhar hover e tema escuro de graça.
+`currentColor`, é isso que os faz acompanhar hover e tema escuro de graça.
 `tests/tabelas.test.mjs` falha se algum voltar.
 
 Ficaram de propósito os dois que são CONTEÚDO e não interface: a vela na
@@ -223,7 +223,7 @@ cliente.
 "0" é largo, as casas decimais dançam de linha em linha, e comparar R$ 112,00
 com R$ 19,50 vira leitura caractere a caractere. Quem decide se a coluna é
 numérica é o CONTEÚDO (`alinharColunasNumericas` olha a classe `.money`), e não
-uma lista de nomes de coluna — que ficaria desatualizada como os `data-l`
+uma lista de nomes de coluna, que ficaria desatualizada como os `data-l`
 ficaram.
 
 **Os avisos do painel têm nível, e o nível vem escrito.** Iam todos para uma
@@ -234,7 +234,7 @@ gente confunde, e é exatamente o par que separa "peça hoje" de "vale cotar".
 
 **Dois níveis de aba não podem se parecer.** Grupo com fio embaixo, subgrupo em
 pastilha preenchida. E a barra avisa quando há mais à direita, e traz a aba
-ativa para dentro do campo de visão — no celular cabem 5 dos 6 grupos, e abrir
+ativa para dentro do campo de visão, no celular cabem 5 dos 6 grupos, e abrir
 em Ajustes deixava a barra parecendo sem seleção.
 
 **`.hint` vale pela classe, não só dentro de `.field`.** Toda dica fora de um

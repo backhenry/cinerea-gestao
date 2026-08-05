@@ -5,7 +5,7 @@
 //
 // O mecanismo existia e estava sem uso: 5 células tinham `data-l` e 136 não.
 // A tabela de peças aparecia como sete números empilhados sem dizer qual é
-// custo, qual é preço e qual é margem — no aparelho em que o dono mais abre
+// custo, qual é preço e qual é margem, no aparelho em que o dono mais abre
 // isto. Escrever `data-l` em 136 lugares consertaria hoje e voltaria a quebrar
 // na próxima coluna, sem erro nenhum para avisar: foi assim que se chegou a 136.
 //
@@ -31,7 +31,7 @@ function tabelas() {
   return achadas;
 }
 
-test('toda tabela tem cabeçalho — é dele que sai o rótulo', () => {
+test('toda tabela tem cabeçalho, é dele que sai o rótulo', () => {
   const todas = tabelas();
   assert.ok(todas.length >= 15, `achei só ${todas.length} tabelas`);
   for (const t of todas) {
@@ -76,13 +76,13 @@ test('a rotulagem é automática, e não uma lista de chamadas', () => {
 test('ninguém voltou a usar emoji como ícone', () => {
   // Emoji é desenhado pelo sistema operacional: sai cinza no macOS, verde no
   // Android, e não aceita a cor da marca nem o tema escuro. `✎` e `◈` são pior
-  // ainda — símbolos de texto, que viram retângulo vazio onde não há o glifo.
+  // ainda, símbolos de texto, que viram retângulo vazio onde não há o glifo.
   // A flag `u` é obrigatória: sem ela a classe de caracteres quebra os pares
   // substitutos do UTF-16 e passa a casar METADE de cada emoji, o que dá falha
   // num arquivo limpo e não diz onde.
   // A lista cresceu junto com o conserto: os seis primeiros saíram na primeira
   // passada e os outros na segunda, espalhados por botões que ninguém tinha
-  // olhado. `⟳ ▶ ◀ ✕ ✉` não são emoji, são símbolos de texto — pior ainda,
+  // olhado. `⟳ ▶ ◀ ✕ ✉` não são emoji, são símbolos de texto, pior ainda,
   // porque caem para a fonte do aparelho e viram retângulo onde não existem.
   const proibidos = /[🗑✎⧉🔍💰◈🛒📈🔗🧾💬🔔🌐👤🖨🔒⚠⟳▶◀✕✉]/gu;
   /* VARRE O ARQUIVO INTEIRO, comentário incluído, e isso é decisão.

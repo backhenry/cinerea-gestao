@@ -56,7 +56,7 @@ jobs:
       # O `sw.js` só se reinstala quando o próprio arquivo muda. Com a versão
       # escrita à mão, dez publicações seguidas de `app.js` não mudavam o
       # `sw.js`, nenhum service worker novo era instalado e o aviso de "Nova
-      # versão disponível" nunca aparecia — o app continuava servindo o código
+      # versão disponível" nunca aparecia, o app continuava servindo o código
       # velho e parecia que o deploy não tinha saído.
       #
       # Com o SHA do commit no lugar da versão, todo deploy gera um `sw.js`
@@ -82,7 +82,7 @@ jobs:
           # secret vira pagina em branco, sem erro visivel para ninguem.
           # Falhar aqui e infinitamente melhor que publicar quebrado.
           if ! node --check config.js; then
-            echo "::error::config.js do secret CINEREA_CONFIG_JS tem erro de sintaxe — o deploy foi interrompido ANTES de publicar. Confira virgulas e aspas."
+            echo "::error::config.js do secret CINEREA_CONFIG_JS tem erro de sintaxe, o deploy foi interrompido ANTES de publicar. Confira virgulas e aspas."
             exit 1
           fi
           # E precisa mesmo definir a configuracao: um arquivo valido porem vazio

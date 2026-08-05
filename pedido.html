@@ -73,7 +73,7 @@ const msg=document.getElementById('msg'),cont=document.getElementById('conteudo'
 const token=new URLSearchParams(location.search).get('p');
 const cfg=window.CINEREA_CONFIG;
 
-// a etapa (0-3) vem pronta do sistema — o portal não precisa conhecer o
+// a etapa (0-3) vem pronta do sistema, o portal não precisa conhecer o
 // vocabulário de status do app
 const ETAPAS=[
   {t:'Pedido recebido',s:'Estamos com a sua encomenda anotada'},
@@ -88,7 +88,7 @@ function render(d){
   const falta=Math.max(0,Number(d.valor||0)-Number(d.pago||0));
   const atrasado=d.prazo&&idx<3&&!cancelado&&d.prazo<new Date().toISOString().slice(0,10);
 
-  if(d.empresa){document.getElementById('marca').textContent=d.empresa;document.title=d.empresa+' — sua encomenda';}
+  if(d.empresa){document.getElementById('marca').textContent=d.empresa;document.title=d.empresa+', sua encomenda';}
 
   const passos=cancelado
     ? `<div class="step cur"><div class="dot"></div><div><div class="t">Pedido cancelado</div><div class="s">Fale com a gente se tiver dúvida</div></div></div>`
@@ -99,7 +99,7 @@ function render(d){
       <div class="steps">${passos}</div>
     </div>
     <div class="card">
-      <div class="l"><span>Item</span><b>${esc(d.item||'—')}</b></div>
+      <div class="l"><span>Item</span><b>${esc(d.item||', ')}</b></div>
       ${d.qtd&&Number(d.qtd)>1?`<div class="l"><span>Quantidade</span><b>${esc(d.qtd)}</b></div>`:''}
       ${d.prazo?`<div class="l"><span>Entrega prevista</span><b>${dataBR(d.prazo)} ${atrasado?'<span class="pill low">atrasada</span>':''}</b></div>`:''}
       <div class="l"><span>Valor</span><b class="money">${brl(d.valor)}</b></div>

@@ -8,7 +8,7 @@ rules_version = '2';
 //
 // A primeira versão perguntava ao Firestore se quem envia está em `gestores`.
 // É mais preciso, e não funcionou: essa ponte exige uma permissão IAM que a
-// documentação diz ser pedida "ao salvar as regras pela primeira vez" — e que
+// documentação diz ser pedida "ao salvar as regras pela primeira vez", e que
 // nunca chegou a ser concedida. O sintoma foi `storage/unauthorized` sem pista
 // nenhuma, e o emulador não reproduz porque não exige a permissão.
 //
@@ -29,7 +29,7 @@ service firebase.storage {
       allow write: if request.auth != null
         && request.auth.uid == dono
         // Sem teto, um envio errado de vídeo ou de foto crua de 40 MB vira
-        // conta no fim do mês — o plano Blaze não tem limite rígido.
+        // conta no fim do mês, o plano Blaze não tem limite rígido.
         && request.resource.size < 2 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
 
@@ -57,7 +57,7 @@ service firebase.storage {
     // Arte do banner da loja. Uma imagem só, larga, no alto da vitrine.
     //
     // Teto entre os outros dois de propósito: é servida a todo visitante da
-    // loja, como o logo, mas é uma imagem larga e não um símbolo — 400 KB
+    // loja, como o logo, mas é uma imagem larga e não um símbolo, 400 KB
     // acomoda 1600px de largura em WebP com folga, e o painel encolhe antes.
     match /banners/{dono}/{arquivo} {
       allow read: if true;

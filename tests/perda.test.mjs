@@ -6,7 +6,7 @@
 //
 // A CAUSA. `cloudSave` espera 400 ms antes de gravar. Qualquer `onSnapshot`
 // que chegasse nessa janela executava `rebuildDb()`, que faz
-// `db = {...padrões, ...rawOp}` — substitui a memória INTEIRA pelo documento
+// `db = {...padrões, ...rawOp}`, substitui a memória INTEIRA pelo documento
 // do servidor, que ainda não tinha a edição. A gravação agendada disparava em
 // seguida e escrevia esse estado por cima. A peça sumia do cadastro e do
 // servidor, sem clique nenhum.
@@ -46,7 +46,7 @@ test('o snapshot financeiro tem a mesma trava', () => {
 
 test('a pendência é BOOLEANA, e não contador', () => {
   // Como contador ela vazava: `cloudSave` faz `clearTimeout`, então N chamadas
-  // viram UMA execução — N incrementos e um decremento. Depois de duas edições
+  // viram UMA execução, N incrementos e um decremento. Depois de duas edições
   // seguidas ela nunca voltava a zero e o app parava de aceitar snapshot para
   // sempre, inclusive o próprio eco da gravação.
   assert.match(js, /let gravacaoPendente=false;/);
@@ -88,7 +88,7 @@ test('o guarda da lista que encolhe AVISA, e não bloqueia', () => {
   // A primeira versão recusava a gravação e chamava `rebuildDb()`: apagava da
   // tela exatamente o que devia proteger. Um guarda contra perda de dados que
   // reage descartando o estado mais novo não é guarda, é a perda com outro
-  // nome. Na dúvida, gravar — o histórico de 7 dias recupera. Não gravar não
+  // nome. Na dúvida, gravar, o histórico de 7 dias recupera. Não gravar não
   // deixa rastro nenhum.
   const i = js.indexOf('const IGNORAR_NO_GUARDA');
   assert.notEqual(i, -1, 'sumiu o guarda da lista que encolhe');
@@ -104,10 +104,10 @@ test('o guarda da lista que encolhe AVISA, e não bloqueia', () => {
 
 test('a atividade fica de fora do guarda', () => {
   // `logAtv` limita a 60 por desenho. Sem a exceção, toda gravação disparava
-  // o alarme em falso — e, na versão que bloqueava, toda peça nova sumia.
+  // o alarme em falso, e, na versão que bloqueava, toda peça nova sumia.
   assert.match(js, /IGNORAR_NO_GUARDA=new Set\(\['atividade'\]\)/);
   assert.match(js, /db\.atividade=db\.atividade\.slice\(0,60\)/,
-    'o limite da atividade mudou — reveja a exceção do guarda');
+    'o limite da atividade mudou, reveja a exceção do guarda');
 });
 
 test('apagar de propósito continua funcionando', () => {
@@ -146,7 +146,7 @@ test('falha de gravação NUNCA fica calada', () => {
 test('o limite de 1 MB é conferido ANTES de tentar gravar', () => {
   // Um documento do Firestore não passa de 1.048.576 bytes, e a recusa chegava
   // só no console. Conferir antes troca uma falha muda por uma frase que diz o
-  // que fazer — e mostra o número, porque "arquive" sem tamanho não é conselho.
+  // que fazer, e mostra o número, porque "arquive" sem tamanho não é conselho.
   const i = js.indexOf('const LIMITE=1048576');
   assert.notEqual(i, -1, 'sumiu a conferência do limite');
   assert.ok(i < js.indexOf("updateDoc(doc(fdb,'empresas',eid),{dados:payloadOp"),
@@ -157,7 +157,7 @@ test('o limite de 1 MB é conferido ANTES de tentar gravar', () => {
 
 test('o erro do documento financeiro também avisa', () => {
   // Ele é gravado separado: falhar só ali significa perder custo, preço e
-  // markup enquanto o resto salva — a divergência mais difícil de perceber.
+  // markup enquanto o resto salva, a divergência mais difícil de perceber.
   const i = js.indexOf("setDoc(doc(fdb,'empresas',eid,'fin','dados'),finToWrite)");
   const bloco = js.slice(i, i + 400);
   assert.match(bloco, /toast\(/, 'a falha do financeiro voltou a ser só console');

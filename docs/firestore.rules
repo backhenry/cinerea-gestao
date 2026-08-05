@@ -10,7 +10,7 @@ service cloud.firestore {
     // Este arquivo existe idêntico em dois repositórios:
     //   cinerea-app    → docs/firestore.rules   (é daqui que se publica)
     //   cinerea-gestao → docs/firestore.rules   (espelho, alimenta o CI de lá)
-    // Mudou em um, copie no outro — senão os testes de um lado passam a
+    // Mudou em um, copie no outro, senão os testes de um lado passam a
     // proteger uma regra que não é a que está no ar.
 
     // ---------- funções de papel ----------
@@ -28,21 +28,21 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/empresas/$(eid)/membros/$(request.auth.uid)).data.get('papel','') == 'admin');
     }
     function ehFin(eid) {
-      // dono, admin ou sócio — quem enxerga o financeiro
+      // dono, admin ou sócio, quem enxerga o financeiro
       return ehDono(eid) || (ehMembro(eid)
         && get(/databases/$(database)/documents/empresas/$(eid)/membros/$(request.auth.uid)).data.get('papel','') in ['admin','socio']);
     }
     function ehDaCasa() {
       // Quem pode abrir empresa no sistema de gestão. Antes disto, QUALQUER conta
-      // autenticada podia — inclusive um cliente do app, que usa o mesmo Auth.
+      // autenticada podia, inclusive um cliente do app, que usa o mesmo Auth.
       return request.auth != null
         && exists(/databases/$(database)/documents/gestores/$(request.auth.uid));
     }
 
-    // Lista de quem é da casa. Um documento vazio por uid basta — o que importa
+    // Lista de quem é da casa. Um documento vazio por uid basta, o que importa
     // é existir. Só se mexe pelo Console do Firebase: nenhum app escreve aqui.
     //
-    // Cada um lê APENAS o próprio documento, e só para saber se é da casa — é
+    // Cada um lê APENAS o próprio documento, e só para saber se é da casa, é
     // isso que faz o app dos clientes mostrar a opção de registrar peça na
     // produção para o dono, e escondê-la de todo mundo. Ler o dos outros
     // continua negado, então ninguém descobre quem mais é gestor.
@@ -52,11 +52,11 @@ service cloud.firestore {
     }
 
     // Registro de fábrica: uma peça Cinérea que existe no mundo.
-    // O id é o UID do chip — o mesmo que identifica a peça no app do cliente.
+    // O id é o UID do chip, o mesmo que identifica a peça no app do cliente.
     //
     // Leitura aberta de propósito: é a certidão da peça, e no futuro a página
     // que o convidado abre ao encostar precisa lê-la sem login. Não há nada
-    // pessoal aqui — modelo, número de série e data de fabricação.
+    // pessoal aqui, modelo, número de série e data de fabricação.
     // Escrita só de quem é da casa: é isto que impede um cliente de forjar
     // procedência para uma peça que a Cinérea não fez.
     // LEITURA POR ID, NUNCA POR LISTA.
@@ -64,8 +64,7 @@ service cloud.firestore {
     // `read` cobre `get` e `list` juntos, e com `list` liberado qualquer pessoa
     // sem login enumera TODOS os tagUid já registrados. Isso quebra a premissa
     // do sistema inteiro: a de que conhecer o UID de um chip significa ter
-    // encostado na peça. Com a lista aberta, formava-se uma corrente —
-    // enumerar as peças, criar uma conta comum, registrá-las na conta própria
+    // encostado na peça. Com a lista aberta, formava-se uma corrente, // enumerar as peças, criar uma conta comum, registrá-las na conta própria
     // (a regra permite qualquer id na subcoleção do cliente) e assim ganhar
     // permissão de reescrever a vitrine pública de cada peça vendida.
     //
@@ -107,7 +106,7 @@ service cloud.firestore {
           // `email_verified` é exigido, e não é excesso de zelo: o Firebase não
           // confere o e-mail no cadastro por senha. Sem esta linha, quem
           // descobrisse que fulano@empresa.com foi convidado criava uma conta
-          // com esse endereço e entrava no lugar dele — num sistema que mostra
+          // com esse endereço e entrava no lugar dele, num sistema que mostra
           // faturamento, margem e a base de clientes.
           || (request.auth.token.email_verified == true
               && exists(/databases/$(database)/documents/acessos/$(request.auth.token.email.lower()))
@@ -151,8 +150,7 @@ service cloud.firestore {
     // Acesso por E-MAIL. O id do documento é o e-mail em minúsculas.
     //
     // POR QUE ISTO EXISTE, e por que não é "cadastrar o usuário": criar conta de
-    // outra pessoa exige o Admin SDK num servidor, que este projeto não tem —
-    // e fazer isso pelo navegador desconectaria quem está cadastrando da própria
+    // outra pessoa exige o Admin SDK num servidor, que este projeto não tem, // e fazer isso pelo navegador desconectaria quem está cadastrando da própria
     // sessão. Então o que se cadastra é a AUTORIZAÇÃO: a casa diz que aquele
     // e-mail pode entrar e com que papel, e a pessoa cria a própria senha.
     //
@@ -190,18 +188,18 @@ service cloud.firestore {
     //
     // `get` aberto de propósito: o cupom NASCE para ser divulgado, e quem
     // digita o código está justamente provando que o recebeu. Mas `list` é
-    // fechado — com listagem liberada, qualquer pessoa baixava a coleção
+    // fechado, com listagem liberada, qualquer pessoa baixava a coleção
     // inteira e usava o maior desconto que existisse, sem nunca ter visto o
     // anúncio de vendedor nenhum. É a mesma distinção de `pecas`, `portal`,
     // `rfq` e `vitrines`: ler um documento não é consultar uma coleção.
     //
     // O documento aqui é o RECORTE PÚBLICO: só o que o cliente precisa para ver
     // o desconto na tela. A comissão do vendedor não entra, porque não é da
-    // conta de quem compra — ela vive no cadastro da gestão, junto com o resto.
+    // conta de quem compra, ela vive no cadastro da gestão, junto com o resto.
     // Quem escreve é só a casa, e é isso que impede alguém de criar
     // "DESCONTO90" e se auto-conceder comissão.
     // A CASA lista; o público, não. A gestão precisa enxergar o que está no ar
-    // para apagar o que já não existe no cadastro dela — sem isso, um cupom
+    // para apagar o que já não existe no cadastro dela, sem isso, um cupom
     // apagado lá continuava valendo aqui, dando desconto para sempre. Para
     // quem não é da casa, `list` continua fechado, que é o que impede baixar a
     // coleção inteira e usar o maior desconto que existir.
@@ -212,9 +210,9 @@ service cloud.firestore {
     }
 
     // Portal do cliente: doc com o MÍNIMO do pedido (item, valor, saldo, etapa).
-    // O token no id é o segredo — quem tem o link lê; só membros escrevem.
+    // O token no id é o segredo, quem tem o link lê; só membros escrevem.
     match /portal/{token} {
-      // Por id, nunca por lista. O token no id é o segredo — e com `list`
+      // Por id, nunca por lista. O token no id é o segredo, e com `list`
       // liberado qualquer um baixava TODOS os portais, isto é, os dados de
       // pedido de todos os clientes, sem login e sem conhecer token nenhum.
       allow get: if true;
@@ -225,11 +223,11 @@ service cloud.firestore {
 
     // Portal do fornecedor: a cotação é pública (via token) e ele envia a
     // proposta sem login. Escrita anônima é permitida SOMENTE para criar uma
-    // resposta, com formato e tamanho limitados — nunca ler as dos outros,
+    // resposta, com formato e tamanho limitados, nunca ler as dos outros,
     // nem alterar ou apagar o que já foi enviado.
     match /rfq/{token} {
       // Mesmo caso do portal: o token é o segredo, e listar entregava todas as
-      // cotações — com quais fornecedores a casa negocia e o que pediu a eles.
+      // cotações, com quais fornecedores a casa negocia e o que pediu a eles.
       allow get: if true;
       allow list: if false;
       allow write: if request.auth != null && ehMembro(request.resource.data.empresaId);
@@ -252,15 +250,15 @@ service cloud.firestore {
     // A vitrine pública de uma peça: o que o convidado vê ao encostar.
     //
     // Existe porque o conteúdo "de verdade" mora em `clientes/{uid}/pecas/`, que
-    // é privado — o convidado não lê nada de lá, e não deve mesmo. Aqui fica só
+    // é privado, o convidado não lê nada de lá, e não deve mesmo. Aqui fica só
     // o recorte que a peça mostra ao mundo.
     //
     // Escreve quem É DONO da peça: a regra confere se existe `pecas/{tagUid}`
     // dentro da conta de quem está escrevendo. Sem isso, qualquer pessoa
     // logada poderia trocar o conteúdo da peça alheia sabendo só o UID do chip
-    // — que se lê encostando o celular.
+    //, que se lê encostando o celular.
     match /vitrines/{tagUid} {
-      // Por id, nunca por lista — o mesmo motivo de `pecas`: com a lista aberta
+      // Por id, nunca por lista, o mesmo motivo de `pecas`: com a lista aberta
       // qualquer um enumera os chips existentes e a premissa de que conhecer o
       // UID significa ter tocado na peça deixa de valer.
       allow get: if true;
@@ -268,7 +266,7 @@ service cloud.firestore {
 
       // A senha do wi-fi PASSA por aqui, e isso é decisão consciente do dono
       // (jul/2026). A regra anterior a proibia, porque numa página ela vira
-      // endereço que se encaminha por mensagem — mas a Apple não implementa o
+      // endereço que se encaminha por mensagem, mas a Apple não implementa o
       // registro `vnd.wfa.wsc`, então SEM a senha na página um convidado de
       // iPhone não consegue conectar de jeito nenhum. Entre proteger a senha e
       // ter o tipo "wi-fi" funcionando em metade dos celulares, o dono escolheu
@@ -276,15 +274,15 @@ service cloud.firestore {
       // quem tem o link vê a senha, tenha ou não tocado na peça.
       // FORMATO E TAMANHO LIMITADOS. Sem isto, quem tem uma peça podia gravar
       // um documento de até 1 MB com campos quaisquer, numa coleção de leitura
-      // pública — lixo hospedado no domínio da marca, e conta no fim do mês,
+      // pública, lixo hospedado no domínio da marca, e conta no fim do mês,
       // porque o Blaze não tem teto rígido de gasto.
       // QUEM CHEGOU PRIMEIRO MANDA. Conhecer o UID do chip basta para registrar
-      // a peça na própria conta — e conhecer o UID é só ter encostado o celular
+      // a peça na própria conta, e conhecer o UID é só ter encostado o celular
       // nela uma vez, numa festa. Sem esta trava, o convidado de ontem
       // reescrevia hoje a página da peça que está na sua sala.
       // Publicar de novo exige ser quem publicou. Ao passar a peça adiante o
       // app apaga a vitrine antes de soltar a peça, e aí o novo dono publica a
-      // dele — a passagem continua funcionando.
+      // dele, a passagem continua funcionando.
       // `!('dono' in resource.data)`: vitrines criadas antes desta regra não
       // têm o campo, e não podem ficar impossíveis de atualizar.
       allow write: if request.auth != null
@@ -296,7 +294,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['dono','tipo','titulo','dados','senha','itens','atualizadoEm','estilo'])
         // `estilo` é a aparência que o dono escolheu para a página dele: cor de
         // acento, base clara ou escura, e um nome. Tudo texto curto, e nenhum
-        // deles é endereço — logo, nada aqui vira link, e o filtro de esquema da
+        // deles é endereço, logo, nada aqui vira link, e o filtro de esquema da
         // página do convidado não precisa se preocupar com este campo.
         //
         // A regra confere CHAVES E TAMANHO, e não formato: validar `#rrggbb`
@@ -325,7 +323,7 @@ service cloud.firestore {
              && request.resource.data.estilo.get('marca','').size() <= 40
            ))
         // `itens` é a lista do tipo "Meus links". A regra limita a QUANTIDADE;
-        // o conteúdo de cada item ela não consegue percorrer — regra não itera
+        // o conteúdo de cada item ela não consegue percorrer, regra não itera
         // lista. O que segura o resto é o teto de 1 MB por documento e o fato
         // de só o dono da peça poder escrever aqui.
         && (!('itens' in request.resource.data)
@@ -340,7 +338,7 @@ service cloud.firestore {
         && (!('senha' in request.resource.data)
             || (request.resource.data.senha is string && request.resource.data.senha.size() <= 80));
 
-      // Apagar também é de quem publicou — senão a trava acima se contornaria
+      // Apagar também é de quem publicou, senão a trava acima se contornaria
       // apagando a vitrine alheia e publicando outra por cima.
       allow delete: if request.auth != null
         && exists(/databases/$(database)/documents/clientes/$(request.auth.uid)/pecas/$(tagUid))
@@ -350,7 +348,7 @@ service cloud.firestore {
     // Encomendas feitas pela loja do app.
     //
     // NÃO são pedidos: são PEDIDOS DE COMPRA, esperando a casa aceitar. Sem
-    // pagamento (estágio 2), aceitar é decisão humana — confere-se estoque e
+    // pagamento (estágio 2), aceitar é decisão humana, confere-se estoque e
     // preço antes de virar pedido de verdade lá na gestão.
     //
     // O preço que vem aqui é o que o cliente VIU, e serve para conferência: a
@@ -403,7 +401,7 @@ service cloud.firestore {
     }
 
     // ==================================================================
-    // APP DOS CLIENTES — daqui para baixo é o cinerea-app
+    // APP DOS CLIENTES, daqui para baixo é o cinerea-app
     // ==================================================================
     // Cada dono de peça enxerga só o que é dele. Nada aqui cruza com a gestão:
     // um cliente não lê empresa nenhuma, e um gestor não lê as peças de ninguém.
@@ -415,7 +413,7 @@ service cloud.firestore {
     match /clientes/{uid} {
       allow read, write: if ehOCliente(uid);
 
-      // O id da peça é o UID de fábrica da tag NFC — imutável e único por chip.
+      // O id da peça é o UID de fábrica da tag NFC, imutável e único por chip.
       // Conteúdo e histórico ficam dentro do documento (histórico é array, não
       // subcoleção), então uma regra só cobre a peça inteira.
       match /pecas/{tagUid} {
@@ -423,7 +421,7 @@ service cloud.firestore {
       }
 
       // Subcoleção nova daqui para frente precisa do próprio bloco: sem match,
-      // o Firestore nega. É de propósito — falhar fechado.
+      // o Firestore nega. É de propósito, falhar fechado.
     }
   }
 }

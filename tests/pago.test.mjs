@@ -1,7 +1,7 @@
 // Encomenda JÁ PAGA: o valor está fechado e não se recalcula.
 //
 // Achado em ago/2026, no dia em que o pagamento online passou a funcionar. O
-// `aceitarEncomenda` sempre recalculou o desconto pelo cadastro da casa — o que
+// `aceitarEncomenda` sempre recalculou o desconto pelo cadastro da casa, o que
 // é certo enquanto ninguém pagou, e é dinheiro errado depois que alguém pagou.
 //
 // O caso concreto: cliente paga R$ 170 com 15% de cupom. Dois dias depois o
@@ -21,7 +21,7 @@ const fonte = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
  *
  * O `aceitarEncomenda` inteiro não se extrai: é assíncrono, mexe no Firestore e
  * toca a interface. O que se extrai é a DECISÃO, que é a linha onde o dinheiro
- * se decide — e é a única parte que precisa de teste.
+ * se decide, e é a única parte que precisa de teste.
  */
 function decisao(e, descontoDoCadastro) {
   const linhas = fonte.slice(fonte.indexOf('const jaPago ='),
@@ -85,7 +85,7 @@ test('marcada como paga mas sem totalFechado NÃO é tratada como paga', () => {
 
 test('encomenda PAGA aparece na caixa de entrada', () => {
   // O filtro pegava só `nova`. A paga sumia: dinheiro entrava e a casa não
-  // ficava sabendo — o pior defeito possível numa caixa de entrada de vendas.
+  // ficava sabendo, o pior defeito possível numa caixa de entrada de vendas.
   const i = fonte.indexOf('const esperando =');
   assert.notEqual(i, -1, 'não achei o filtro da caixa de entrada');
   const esperando = new Function(`${fonte.slice(i, fonte.indexOf('\n', i))} return esperando;`)();

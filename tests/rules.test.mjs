@@ -232,10 +232,10 @@ test('subcoleção não declarada em clientes/ falha fechado', () =>
 // A página que o convidado vê ao encostar o celular na peça. Estes testes
 // vieram do repo do app (tests/regras.test.mjs) quando as duas cópias das
 // regras divergiram: o bloco de `vitrines` estava publicado em produção e o CI
-// daqui não o conhecia — ou seja, guardava uma regra que não estava no ar.
+// daqui não o conhecia, ou seja, guardava uma regra que não estava no ar.
 const TAG = '04A2B3C4D5';
 
-test('NINGUÉM lista portal nem rfq — dados de cliente e de fornecedor', async () => {
+test('NINGUÉM lista portal nem rfq, dados de cliente e de fornecedor', async () => {
   // Mesma falha das peças, em coleções mais sensíveis: o token no id é o
   // segredo, e listar entregava todos os portais (dados de pedido de cada
   // cliente) e todas as cotações (com quem a casa negocia e o que pediu).
@@ -247,7 +247,7 @@ test('NINGUÉM lista portal nem rfq — dados de cliente e de fornecedor', async
 
 test('vitrine recusa campo estranho e texto gigante', async () => {
   // Sem limite, quem tem uma peça gravava 1 MB de lixo numa coleção de leitura
-  // pública — e a conta chega para o dono, porque o Blaze não tem teto.
+  // pública, e a conta chega para o dono, porque o Blaze não tem teto.
   await assertFails(fs('ana').doc(`vitrines/${TAG}`).set({
     dono: 'ana', tipo: 'recado', titulo: 'Recado', dados: 'oi', invadido: 'campo que ninguém previu',
   }));
@@ -275,7 +275,7 @@ test('encomenda recusa endereço e recado gigantes, e campo estranho', async () 
     .set({ ...base, contrabando: 'campo que ninguém previu' }));
 });
 
-test('NINGUÉM lista peças nem vitrines — só lê por id', async () => {
+test('NINGUÉM lista peças nem vitrines, só lê por id', async () => {
   // Era a corrente inteira: enumerar os tagUid sem login, criar uma conta
   // comum, registrar as peças alheias na própria conta e assim ganhar
   // permissão de reescrever a vitrine pública de cada peça vendida.
@@ -295,7 +295,7 @@ test('o dono da peça publica a vitrine dela', () =>
   })));
 
 test('quem NÃO tem a peça não mexe na vitrine dela', async () => {
-  // Bruno sabe o UID do chip — basta encostar o celular. Só isso não basta.
+  // Bruno sabe o UID do chip, basta encostar o celular. Só isso não basta.
   await assertFails(fs('bruno').doc(`vitrines/${TAG}`).set({
     tipo: 'link', titulo: 'Sequestrada', dados: 'https://golpe.com',
   }));
@@ -304,7 +304,7 @@ test('quem NÃO tem a peça não mexe na vitrine dela', async () => {
   }));
 });
 
-test('senha de wi-fi ENTRA na vitrine — decisão do dono', async () => {
+test('senha de wi-fi ENTRA na vitrine, decisão do dono', async () => {
   // A regra anterior a proibia. A Apple não implementa o registro de wi-fi do
   // NFC, então sem a senha na página um convidado de iPhone não conecta de
   // jeito nenhum. O dono escolheu funcionar, sabendo que quem tem o link vê a
@@ -321,7 +321,7 @@ test('senha de wi-fi ENTRA na vitrine — decisão do dono', async () => {
 test('sem a peça na conta, nem o dono anterior apaga a vitrine', async () => {
   // É ISTO que obriga `passarAdiante` a apagar a vitrine ANTES do registro:
   // invertendo a ordem, quem dá a peça de presente perde para sempre a
-  // permissão de limpar a própria página — que continua no ar com o que ele
+  // permissão de limpar a própria página, que continua no ar com o que ele
   // deixou ali, hoje inclusive a senha do wi-fi de casa.
   await assertFails(fs('ana').doc('vitrines/SEMDONO01').delete());
 });
@@ -332,7 +332,7 @@ test('vitrine aceita a lista de endereços, com teto de 12', async () => {
     dono: 'ana', tipo: 'links', titulo: 'Meus links', dados: '4 endereços',
     itens: [1, 2, 3, 4].map(link),
   }));
-  // A regra não consegue percorrer a lista — regra não itera. O que ela segura
+  // A regra não consegue percorrer a lista, regra não itera. O que ela segura
   // é a QUANTIDADE; o resto fica com o teto de 1 MB por documento.
   await assertFails(fs('ana').doc(`vitrines/${TAG}`).set({
     dono: 'ana', tipo: 'links', titulo: 'Meus links', dados: 'demais',
@@ -341,7 +341,7 @@ test('vitrine aceita a lista de endereços, com teto de 12', async () => {
 });
 
 test('quem publicou primeiro manda: outro nao sobrescreve nem apaga', async () => {
-  // Conhecer o UID do chip basta para registrar a peca na propria conta — e
+  // Conhecer o UID do chip basta para registrar a peca na propria conta, e
   // conhecer o UID e so ter encostado o celular na peca uma vez, numa festa.
   // Sem esta trava, o convidado de ontem reescrevia hoje a pagina da peca.
   await env.withSecurityRulesDisabled(async ctx => {

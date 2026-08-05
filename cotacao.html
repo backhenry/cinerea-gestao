@@ -83,16 +83,16 @@ function total(){
     if(p>0)t+=p*num(it.qtd);
   });
   const el=document.getElementById('totalV');
-  if(el)el.textContent=t>0?brl(t):'—';
+  if(el)el.textContent=t>0?brl(t):', ';
 }
 window.__total=total;
 
 function render(){
-  if(rfq.empresa){document.getElementById('marca').textContent=rfq.empresa;document.title='Cotação — '+rfq.empresa;}
+  if(rfq.empresa){document.getElementById('marca').textContent=rfq.empresa;document.title='Cotação, '+rfq.empresa;}
   document.getElementById('sub').textContent='cotação '+token.slice(0,8).toUpperCase();
   form.innerHTML=`
     <div class="aviso">
-      <b>Olá!</b> Preencha o preço unitário de cada item que você fornece — deixe em branco o que não trabalha.
+      <b>Olá!</b> Preencha o preço unitário de cada item que você fornece, deixe em branco o que não trabalha.
       ${rfq.validade?`<br>Precisamos da resposta até <b>${dataBR(rfq.validade)}</b>.`:''}
       ${rfq.cond?`<br>Condições de pagamento: <b>${esc(rfq.cond)}</b>.`:''}
     </div>
@@ -107,7 +107,7 @@ function render(){
           <div><label>Observação</label><input id="o${i}" placeholder="marca, embalagem…"></div>
         </div>
       </div>`).join('')}
-    <div class="total"><span class="k">Total da proposta</span><span class="v" id="totalV">—</span></div>
+    <div class="total"><span class="k">Total da proposta</span><span class="v" id="totalV">, </span></div>
     <button class="btn" id="enviar">Enviar proposta</button>
     <div class="erro" id="erro"></div>`;
   msg.hidden=true;form.hidden=false;
@@ -148,7 +148,7 @@ if(!token||!cfg||!cfg.apiKey||cfg.apiKey==='COLE_AQUI'){
       rfq=snap.data();
       const hj=new Date().toISOString().slice(0,10);
       if(rfq.fechada||(rfq.validade&&rfq.validade<hj)){
-        msg.innerHTML='Esta cotação já foi encerrada.<br><span style="font-size:14px">Obrigado pelo interesse — falaremos na próxima.</span>';
+        msg.innerHTML='Esta cotação já foi encerrada.<br><span style="font-size:14px">Obrigado pelo interesse, falaremos na próxima.</span>';
       }else render();
     }
   }catch(e){console.error(e);msg.textContent='Não foi possível carregar agora.';}

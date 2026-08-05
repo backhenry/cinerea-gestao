@@ -1,4 +1,4 @@
-// Service worker da Cinérea Gestão — deixa o app abrir mesmo sem internet.
+// Service worker da Cinérea Gestão, deixa o app abrir mesmo sem internet.
 // Estratégia: rede primeiro (para pegar atualizações), cache como reserva offline.
 // A versão é CARIMBADA NO DEPLOY com o SHA do commit (ver .github/workflows).
 // Este valor só vale quando se abre o arquivo direto do repositório, em

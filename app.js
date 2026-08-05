@@ -7,7 +7,7 @@ import * as Core from "./core.js";
 
 // ============================================================
 // COLE AQUI AS SUAS CHAVES DO FIREBASE (as mesmas do app anterior)
-// As chaves vêm de config.js (que fica fora do Git — veja config.example.js)
+// As chaves vêm de config.js (que fica fora do Git, veja config.example.js)
 const firebaseConfig = window.CINEREA_CONFIG || {
   apiKey: "COLE_AQUI", authDomain: "COLE_AQUI", projectId: "COLE_AQUI",
   storageBucket: "COLE_AQUI", messagingSenderId: "COLE_AQUI", appId: "COLE_AQUI"
@@ -23,7 +23,7 @@ let rawOp=null,rawFin=null,dbFinLoaded=false,migrouFin=false,minhasEmpresas={};
 
    É BOOLEANO, e não contador. Como contador ele vazava: `cloudSave` é
    chamado a cada edição e faz `clearTimeout`, então N chamadas viram UMA
-   execução — N incrementos e um decremento. Depois de duas edições seguidas
+   execução, N incrementos e um decremento. Depois de duas edições seguidas
    ele nunca mais voltava a zero, e o app parava de aceitar snapshot para
    sempre, inclusive o próprio eco da gravação. */
 let gravacaoPendente=false;
@@ -31,7 +31,7 @@ let gravacaoPendente=false;
    `cloudSave` saber diferenciar "o dono apagou" de "a lista encolheu sozinha". */
 let apagouDeProposito=false;
 let db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],colecoes:[],meta:0,checks:{}};
-// dados financeiros vivem num doc separado (empresas/{eid}/fin/dados) — só dono/admin/sócio leem
+// dados financeiros vivem num doc separado (empresas/{eid}/fin/dados), só dono/admin/sócio leem
 const FIN_KEYS=['fixos','meta','meiTeto','ultimoBackup'];
 const PROD_FIN=['preco','markup','taxa','custohora','perda','equip'];
 function rebuildDb(){
@@ -85,19 +85,19 @@ if(!isConfigured){document.getElementById('gateSetup').style.display='block';}
 else{
   app=initializeApp(firebaseConfig);
 
-  // APP CHECK — prova ao Firebase que a requisicao veio DESTE site, e nao de um
+  // APP CHECK, prova ao Firebase que a requisicao veio DESTE site, e nao de um
   // script qualquer com a chave web (que e publica e vai em todo HTML).
   //
   // Vem logo depois do initializeApp e ANTES dos servicos: o token precisa
   // existir quando a primeira chamada sair.
   //
-  // A chave do reCAPTCHA fica no config.js, que esta fora do Git — nao porque
+  // A chave do reCAPTCHA fica no config.js, que esta fora do Git, nao porque
   // seja segredo (chave de SITE do reCAPTCHA e publica por natureza), e sim
   // para o repositorio publico nao carregar configuracao de ambiente.
   //
   // Sem a chave, o bloco nao roda e nada quebra: App Check so barra alguma
   // coisa quando a IMPOSICAO e ligada no Console, e ela comeca desligada. E o
-  // primeiro servico a impor deve ser o Cloud Storage — e o unico que a gestao
+  // primeiro servico a impor deve ser o Cloud Storage, e o unico que a gestao
   // usa, e a lacuna que a regra do Storage nao consegue fechar sozinha, porque
   // ela nao tem como saber quem e da casa sem consultar o Firestore.
   const chaveRecaptcha=(window.CINEREA_CONFIG||{}).recaptchaSiteKey;
@@ -109,7 +109,7 @@ else{
       });
     }catch(e){
       // Falhar aqui nao pode derrubar a gestao: sem imposicao ligada, o app
-      // funciona igual — so nao envia o atestado.
+      // funciona igual, so nao envia o atestado.
       console.warn('App Check nao iniciou:',e);
     }
   }
@@ -173,7 +173,7 @@ async function entrarPorEmail(){
     const bt = document.getElementById('reenviar');
     if(bt) bt.onclick = async () => {
       bt.disabled = true;
-      try{ await sendEmailVerification(u); bt.textContent = 'Enviado — confira sua caixa'; }
+      try{ await sendEmailVerification(u); bt.textContent = 'Enviado, confira sua caixa'; }
       catch(e){ console.error(e); bt.textContent = 'Não consegui enviar agora'; }
     };
     return true;   // tratado: não cai no onboarding genérico
@@ -245,10 +245,10 @@ function iniciarEmpresa(){
 }
 async function gerarConvite(){
   if(!pode('gerir')){toast('Só dono e admin podem convidar');return;}
-  let papel=prompt('Papel do convidado — digite: empregado, socio ou admin','empregado');
+  let papel=prompt('Papel do convidado, digite: empregado, socio ou admin','empregado');
   if(papel===null)return;
   papel=papel.trim().toLowerCase().replace('ó','o');
-  if(!PAPEIS.includes(papel)){toast('Papel inválido — use empregado, socio ou admin');return;}
+  if(!PAPEIS.includes(papel)){toast('Papel inválido, use empregado, socio ou admin');return;}
   try{
     db.convitesPorPapel=db.convitesPorPapel||{};
     let c=db.convitesPorPapel[papel];
@@ -256,8 +256,8 @@ async function gerarConvite(){
       await setDoc(doc(fdb,'convites',c),{empresaId:eid,papel,criado:Date.now()});
       db.convitesPorPapel[papel]=c;cloudSave();}
     if(navigator.clipboard)navigator.clipboard.writeText(c).catch(()=>{});
-    toast('Convite de <b>'+PAPEL_LABEL[papel]+'</b>: <b>'+c+'</b> — copiado');
-  }catch(e){console.error(e);toast('Erro ao gerar convite — confira as regras do Firestore');}
+    toast('Convite de <b>'+PAPEL_LABEL[papel]+'</b>: <b>'+c+'</b>, copiado');
+  }catch(e){console.error(e);toast('Erro ao gerar convite, confira as regras do Firestore');}
 }
 async function removerMembro(mUid){
   if(!pode('gerir')||mUid===empresaDono){toast('Sem permissão');return;}
@@ -293,7 +293,7 @@ async function mudarPapel(mUid){
   const atual=(membros[mUid]||{}).papel||'empregado';
   const prox=PAPEIS[(PAPEIS.indexOf(atual)+1)%PAPEIS.length];
   try{await setDoc(doc(fdb,'empresas',eid,'membros',mUid),{papel:prox},{merge:true});toast('Papel de <b>'+esc((membros[mUid]||{}).nome||'membro')+'</b> agora é <b>'+PAPEL_LABEL[prox]+'</b>');}
-  catch(e){console.error(e);toast('Erro ao mudar papel — confira as regras do Firestore');}
+  catch(e){console.error(e);toast('Erro ao mudar papel, confira as regras do Firestore');}
 }
 // ---------- perfil ----------
 function openPerfil(){
@@ -306,7 +306,7 @@ function openPerfil(){
     <div class="field"><label>E-mail de login</label><input id="f_pemail" type="email" value="${esc((auth.currentUser&&auth.currentUser.email)||'')}"><div class="hint">Alterar pode pedir sua senha atual ou confirmação por link no novo e-mail</div></div>
     <div class="field"><label>Nova senha</label><input id="f_psenha" type="password" placeholder="deixe vazio para manter a atual"></div>
     ${pode('gerir')?`<div class="field"><label>Nome da empresa</label><input id="f_pempresa" value="${esc(empresaNome)}"></div><div class="field"><label>Endereço da empresa</label><input id="f_pendereco" value="${esc(db.endereco||'')}"><div class="hint">Aparece na aba Contato da planilha de cotação</div></div>`:''}
-    <div class="field"><label>Meu papel</label><div style="padding:6px 0"><span class="papel ${meuPapel()}">${PAPEL_LABEL[meuPapel()]}</span> <span class="hint" style="display:inline">— define o que você vê e gerencia</span></div></div>
+    <div class="field"><label>Meu papel</label><div style="padding:6px 0"><span class="papel ${meuPapel()}">${PAPEL_LABEL[meuPapel()]}</span> <span class="hint" style="display:inline">, define o que você vê e gerencia</span></div></div>
     <div class="field-row">
       <div class="field"><label>Tema</label><select id="f_ptema">${['claro','escuro','auto'].map(t=>`<option ${p.tema===t?'selected':''}>${t}</option>`).join('')}</select></div>
       <div class="field"><label>Cor de destaque</label><select id="f_pacento">${Object.entries(ACENTOS).map(([n,c])=>`<option value="${c}" ${(p.acento||'#B5462A')===c?'selected':''}>${n}</option>`).join('')}</select></div>
@@ -338,7 +338,7 @@ async function salvarPerfil(){
   try{
     if(email&&cur&&email!==cur.email){
       try{await comReauth(cur,()=>updateEmail(cur,email));toast('E-mail alterado para '+esc(email));}
-      catch(e){if(e.code==='auth/operation-not-allowed'){await comReauth(cur,()=>verifyBeforeUpdateEmail(cur,email));toast('Enviamos um link de confirmação para '+esc(email)+' — o e-mail muda após confirmar');}else throw e;}
+      catch(e){if(e.code==='auth/operation-not-allowed'){await comReauth(cur,()=>verifyBeforeUpdateEmail(cur,email));toast('Enviamos um link de confirmação para '+esc(email)+', o e-mail muda após confirmar');}else throw e;}
     }
     if(senha){if(senha.length<6){toast('Senha nova muito curta (mínimo 6)');return;}await comReauth(cur,()=>updatePassword(cur,senha));toast('Senha alterada');}
   }catch(e){console.error(e);const msgs={'auth/invalid-email':'E-mail inválido.','auth/email-already-in-use':'Este e-mail já está em uso.','auth/wrong-password':'Senha atual incorreta.','auth/invalid-credential':'Senha atual incorreta.'};toast(msgs[e.code]||'Erro ao atualizar a conta: '+e.code);return;}
@@ -386,8 +386,8 @@ async function arquivarAno(){
     db.compras=(db.compras||[]).filter(c=>!pred(c.data));
     db.atividade=(db.atividade||[]).slice(0,20);
     logAtv('arquivou '+total+' registro(s) de '+a);
-    cloudSave();renderAll();toast(total+' registro(s) arquivados — ficam em empresas/arquivo/'+a);
-  }catch(e){console.error(e);toast('Erro ao arquivar — confira as regras do Firestore');}
+    cloudSave();renderAll();toast(total+' registro(s) arquivados, ficam em empresas/arquivo/'+a);
+  }catch(e){console.error(e);toast('Erro ao arquivar, confira as regras do Firestore');}
 }
 // ---------- captura de erros (diagnóstico) ----------
 function regErro(msg){try{if(!uid||!eid||!fdb)return;setDoc(doc(fdb,'empresas',eid,'diag','erros'),{ultimo:{t:Date.now(),u:uid,m:String(msg).slice(0,300)},lista:arrayUnion({t:Date.now(),m:String(msg).slice(0,300)})},{merge:true}).catch(()=>{});}catch(e){}}
@@ -422,7 +422,7 @@ async function checkBackup(){
 }
 let authMode='login';
 function toggleAuth(){authMode=authMode==='login'?'signup':'login';document.getElementById('gBtn').textContent=authMode==='login'?'Entrar':'Criar conta';document.getElementById('swapLbl').textContent=authMode==='login'?'Criar agora':'Já tenho conta';document.getElementById('gateErr').textContent='';}
-async function doAuth(){const em=document.getElementById('gEmail').value,pw=document.getElementById('gPass').value,err=document.getElementById('gateErr');try{if(authMode==='signup'){const c=await createUserWithEmailAndPassword(auth,em,pw);try{await sendEmailVerification(c.user);}catch(e){console.error(e);}}else await signInWithEmailAndPassword(auth,em,pw);}catch(e){const m={'auth/invalid-email':'E-mail inválido.','auth/weak-password':'Senha curta (mín. 6).','auth/email-already-in-use':'E-mail já cadastrado — entre.','auth/invalid-credential':'E-mail ou senha incorretos.'};err.textContent=m[e.code]||'Erro: '+e.code;}}
+async function doAuth(){const em=document.getElementById('gEmail').value,pw=document.getElementById('gPass').value,err=document.getElementById('gateErr');try{if(authMode==='signup'){const c=await createUserWithEmailAndPassword(auth,em,pw);try{await sendEmailVerification(c.user);}catch(e){console.error(e);}}else await signInWithEmailAndPassword(auth,em,pw);}catch(e){const m={'auth/invalid-email':'E-mail inválido.','auth/weak-password':'Senha curta (mín. 6).','auth/email-already-in-use':'E-mail já cadastrado, entre.','auth/invalid-credential':'E-mail ou senha incorretos.'};err.textContent=m[e.code]||'Erro: '+e.code;}}
 function doLogout(){if(auth)signOut(auth);}
 function subscribe(){
   if(unsubData)unsubData();if(unsubFin)unsubFin();
@@ -434,7 +434,7 @@ function subscribe(){
     /* ═══ A CORRIDA QUE APAGAVA PEÇA ═══════════════════════════════════════
        `cloudSave` espera 400 ms antes de gravar. Se um snapshot chegasse
        nessa janela, o `rebuildDb` abaixo trocava o `db` inteiro pelo
-       documento do SERVIDOR — que ainda não tinha a edição — e a gravação
+       documento do SERVIDOR, que ainda não tinha a edição, e a gravação
        agendada disparava em seguida, escrevendo esse estado por cima. A peça
        recém-criada sumia do cadastro E do servidor, sem ninguém tocar em
        lixeira nenhuma.
@@ -466,7 +466,7 @@ function subscribe(){
     // guarda o nome real da empresa no perfil (o convite entra com placeholder)
     if(empresaNome&&minhasEmpresas[eid]!==empresaNome){minhasEmpresas[eid]=empresaNome;setDoc(doc(fdb,'usuarios',uid),{minhasEmpresas:{[eid]:empresaNome}},{merge:true}).catch(()=>{});}
     renderAll();flashSync(true);migrarFinSePreciso();checkBackup();checarNotifs();
-  },err=>{console.error(err);eid=null;mostrarOnboarding('Você não tem mais acesso a esta empresa — crie outra ou peça um novo convite.');setDoc(doc(fdb,'usuarios',uid),{empresaId:null},{merge:true}).catch(()=>{});});
+  },err=>{console.error(err);eid=null;mostrarOnboarding('Você não tem mais acesso a esta empresa, crie outra ou peça um novo convite.');setDoc(doc(fdb,'usuarios',uid),{empresaId:null},{merge:true}).catch(()=>{});});
   unsubFin=onSnapshot(doc(fdb,'empresas',eid,'fin','dados'),snap=>{
     rawFin=snap.exists()?snap.data():{};dbFinLoaded=true;
     // Mesma trava do operacional: `rebuildDb` remonta o `db` INTEIRO, então
@@ -474,7 +474,7 @@ function subscribe(){
     // que ainda não foi gravado no operacional.
     if(rawOp!==null && !gravacaoPendente){rebuildDb();renderAll();}
     migrarFinSePreciso();checkBackup();
-  },err=>{dbFinLoaded=false;}); // empregado: sem acesso ao financeiro — segue só com o operacional
+  },err=>{dbFinLoaded=false;}); // empregado: sem acesso ao financeiro, segue só com o operacional
 }
 function subscribeMembros(){
   if(unsubMembros)unsubMembros();
@@ -492,7 +492,7 @@ function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);
   /* ═══ O GUARDA DA LISTA QUE ENCOLHE ══════════════════════════════════════
      Ele AVISA e não bloqueia, e essa distinção custou caro para ser aprendida.
 
-     A primeira versão recusava a gravação e chamava `rebuildDb()` — ou seja,
+     A primeira versão recusava a gravação e chamava `rebuildDb()`, ou seja,
      apagava da tela exatamente o que devia proteger, e o trabalho da pessoa
      ia junto. Pior: disparava em falso, porque `atividade` é um log limitado
      a 60 entradas por `logAtv` e encolhe POR DESENHO. Bastava o servidor ter
@@ -501,7 +501,7 @@ function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);
 
      A lição: um guarda contra perda de dados que reage DESCARTANDO o estado
      mais novo não é um guarda, é a própria perda com outro nome. Na dúvida,
-     grave — dá para recuperar do histórico de 7 dias. Não gravar não deixa
+     grave, dá para recuperar do histórico de 7 dias. Não gravar não deixa
      rastro nenhum.
 
      `atividade` fica de fora da conta: ela encolher é o normal dela. */
@@ -514,12 +514,12 @@ function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);
       const agora=Array.isArray(payloadOp[k])?payloadOp[k].length:null;
       if(antes!==null && agora!==null && agora<antes) encolheu.push(`${k}: ${antes} → ${agora}`);
     }
-    if(encolheu.length) console.error('ATENÇÃO: lista encolheu sem exclusão —', encolheu.join(', '));
+    if(encolheu.length) console.error('ATENÇÃO: lista encolheu sem exclusão, ', encolheu.join(', '));
   }
 
   /* ═══ O LIMITE DE 1 MB, CONFERIDO ANTES DE TENTAR ════════════════════════
      Um documento do Firestore não passa de 1.048.576 bytes. Passando, a
-     escrita é RECUSADA — e a recusa chegava só no console: a etiqueta ficava
+     escrita é RECUSADA, e a recusa chegava só no console: a etiqueta ficava
      em "salvando…" para sempre e a peça recém-criada morria no próximo
      recarregamento. Foi assim que a mesma peça se perdeu quatro vezes.
 
@@ -528,7 +528,7 @@ function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);
      aparece: sem ele, "arquive" é conselho sem tamanho. */
   /* ═══ NENHUM ARRAY DENTRO DE ARRAY SAI DAQUI ═════════════════════════════
      O Firestore recusa o documento inteiro quando encontra um, e a recusa
-     chegava como uma falha de gravação sem dono — a peça sumia e a causa
+     chegava como uma falha de gravação sem dono, a peça sumia e a causa
      estava a três níveis de profundidade num campo que ninguém suspeitava.
 
      Consertar a ficha resolve o caso conhecido. Isto resolve a CLASSE: qualquer
@@ -575,7 +575,7 @@ function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);
        /* FALHA DE GRAVAÇÃO NUNCA MAIS É SILENCIOSA.
           Antes daqui saía só um `console.error`, e a etiqueta continuava em
           "salvando…". Quem estava olhando a tela via o sistema trabalhando; o
-          que estava acontecendo era o oposto — o trabalho não existia em lugar
+          que estava acontecendo era o oposto, o trabalho não existia em lugar
           nenhum, e sumia no primeiro recarregamento. Mentir sobre o estado de
           uma gravação é o pior que uma tela pode fazer. */
        solta();
@@ -586,14 +586,14 @@ function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);
          /permission|denied/i.test(cod)
            ? '<b>Não consegui salvar:</b> o servidor recusou a permissão. Saia e entre de novo.'
          : /invalid|argument/i.test(cod)
-           ? '<b>Não consegui salvar:</b> o servidor recusou os dados ('+esc(cod)+'). Nada foi perdido na tela — me avise antes de recarregar.'
+           ? '<b>Não consegui salvar:</b> o servidor recusou os dados ('+esc(cod)+'). Nada foi perdido na tela, me avise antes de recarregar.'
            : '<b>Não consegui salvar.</b> '+esc(cod||'sem conexão com o servidor')+'. <b>Não recarregue a página</b> até salvar.'
        );
      });
   }
   else{
     /* OFFLINE: o Firestore só resolve a promessa quando a rede volta, e até lá
-       a trava ficaria de pé — o que é o comportamento certo, mas deixaria a
+       a trava ficaria de pé, o que é o comportamento certo, mas deixaria a
        tela em "salvando…" para sempre. Solta a trava e avisa que está salvo no
        aparelho, que é a verdade: a escrita já está na fila local. */
     solta();flashSync(true);
@@ -616,7 +616,7 @@ function flashSync(ok){
   const el=document.getElementById('syncState');if(!el)return;
   /* O TAMANHO FICA SEMPRE À VISTA, no `title`. O documento do Firestore morre
      em 1 MB, e até hoje isso só aparecia como um aviso no Painel acima de 700
-     KB — tarde demais, porque a falha de gravação não dizia o motivo e a peça
+     KB, tarde demais, porque a falha de gravação não dizia o motivo e a peça
      recém-criada sumia no recarregamento. Passar o mouse aqui responde "quanto
      falta" sem procurar. */
   let tam='';
@@ -688,7 +688,7 @@ function repetir(type,id){const src=db[plural(type)].find(x=>x.id===id);if(!src)
 function toggleTimer(){const b=document.getElementById('timerBtn'),v=document.getElementById('timerView');if(!b)return;
   if(timerT0){clearInterval(timerInt);timerInt=null;const min=(Date.now()-timerT0)/60000;timerT0=null;const f=document.getElementById('f_minutos');if(f)f.value=Math.max(1,Math.round(min));b.innerHTML=ico('play')+' Cronometrar uma peça';if(v)v.textContent='tempo registrado';}
   else{timerT0=Date.now();b.textContent='⏹ Parar e registrar';timerInt=setInterval(()=>{if(!v)return;const s=Math.floor((Date.now()-timerT0)/1000);v.textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');},1000);}}
-// wrappers: injetam `db` no núcleo. calcCusto é memoizado — era recalculado
+// wrappers: injetam `db` no núcleo. calcCusto é memoizado, era recalculado
 // em loops aninhados (produtos × pedidos × gráficos) a cada render.
 let memoCusto=new Map();
 function limparMemo(){memoCusto=new Map();}
@@ -698,7 +698,7 @@ function limparMemo(){memoCusto=new Map();}
    que apagou a mesma peça quatro vezes.
 
    O FIRESTORE NÃO ACEITA ARRAY DENTRO DE ARRAY. A ficha era `[[rótulo, valor]]`,
-   e `db.produtos` já é um array — então `produtos[].ficha[][]` tem um array
+   e `db.produtos` já é um array, então `produtos[].ficha[][]` tem um array
    cujos elementos são arrays, e a gravação do documento INTEIRO era recusada
    com "Nested arrays are not supported".
 
@@ -708,7 +708,7 @@ function limparMemo(){memoCusto=new Map();}
    apagada; ela nunca chegava a ser salva.
 
    `["Material: Gesso", "Origem: Feito à mão"]` é array de STRINGS dentro de um
-   objeto: legal, e a mesma forma que o catálogo publicado já usava — o comentário
+   objeto: legal, e a mesma forma que o catálogo publicado já usava, o comentário
    de `itensDoCatalogo` até explicava a regra, mas só para o recorte público.
 
    `lerFicha` (na loja e aqui) já aceitava as duas formas, e continua aceitando:
@@ -738,7 +738,7 @@ function labelize(){document.querySelectorAll('.tablewrap table').forEach(t=>{co
 /* O mês do filtro por extenso.
    A lista vinha como `2026-07`, que é o formato de guardar e não o de ler: para
    achar julho a pessoa tinha de converter de cabeça, item por item, numa lista
-   que cresce um item por mês. O VALOR continua `2026-07` — é ele que filtra, e
+   que cresce um item por mês. O VALOR continua `2026-07`, é ele que filtra, e
    mudá-lo quebraria o filtro. */
 const MESES=['janeiro','fevereiro','março','abril','maio','junho','julho',
              'agosto','setembro','outubro','novembro','dezembro'];
@@ -786,8 +786,8 @@ function renderDash(){
     <div class="stat"><div class="k">Peças produzidas</div><div class="v">${totalProd}</div><div class="s">${db.producao.length} registros</div></div>`+(fin?`
     <div class="stat"><div class="k">Receita</div><div class="v" style="font-size:22px">${brl(receita)}</div><div class="s">mês: ${brl(recMes)}${trendHtml}${projMes>recMes?' · proj. '+brl(projMes):''}</div></div>
     <div class="stat"><div class="k">Custos fixos / mês</div><div class="v" style="font-size:22px">${brl(fixosTot)}</div><div class="s">${(db.fixos||[]).length?(db.fixos.length+' lançamentos'):'cadastre no Orçamento'}</div></div>
-    <div class="stat"><div class="k">Ponto de equilíbrio</div><div class="v">${pe||'—'}</div><div class="s">${pe?'peças/mês para empatar':'precisa de custos fixos e produtos'}</div></div>
-    <div class="stat" style="cursor:pointer" onclick="setMeta()" title="Toque para definir a meta"><div class="k">Meta do mês</div><div class="v">${meta?pctMeta+'%':'—'}</div><div class="s">${meta?brl(recMes)+' de '+brl(meta):'toque para definir'}</div>${meta?`<div class="bar" style="margin-top:8px"><span class="${pctMeta>=100?'':'warn'}" style="width:${pctMeta}%"></span></div>`:''}</div>
+    <div class="stat"><div class="k">Ponto de equilíbrio</div><div class="v">${pe||', '}</div><div class="s">${pe?'peças/mês para empatar':'precisa de custos fixos e produtos'}</div></div>
+    <div class="stat" style="cursor:pointer" onclick="setMeta()" title="Toque para definir a meta"><div class="k">Meta do mês</div><div class="v">${meta?pctMeta+'%':', '}</div><div class="s">${meta?brl(recMes)+' de '+brl(meta):'toque para definir'}</div>${meta?`<div class="bar" style="margin-top:8px"><span class="${pctMeta>=100?'':'warn'}" style="width:${pctMeta}%"></span></div>`:''}</div>
     <div class="stat ${pctMei>=80?'alert':''}" style="cursor:pointer" onclick="setMeiTeto()" title="Toque para ajustar o teto"><div class="k">Teto MEI (${ano})</div><div class="v">${pctMei}%</div><div class="s">${brl(recAno)} de ${brl(teto)}</div><div class="bar" style="margin-top:8px"><span class="${pctMei>=80?'low':pctMei>=50?'warn':''}" style="width:${pctMei}%"></span></div></div>
     <div class="stat"><div class="k">A receber</div><div class="v" style="font-size:22px">${brl(db.pedidos.filter(p=>p.situacao==='Pendente').reduce((s,p)=>s+Math.max(0,Number(p.valor||0)-(p.pagamentos||[]).reduce((a,x)=>a+Number(x.v||0),0)),0))}</div><div class="s">${db.pedidos.filter(p=>p.situacao==='Pendente').length} pedido(s) pendente(s), já descontando sinais</div></div>`:'');
   renderPrazos();
@@ -800,8 +800,8 @@ function renderDash(){
      informação, que é a ordem em que se resolve. */
   let a=[];
   const avisar=(nivel,html)=>a.push({nivel,html});
-  lowIns.forEach(i=>avisar('atencao',`Repor <b>${esc(i.nome)}</b> — restam ${i.estoque} ${esc(i.unidade)}`));
-  lowMold.forEach(m=>avisar('atencao',`Molde <b>${esc(m.nome)}</b> — ${m.usos}/${m.vida} usos`));
+  lowIns.forEach(i=>avisar('atencao',`Repor <b>${esc(i.nome)}</b>, restam ${i.estoque} ${esc(i.unidade)}`));
+  lowMold.forEach(m=>avisar('atencao',`Molde <b>${esc(m.nome)}</b>, ${m.usos}/${m.vida} usos`));
   const tamKB=Math.round(JSON.stringify(db).length/1024);
   if(tamKB>700)avisar('atencao',`Os dados estão com <b>${tamKB} KB</b> (limite ~1000). Use <b>Arquivar ano</b> para mover registros antigos.`);
   // reposição preditiva: cruza consumo diário com o prazo do fornecedor
@@ -810,21 +810,21 @@ function renderDash(){
     if(!p||(!p.urgente&&!p.atencao))return;
     const quem=p.fornecedor?` (${esc(p.fornecedor)}, ~${p.prazo}d)`:` (prazo ~${p.prazo}d)`;
     avisar(p.urgente?'urgente':'atencao', p.urgente
-      ?`<b>${esc(i.nome)}</b>: peça <b>hoje</b> — acaba em ${p.dias} dia(s) e a entrega leva ${p.prazo}${quem.replace(`, ~${p.prazo}d`,'')}`
-      :`<b>${esc(i.nome)}</b>: peça até <b>${p.pedirAte.split('-').reverse().join('/')}</b> — acaba em ${p.acabaEm.split('-').reverse().join('/')}${quem}`);
+      ?`<b>${esc(i.nome)}</b>: peça <b>hoje</b>, acaba em ${p.dias} dia(s) e a entrega leva ${p.prazo}${quem.replace(`, ~${p.prazo}d`,'')}`
+      :`<b>${esc(i.nome)}</b>: peça até <b>${p.pedirAte.split('-').reverse().join('/')}</b>, acaba em ${p.acabaEm.split('-').reverse().join('/')}${quem}`);
   });
   // preço defasado: custo subiu e o preço praticado ficou para trás
   if(pode('fin'))db.produtos.forEach(p=>{
     const d=precoDefasado(p);
     if(!d)return;
-    avisar('atencao',`<b>${esc(p.nome)}</b>: margem caiu de ${d.margemRef}% para <b>${d.margemAtual}%</b> — sugerido ${brl(d.sugerido)}, hoje ${brl(d.precoAtual)}`);
+    avisar('atencao',`<b>${esc(p.nome)}</b>: margem caiu de ${d.margemRef}% para <b>${d.margemAtual}%</b>, sugerido ${brl(d.sugerido)}, hoje ${brl(d.precoAtual)}`);
   });
   // alerta de inflação: última compra bem acima do custo médio anterior
   db.insumos.forEach(i=>{
     const comprasIns=(db.compras||[]).filter(c=>c.insumo===i.id&&Number(c.qtd)>0&&Number(c.valor)>0).sort((x,y)=>(x.data||'')<(y.data||'')?-1:1);
     const ult=comprasIns[comprasIns.length-1];if(!ult||!Number(ult.custoAntes))return;
     const unit=Number(ult.valor)/Number(ult.qtd);const varPct=Math.round((unit/Number(ult.custoAntes)-1)*100);
-    if(varPct>=10)avisar('info',`<b>${esc(i.nome)}</b> subiu <b>${varPct}%</b> na última compra (${brl(unit)}/${esc(i.unidade)}) — vale cotar de novo.`);
+    if(varPct>=10)avisar('info',`<b>${esc(i.nome)}</b> subiu <b>${varPct}%</b> na última compra (${brl(unit)}/${esc(i.unidade)}), vale cotar de novo.`);
   });
   document.getElementById('dashAlerts').innerHTML=montarAvisos(a);
   renderCharts();
@@ -856,7 +856,7 @@ function renderCharts(){
   mkChart('chSemana',{type:'bar',data:{labels:dias,datasets:[{data:porDia.map(v=>v.toFixed(2)),backgroundColor:porDia.map((v,i)=>v===Math.max(...porDia)&&v>0?C.ember:C.line),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{grid,ticks:tick},x:{grid:{display:false},ticks:tick}}}});
   // curva ABC de produtos e top clientes
   const recProd={};pedidosPeriodo().forEach(p=>{if(!p.produto)return;recProd[p.produto]=(recProd[p.produto]||0)+Number(p.valor||0);});
-  const abc=Object.entries(recProd).map(([pid,v])=>({nome:(db.produtos.find(x=>x.id===pid)||{}).nome||'—',v})).sort((a,b)=>b.v-a.v);
+  const abc=Object.entries(recProd).map(([pid,v])=>({nome:(db.produtos.find(x=>x.id===pid)||{}).nome||', ',v})).sort((a,b)=>b.v-a.v);
   const totAbc=abc.reduce((s,x)=>s+x.v,0);let acum=0;
   const abcBox=document.getElementById('abcBox');
   if(abcBox)abcBox.innerHTML=abc.length?abc.slice(0,8).map(x=>{acum+=x.v;const pct=totAbc?acum/totAbc*100:0;const cl=pct<=80?'A':pct<=95?'B':'C';return `<div class="prazo-item"><span><span class="pill ${cl==='A'?'ok':cl==='B'?'warn':'low'}">${cl}</span> ${esc(x.nome)}</span><b>${brl(x.v)} · ${totAbc?Math.round(x.v/totAbc*100):0}%</b></div>`;}).join(''):'<div class="empty-t" style="padding:16px">Sem vendas no período.</div>';
@@ -870,27 +870,27 @@ function renderCharts(){
     mkChart('chSaz',{type:'bar',data:{labels,datasets:[{data:vals,backgroundColor:vals.map(v=>v>=1.2?C.ember:v>=1?C.warn:C.line),borderRadius:4}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>(c.raw?c.raw.toFixed(2)+'× a média':'sem dados')}}},scales:{y:{grid,ticks:{...tick,callback:v=>v+'×'}},x:{grid:{display:false},ticks:tick}}}});
     const picos=saz.proximos.filter(x=>x.pico);
     if(nota)nota.innerHTML=picos.length
-      ?`${ico('grafico')} <b>${esc(picos.map(x=>x.nome).join(' e '))}</b> costuma${picos.length>1?'m':''} vender ${picos.map(x=>x.indice.toFixed(1)+'×').join(' e ')} a média — comece a produzir com antecedência.`
+      ?`${ico('grafico')} <b>${esc(picos.map(x=>x.nome).join(' e '))}</b> costuma${picos.length>1?'m':''} vender ${picos.map(x=>x.indice.toFixed(1)+'×').join(' e ')} a média, comece a produzir com antecedência.`
       :`Mês mais forte do ano: <b>${esc(saz.melhorNome)}</b> (${saz.indices[saz.melhorMes].toFixed(1)}× a média).`;
   }else{
     if(charts.chSaz){charts.chSaz.destroy();delete charts.chSaz;}
     const cv2=document.getElementById('chSaz');if(cv2)cv2.getContext('2d').clearRect(0,0,cv2.width,cv2.height);
-    if(nota)nota.innerHTML=`Ainda não dá para prever a sazonalidade: você tem <b>${saz.meses} mês(es)</b> com vendas registradas${saz.faltam?` — faltam ${saz.faltam} para o primeiro retrato do ano`:''}.`;
+    if(nota)nota.innerHTML=`Ainda não dá para prever a sazonalidade: você tem <b>${saz.meses} mês(es)</b> com vendas registradas${saz.faltam?`, faltam ${saz.faltam} para o primeiro retrato do ano`:''}.`;
   }
   const recCli={};pedidosPeriodo().forEach(p=>{const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);const k=cli?cli.nome:(p.cliente||'');if(!k)return;recCli[k]=(recCli[k]||0)+Number(p.valor||0);});
   const topCli=Object.entries(recCli).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const cliBox=document.getElementById('topCliBox');
   if(cliBox)cliBox.innerHTML=topCli.length?topCli.map(([n,v],i)=>`<div class="prazo-item"><span>${i+1}º <b>${esc(n)}</b></span><b>${brl(v)}</b></div>`).join(''):'<div class="empty-t" style="padding:16px">Sem clientes no período.</div>';
 }
-function renderEquip(){document.getElementById('tbEquip').innerHTML=db.equip.length?db.equip.map(e=>`<tr><td>${esc(e.nome)}</td><td>${esc(e.tipo)||'—'}</td><td>${esc(e.compra)||'—'}</td><td class="money">${brl(e.custo)}</td><td><span class="pill ok">${esc(e.situacao||'Ativo')}</span></td><td>${rowActions('equip',e.id)}</td></tr>`).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum equipamento.</div></td></tr>`;}
+function renderEquip(){document.getElementById('tbEquip').innerHTML=db.equip.length?db.equip.map(e=>`<tr><td>${esc(e.nome)}</td><td>${esc(e.tipo)||', '}</td><td>${esc(e.compra)||', '}</td><td class="money">${brl(e.custo)}</td><td><span class="pill ok">${esc(e.situacao||'Ativo')}</span></td><td>${rowActions('equip',e.id)}</td></tr>`).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum equipamento.</div></td></tr>`;}
 function renderMoldes(){document.getElementById('tbMoldes').innerHTML=db.moldes.length?db.moldes.map(m=>{const st=moldeStatus(m);const pct=Math.min(100,Math.round(m.usos/(m.vida||1)*100));const l=st==='low'?'Trocar':st==='warn'?'Quase no fim':'Bom';return `<tr><td>${esc(m.nome)}</td><td>${esc(m.material)}</td><td>${m.usos} / ${m.vida}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div></td><td><span class="pill ${st}">${l}</span></td><td>${rowActions('molde',m.id)}</td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum molde.</div></td></tr>`;}
 function renderInsumos(){document.getElementById('tbInsumos').innerHTML=db.insumos.length?db.insumos.map(i=>{const st=insumoStatus(i);const l=st==='low'?'Repor':st==='warn'?'Baixo':'OK';const pct=Math.min(100,Math.round(i.estoque/((i.minimo||1)*2)*100));const dias=diasEstoque(i);return `<tr><td>${esc(i.nome)}</td><td>${i.estoque} ${esc(i.unidade)}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div><div style="font-size:11px;color:var(--warm);margin-top:3px">mín. ${i.minimo}${dias!==null&&dias<365?` · acaba em ~<b style="color:${dias<15?'var(--ember)':'inherit'}">${dias}d</b>`:''}</div></td><td class="money">${brl(i.custo)}/${esc(i.unidade)}</td><td><span class="pill ${st}">${l}</span>${(()=>{const pv=previsao(i);return pv&&(pv.urgente||pv.atencao)?`<div style="font-size:11px;color:var(--ember);margin-top:3px">${ico("carrinho")} pedir ${pv.urgente?'hoje':'até '+pv.pedirAte.slice(8,10)+'/'+pv.pedirAte.slice(5,7)}</div>`:'';})()}</td><td><div class="row-actions"><button class="icon-btn" title="Histórico de preços" onclick="verPrecos('${i.id}')">${ico("grafico","Histórico de preços")}</button><button class="icon-btn" onclick="openForm('insumo','${i.id}')">${ico("lapis","Editar")}</button><button class="icon-btn" onclick="del('insumo','${i.id}')">${ico("lixeira","Apagar")}</button></div></td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum insumo.</div></td></tr>`;}
-function renderProdutos(){document.getElementById('tbProdutos').innerHTML=db.produtos.length?db.produtos.map(p=>{const c=calcCusto(p);const sug=c.total*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const margem=prat-taxa-c.total;const mpct=prat?Math.round(margem/prat*100):0;const h=Number(p.minutos||0)/60;const lph=h>0?margem/h:0;const def=precoDefasado(p);return `<tr><td>${esc(p.nome)}${p.publico?` <span class="selo-loja" title="no catálogo">${ico("loja","no catálogo")}</span>`:''}${def?`<div style="font-size:11px;color:var(--ember)">${ico("alerta")} defasado · sugerido ${brl(def.sugerido)}</div>`:''}</td><td class="money">${brl(c.total)}</td><td class="money" style="color:var(--smoke)">${brl(sug)}</td><td class="money">${brl(prat)}</td><td><span class="pill ${mpct>50?'ok':mpct>30?'warn':'low'}">${mpct}%</span></td><td class="money">${h>0?brl(lph):'—'}</td><td>${Number(p.pronto||0)}</td><td><div class="row-actions"><button class="icon-btn" title="Duplicar" onclick="duplicarProduto('${p.id}')">${ico("copiar","Duplicar")}</button><button class="icon-btn" onclick="openForm('produto','${p.id}')">${ico("lapis","Editar")}</button><button class="icon-btn" onclick="del('produto','${p.id}')">${ico("lixeira","Apagar")}</button></div></td></tr>`;}).join(''):`<tr><td colspan=8><div class="empty-t">Nenhum produto.</div></td></tr>`;}
+function renderProdutos(){document.getElementById('tbProdutos').innerHTML=db.produtos.length?db.produtos.map(p=>{const c=calcCusto(p);const sug=c.total*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const margem=prat-taxa-c.total;const mpct=prat?Math.round(margem/prat*100):0;const h=Number(p.minutos||0)/60;const lph=h>0?margem/h:0;const def=precoDefasado(p);return `<tr><td>${esc(p.nome)}${p.publico?` <span class="selo-loja" title="no catálogo">${ico("loja","no catálogo")}</span>`:''}${def?`<div style="font-size:11px;color:var(--ember)">${ico("alerta")} defasado · sugerido ${brl(def.sugerido)}</div>`:''}</td><td class="money">${brl(c.total)}</td><td class="money" style="color:var(--smoke)">${brl(sug)}</td><td class="money">${brl(prat)}</td><td><span class="pill ${mpct>50?'ok':mpct>30?'warn':'low'}">${mpct}%</span></td><td class="money">${h>0?brl(lph):', '}</td><td>${Number(p.pronto||0)}</td><td><div class="row-actions"><button class="icon-btn" title="Duplicar" onclick="duplicarProduto('${p.id}')">${ico("copiar","Duplicar")}</button><button class="icon-btn" onclick="openForm('produto','${p.id}')">${ico("lapis","Editar")}</button><button class="icon-btn" onclick="del('produto','${p.id}')">${ico("lixeira","Apagar")}</button></div></td></tr>`;}).join(''):`<tr><td colspan=8><div class="empty-t">Nenhum produto.</div></td></tr>`;}
 function renderProducao(){
   fillMeses('mesPro',db.producao,fP.m);
   const todas=[...db.producao].reverse().filter(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const txt=((prod?prod.nome:'')+' '+(p.variacao||'')+' '+(p.lote||'')).toLowerCase();return(!fP.q||txt.includes(fP.q.toLowerCase()))&&(!fP.m||(p.data||'').slice(0,7)===fP.m);});
   const rows=todas.slice(0,PAG.producao);
-  document.getElementById('tbProducao').innerHTML=(rows.length?rows.map(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const mold=db.moldes.find(x=>x.id===p.molde);const nome=prod?esc(prod.nome)+(p.variacao?' · '+esc(p.variacao):''):'—';return `<tr><td>${esc(p.data)||'—'}</td><td>${nome}</td><td>${esc(p.qtd)}</td><td>${p.minutos?esc(p.minutos)+' min':'—'}</td><td>${mold?esc(mold.nome):'—'}</td><td style="color:var(--warm);font-size:12px">${esc(p.lote)||'—'}</td><td>${rowActions('producao',p.id,1)}</td></tr>`;}).join(''):`<tr><td colspan=7><div class="empty-t">${db.producao.length?'Nada encontrado com esse filtro.':'Nenhuma produção.'}</div></td></tr>`)+linhaMais('producao',todas.length,rows.length,7);
+  document.getElementById('tbProducao').innerHTML=(rows.length?rows.map(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const mold=db.moldes.find(x=>x.id===p.molde);const nome=prod?esc(prod.nome)+(p.variacao?' · '+esc(p.variacao):''):', ';return `<tr><td>${esc(p.data)||', '}</td><td>${nome}</td><td>${esc(p.qtd)}</td><td>${p.minutos?esc(p.minutos)+' min':', '}</td><td>${mold?esc(mold.nome):', '}</td><td style="color:var(--warm);font-size:12px">${esc(p.lote)||', '}</td><td>${rowActions('producao',p.id,1)}</td></tr>`;}).join(''):`<tr><td colspan=7><div class="empty-t">${db.producao.length?'Nada encontrado com esse filtro.':'Nenhuma produção.'}</div></td></tr>`)+linhaMais('producao',todas.length,rows.length,7);
   labelize();
 }
 function renderPedidos(){
@@ -901,13 +901,13 @@ function renderPedidos(){
   document.getElementById('tbPedidos').innerHTML=(rows.length?rows.map(p=>{
     const prod=db.produtos.find(x=>x.id===p.produto);const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);
     const q=Number(p.qtd||1);const can=(db.canais||[]).find(c=>c.id===p.canal);
-    const nome=(prod?esc(prod.nome)+(q>1?' ×'+q:'')+(p.variacao?' · '+esc(p.variacao):''):esc(p.item)||'—')+(can?`<div style="font-size:11px;color:var(--warm)">via ${esc(can.nome)}</div>`:'');
+    const nome=(prod?esc(prod.nome)+(q>1?' ×'+q:'')+(p.variacao?' · '+esc(p.variacao):''):esc(p.item)||', ')+(can?`<div style="font-size:11px;color:var(--warm)">via ${esc(can.nome)}</div>`:'');
     const l=lucroPedido(p);
-    const lucro=l===null||p.situacao==='Cancelado'?'—':`<span class="money" style="color:${l>=0?'var(--ok)':'var(--ember)'}">${brl(l)}</span>`;
+    const lucro=l===null||p.situacao==='Cancelado'?', ':`<span class="money" style="color:${l>=0?'var(--ok)':'var(--ember)'}">${brl(l)}</span>`;
     const aberto=p.situacao!=='Entregue'&&p.situacao!=='Cancelado';
-    const prazo=p.prazo?(aberto&&p.prazo<hj?`<span class="pill low">${esc(p.prazo)}</span>`:esc(p.prazo)):'—';
+    const prazo=p.prazo?(aberto&&p.prazo<hj?`<span class="pill low">${esc(p.prazo)}</span>`:esc(p.prazo)):', ';
     const acts=`<div class="row-actions"><button class="icon-btn" title="${p.portalToken?'Reenviar link de acompanhamento':'Compartilhar acompanhamento com o cliente'}" onclick="compartilharPedido('${p.id}')">${ico("elo","Compartilhar com o cliente")}</button><button class="icon-btn" title="Recibo" onclick="reciboPedido('${p.id}')">${ico("recibo","Recibo")}</button>${aberto&&cli?`<button class="icon-btn" title="Cobrar no WhatsApp" onclick="cobrarPedido('${p.id}')">${ico("balao","Cobrar no WhatsApp")}</button>`:''}<button class="icon-btn" title="Repetir" onclick="repetir('pedido','${p.id}')">${ico("repetir","Repetir")}</button><button class="icon-btn" onclick="openForm('pedido','${p.id}')">${ico("lapis","Editar")}</button><button class="icon-btn" onclick="del('pedido','${p.id}')">${ico("lixeira","Apagar")}</button></div>`;
-    return `<tr><td>${esc(p.data)||'—'}</td><td>${cli?esc(cli.nome):esc(p.cliente)||'—'}</td><td>${nome}</td><td>${prazo}</td><td class="money">${brl(p.valor)}</td><td>${lucro}</td><td><span class="pill ${sc[p.situacao]||'warn'}">${esc(p.situacao||'Pendente')}</span></td><td>${acts}</td></tr>`;
+    return `<tr><td>${esc(p.data)||', '}</td><td>${cli?esc(cli.nome):esc(p.cliente)||', '}</td><td>${nome}</td><td>${prazo}</td><td class="money">${brl(p.valor)}</td><td>${lucro}</td><td><span class="pill ${sc[p.situacao]||'warn'}">${esc(p.situacao||'Pendente')}</span></td><td>${acts}</td></tr>`;
   }).join(''):`<tr><td colspan=8><div class="empty-t">${db.pedidos.length?'Nada encontrado com esse filtro.':'Nenhum pedido.'}</div></td></tr>`)+linhaMais('pedidos',todos.length,rows.length,8);
   // totais do filtro atual (soma TODOS os filtrados, não só a página visível)
   if(todos.length){
@@ -917,12 +917,12 @@ function renderPedidos(){
   }
   labelize();
 }
-function renderClientes(){const rows=db.clientes||[];document.getElementById('tbClientes').innerHTML=rows.length?rows.map(c=>{const peds=db.pedidos.filter(p=>p.clienteId===c.id&&p.situacao!=='Cancelado');const tot=peds.reduce((s,p)=>s+Number(p.valor||0),0);const dg=String(c.whats||'').replace(/\D/g,'');const wa=dg.length>=10?`<a href="https://wa.me/${dg.length>=12?dg:'55'+dg}" target="_blank" rel="noopener" style="color:var(--ember)">${esc(c.whats)}</a>`:(esc(c.whats)||'—');return `<tr><td>${esc(c.nome)}${c.obs?`<div style="font-size:11px;color:var(--warm)">${esc(c.obs)}</div>`:''}</td><td>${wa}</td><td>${peds.length}</td><td class="money">${brl(tot)}</td><td>${rowActions('cliente',c.id)}</td></tr>`;}).join(''):`<tr><td colspan=5><div class="empty-t">Nenhum cliente cadastrado.</div></td></tr>`;}
-function renderCanais(){const rows=db.canais||[];document.getElementById('tbCanais').innerHTML=rows.length?rows.map(c=>`<tr><td>${esc(c.nome)}</td><td>${Number(c.taxa||0)}%</td><td>${rowActions('canal',c.id)}</td></tr>`).join(''):`<tr><td colspan=3><div class="empty-t">Nenhum canal — ex.: Feira 0%, Marketplace 12%.</div></td></tr>`;}
+function renderClientes(){const rows=db.clientes||[];document.getElementById('tbClientes').innerHTML=rows.length?rows.map(c=>{const peds=db.pedidos.filter(p=>p.clienteId===c.id&&p.situacao!=='Cancelado');const tot=peds.reduce((s,p)=>s+Number(p.valor||0),0);const dg=String(c.whats||'').replace(/\D/g,'');const wa=dg.length>=10?`<a href="https://wa.me/${dg.length>=12?dg:'55'+dg}" target="_blank" rel="noopener" style="color:var(--ember)">${esc(c.whats)}</a>`:(esc(c.whats)||', ');return `<tr><td>${esc(c.nome)}${c.obs?`<div style="font-size:11px;color:var(--warm)">${esc(c.obs)}</div>`:''}</td><td>${wa}</td><td>${peds.length}</td><td class="money">${brl(tot)}</td><td>${rowActions('cliente',c.id)}</td></tr>`;}).join(''):`<tr><td colspan=5><div class="empty-t">Nenhum cliente cadastrado.</div></td></tr>`;}
+function renderCanais(){const rows=db.canais||[];document.getElementById('tbCanais').innerHTML=rows.length?rows.map(c=>`<tr><td>${esc(c.nome)}</td><td>${Number(c.taxa||0)}%</td><td>${rowActions('canal',c.id)}</td></tr>`).join(''):`<tr><td colspan=3><div class="empty-t">Nenhum canal, ex.: Feira 0%, Marketplace 12%.</div></td></tr>`;}
 function renderEquipe(){
   const box=document.getElementById('membrosBox');if(!box)return;
   const ger=pode('gerir');
-  document.getElementById('equipeDesc').textContent=(empresaNome?empresaNome+' — ':'')+'você é '+PAPEL_LABEL[meuPapel()]+(ger?' · toque no papel de alguém para trocá-lo':'');
+  document.getElementById('equipeDesc').textContent=(empresaNome?empresaNome+', ':'')+'você é '+PAPEL_LABEL[meuPapel()]+(ger?' · toque no papel de alguém para trocá-lo':'');
   box.innerHTML=Object.entries(membros).map(([id,m])=>{
     const papel=id===empresaDono?'dono':(m.papel||'empregado');
     const badge=`<span class="papel ${papel}" ${ger&&id!==empresaDono?`style="cursor:pointer" title="Trocar papel" onclick="mudarPapel('${id}')"`:''}>${PAPEL_LABEL[papel]}</span>`;
@@ -962,9 +962,9 @@ function reciboPedido(id){
   const falta=Math.max(0,Number(p.valor||0)-pago);
   const item=(prod?prod.nome:(p.item||'Pedido'))+(Number(p.qtd||1)>1?' ×'+p.qtd:'')+(p.variacao?' · '+p.variacao:'');
   const win=window.open('','_blank');
-  win.document.write(`<html><head><title>Recibo — ${esc(empresaNome||'Cinérea')}</title><style>body{font-family:Georgia,serif;color:#1C1A17;background:#F2EFEA;padding:40px;max-width:480px;margin:auto}h1{font-size:26px;font-weight:400}.l{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #D8D2C8;font-size:15px}.t{font-size:20px;font-weight:bold;border-bottom:none;margin-top:8px}.ok{color:#3F7D5B}.pend{color:#B5462A}.foot{margin-top:36px;color:#8A7E70;font-size:12px;text-align:center;font-style:italic}</style></head><body>
+  win.document.write(`<html><head><title>Recibo, ${esc(empresaNome||'Cinérea')}</title><style>body{font-family:Georgia,serif;color:#1C1A17;background:#F2EFEA;padding:40px;max-width:480px;margin:auto}h1{font-size:26px;font-weight:400}.l{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #D8D2C8;font-size:15px}.t{font-size:20px;font-weight:bold;border-bottom:none;margin-top:8px}.ok{color:#3F7D5B}.pend{color:#B5462A}.foot{margin-top:36px;color:#8A7E70;font-size:12px;text-align:center;font-style:italic}</style></head><body>
   <h1>${esc(empresaNome||'Cinérea')}</h1><p style="color:#6E6862;margin-bottom:24px">Recibo · ${esc(p.data||hoje())}</p>
-  <div class="l"><span>Cliente</span><b>${esc(cli?cli.nome:(p.cliente||'—'))}</b></div>
+  <div class="l"><span>Cliente</span><b>${esc(cli?cli.nome:(p.cliente||', '))}</b></div>
   <div class="l"><span>Item</span><b>${esc(item)}</b></div>
   ${p.prazo?`<div class="l"><span>Entrega</span><b>${esc(p.prazo)}</b></div>`:''}
   <div class="l t"><span>Valor</span><span>${brl(p.valor)}</span></div>
@@ -1004,10 +1004,10 @@ async function compartilharPedido(id){
       toast('Link do portal aberto no WhatsApp');
     }else{
       if(navigator.clipboard)navigator.clipboard.writeText(url).catch(()=>{});
-      toast('Link copiado — envie ao cliente');
+      toast('Link copiado, envie ao cliente');
     }
     renderPedidos();
-  }catch(e){console.error(e);toast('Erro ao publicar — confira as regras do Firestore');}
+  }catch(e){console.error(e);toast('Erro ao publicar, confira as regras do Firestore');}
 }
 function cobrarPedido(id){
   const p=db.pedidos.find(x=>x.id===id);if(!p)return;
@@ -1018,14 +1018,14 @@ function cobrarPedido(id){
   const pago=(p.pagamentos||[]).reduce((s,x)=>s+Number(x.v||0),0);
   const falta=Math.max(0,Number(p.valor||0)-pago);
   const item=prod?prod.nome:(p.item||'sua encomenda');
-  const msg=`Oi, ${cli.nome.split(' ')[0]}! Sobre ${item}${Number(p.qtd||1)>1?' (×'+p.qtd+')':''}: valor ${brl(p.valor)}${pago?`, já recebi ${brl(pago)} — falta ${brl(falta)}`:''}${p.prazo?`. Entrega prevista: ${p.prazo}`:''}. Qualquer coisa me chama! 🕯️`;
+  const msg=`Oi, ${cli.nome.split(' ')[0]}! Sobre ${item}${Number(p.qtd||1)>1?' (×'+p.qtd+')':''}: valor ${brl(p.valor)}${pago?`, já recebi ${brl(pago)}, falta ${brl(falta)}`:''}${p.prazo?`. Entrega prevista: ${p.prazo}`:''}. Qualquer coisa me chama! 🕯️`;
   window.open('https://wa.me/'+(dg.length>=12?dg:'55'+dg)+'?text='+encodeURIComponent(msg),'_blank');
 }
 function duplicarProduto(id){
   const p=db.produtos.find(x=>x.id===id);if(!p)return;
   const novo=JSON.parse(JSON.stringify(p));novo.id=uidGen();novo.nome=p.nome+' (cópia)';novo.pronto=0;novo.publico=false;novo.por=uid;
   db.produtos.push(novo);logAtv('duplicou o produto "'+p.nome+'"');cloudSave();renderAll();
-  openForm('produto',novo.id);toast('Produto duplicado — ajuste o nome e a receita');
+  openForm('produto',novo.id);toast('Produto duplicado, ajuste o nome e a receita');
 }
 // ---------- consulta ao arquivo ----------
 async function verArquivo(){
@@ -1057,7 +1057,7 @@ function renderProdMembro(){
   const rows=Object.entries(por).sort((a,b)=>b[1].q-a[1].q);
   if(!rows.length){box.innerHTML='<div class="empty-t" style="padding:20px">Nenhuma produção registrada neste mês.</div>';return;}
   const max=Math.max(...rows.map(([,v])=>v.q));
-  box.innerHTML=rows.map(([u,v])=>`<div class="prazo-item"><span style="flex:1"><b>${esc((membros[u]||{}).nome||'—')}</b><div class="bar" style="margin-top:6px;max-width:260px"><span style="width:${Math.round(v.q/max*100)}%"></span></div></span><b>${v.q} peça${v.q>1?'s':''} · ${(v.min/60).toFixed(1)}h</b></div>`).join('');
+  box.innerHTML=rows.map(([u,v])=>`<div class="prazo-item"><span style="flex:1"><b>${esc((membros[u]||{}).nome||', ')}</b><div class="bar" style="margin-top:6px;max-width:260px"><span style="width:${Math.round(v.q/max*100)}%"></span></div></span><b>${v.q} peça${v.q>1?'s':''} · ${(v.min/60).toFixed(1)}h</b></div>`).join('');
 }
 // ---------- busca global ----------
 function abrirBusca(){
@@ -1078,7 +1078,7 @@ function renderBusca(){
   db.produtos.filter(p=>p.nome.toLowerCase().includes(q)).forEach(p=>add('produto',p.id,p.nome,'produto'));
   db.insumos.filter(i=>i.nome.toLowerCase().includes(q)).forEach(i=>add('insumo',i.id,i.nome,'insumo · '+i.estoque+' '+i.unidade));
   (db.tarefas||[]).filter(t=>t.titulo.toLowerCase().includes(q)).forEach(t=>add('tarefa',t.id,t.titulo,'tarefa · '+(t.status||'aberta')));
-  db.pedidos.filter(p=>{const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);const prod=db.produtos.find(x=>x.id===p.produto);return ((cli?cli.nome:p.cliente||'')+' '+(prod?prod.nome:'')+' '+(p.item||'')).toLowerCase().includes(q);}).slice(0,8).forEach(p=>{const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);add('pedido',p.id,(cli?cli.nome:p.cliente||'—')+' · '+(p.data||''),'pedido · '+(p.situacao||'Pendente'));});
+  db.pedidos.filter(p=>{const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);const prod=db.produtos.find(x=>x.id===p.produto);return ((cli?cli.nome:p.cliente||'')+' '+(prod?prod.nome:'')+' '+(p.item||'')).toLowerCase().includes(q);}).slice(0,8).forEach(p=>{const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);add('pedido',p.id,(cli?cli.nome:p.cliente||', ')+' · '+(p.data||''),'pedido · '+(p.situacao||'Pendente'));});
   db.producao.filter(p=>(p.lote||'').toLowerCase().includes(q)).slice(0,5).forEach(p=>add('producao',p.id,p.lote,'produção · '+(p.data||'')));
   res.innerHTML=hits.length?hits.slice(0,15).map(h=>`<div class="prazo-item" style="cursor:pointer" onclick="closeModal();openForm('${h.tipo}','${h.id}')"><span>${esc(h.rot)}</span><b style="color:var(--warm);font-weight:400">${esc(h.sub)}</b></div>`).join(''):'<div class="hint">Nada encontrado.</div>';
 }
@@ -1099,7 +1099,7 @@ function addPagamento(id){
   logAtv('registrou pagamento no pedido');
   syncPortal(p,true); // o cliente vê o saldo novo na hora
   cloudSave();closeModal();openForm('pedido',id);renderAll();
-  toast('Pagamento registrado — recebido '+brl(pago)+' de '+brl(p.valor));
+  toast('Pagamento registrado, recebido '+brl(pago)+' de '+brl(p.valor));
 }
 function addComent(id){const t=(db.tarefas||[]).find(x=>x.id===id);const inp=document.getElementById('comentTxt');if(!t||!inp||!inp.value.trim())return;t.coments=t.coments||[];t.coments.push({u:uid,t:Date.now(),x:inp.value.trim()});inp.value='';logAtv('comentou na tarefa "'+t.titulo+'"');cloudSave();
   const list=document.getElementById('comentList');if(list)list.innerHTML=t.coments.map(c=>`<div class="prazo-item"><span><b>${esc((membros[c.u]||{}).nome||'membro')}:</b> ${esc(c.x)}</span><b style="color:var(--warm);font-weight:400">${tempoRel(c.t)}</b></div>`).join('');}
@@ -1111,15 +1111,15 @@ function renderCal(){const box=document.getElementById('dashCal');if(!box)return
   const hjD=Number(hj.slice(8,10));
   let cells='';for(let i=0;i<first;i++)cells+='<div></div>';
   for(let d=1;d<=nd;d++){const n=ent[d]||0;cells+=`<div class="cal-d ${n?'has':''} ${n&&d<hjD?'late':''} ${d===hjD?'hoje':''}">${d}${n?`<span>${n} entrega${n>1?'s':''}</span>`:''}</div>`;}
-  box.innerHTML=`<div class="chartcard"><h3>Calendário de entregas — ${hj.slice(0,7)}</h3><div class="cal-grid">${['D','S','T','Q','Q','S','S'].map(x=>`<div class="cal-h">${x}</div>`).join('')}${cells}</div></div>`;}
+  box.innerHTML=`<div class="chartcard"><h3>Calendário de entregas, ${hj.slice(0,7)}</h3><div class="cal-grid">${['D','S','T','Q','Q','S','S'].map(x=>`<div class="cal-h">${x}</div>`).join('')}${cells}</div></div>`;}
 function renderCompras(){
   const low=db.insumos.filter(i=>insumoStatus(i)!=='ok');
   const box=document.getElementById('shopList');
-  if(!low.length){box.innerHTML='<div class="empty-t" style="border:1px solid var(--line);border-radius:10px">Nada para comprar — estoque saudável.</div>';return;}
+  if(!low.length){box.innerHTML='<div class="empty-t" style="border:1px solid var(--line);border-radius:10px">Nada para comprar, estoque saudável.</div>';return;}
   box.innerHTML=low.map(i=>{const alvo=(i.minimo||0)*2;const comprar=Math.max(0,(alvo-i.estoque));const custo=comprar*Number(i.custo||0);return `<div class="shop-item"><div class="si-l"><div class="n">${esc(i.nome)}</div><div class="s">tem ${i.estoque} ${esc(i.unidade)} · mínimo ${i.minimo}</div></div><div class="si-r"><div class="si-q"><div class="q">+${comprar.toFixed(comprar%1?2:0)} ${esc(i.unidade)}</div><div class="c">≈ ${brl(custo)}</div></div><button class="btn2" onclick="buyDone('${i.id}',${comprar})">Comprei</button></div></div>`;}).join('');
 }
-function renderComprasHist(){const todas=[...(db.compras||[])].reverse();const rows=todas.slice(0,PAG.compras);document.getElementById('tbCompras').innerHTML=(rows.length?rows.map(c=>{const ins=db.insumos.find(i=>i.id===c.insumo);const q=Number(c.qtd||0),v=Number(c.valor||0);return `<tr><td>${esc(c.data)||'—'}</td><td>${ins?esc(ins.nome):'—'}</td><td>${q} ${ins?esc(ins.unidade):''}</td><td class="money">${brl(v)}</td><td class="money" style="color:var(--smoke)">${q&&v?brl(v/q):'—'}</td><td>${esc(c.fornecedor)||'—'}</td><td>${rowActions('compra',c.id)}</td></tr>`;}).join(''):`<tr><td colspan=7><div class="empty-t">Nenhuma compra registrada.</div></td></tr>`)+linhaMais('compras',todas.length,rows.length,7);}
-function renderFixos(){const rows=db.fixos||[];const tot=rows.reduce((s,f)=>s+Number(f.valor||0),0);document.getElementById('tbFixos').innerHTML=rows.length?rows.map(f=>`<tr><td>${esc(f.nome)}</td><td class="money">${brl(f.valor)}</td><td>${rowActions('fixo',f.id)}</td></tr>`).join('')+`<tr><td style="font-weight:600">Total</td><td class="money" style="color:var(--ember)">${brl(tot)}</td><td></td></tr>`:`<tr><td colspan=3><div class="empty-t">Nenhum custo fixo — cadastre aluguel, energia, assinaturas…</div></td></tr>`;}
+function renderComprasHist(){const todas=[...(db.compras||[])].reverse();const rows=todas.slice(0,PAG.compras);document.getElementById('tbCompras').innerHTML=(rows.length?rows.map(c=>{const ins=db.insumos.find(i=>i.id===c.insumo);const q=Number(c.qtd||0),v=Number(c.valor||0);return `<tr><td>${esc(c.data)||', '}</td><td>${ins?esc(ins.nome):', '}</td><td>${q} ${ins?esc(ins.unidade):''}</td><td class="money">${brl(v)}</td><td class="money" style="color:var(--smoke)">${q&&v?brl(v/q):', '}</td><td>${esc(c.fornecedor)||', '}</td><td>${rowActions('compra',c.id)}</td></tr>`;}).join(''):`<tr><td colspan=7><div class="empty-t">Nenhuma compra registrada.</div></td></tr>`)+linhaMais('compras',todas.length,rows.length,7);}
+function renderFixos(){const rows=db.fixos||[];const tot=rows.reduce((s,f)=>s+Number(f.valor||0),0);document.getElementById('tbFixos').innerHTML=rows.length?rows.map(f=>`<tr><td>${esc(f.nome)}</td><td class="money">${brl(f.valor)}</td><td>${rowActions('fixo',f.id)}</td></tr>`).join('')+`<tr><td style="font-weight:600">Total</td><td class="money" style="color:var(--ember)">${brl(tot)}</td><td></td></tr>`:`<tr><td colspan=3><div class="empty-t">Nenhum custo fixo, cadastre aluguel, energia, assinaturas…</div></td></tr>`;}
 function setMeta(){const cur=Number(db.meta||0);const q=prompt('Meta de receita do mês (R$). Vazio ou 0 remove a meta:',cur||'');if(q===null)return;const n=Number(String(q).trim().replace(',','.'));if(!isFinite(n)||n<0){toast('Valor inválido');return;}db.meta=n;cloudSave();renderAll();toast(n?'Meta definida: '+brl(n)+'/mês':'Meta removida');}
 function setMeiTeto(){const cur=Number(db.meiTeto||81000);const q=prompt('Teto anual de faturamento (R$). O padrão do MEI é 81000:',cur);if(q===null)return;const n=Number(String(q).trim().replace(',','.'));if(!isFinite(n)||n<=0){toast('Valor inválido');return;}db.meiTeto=n;cloudSave();renderAll();toast('Teto anual: '+brl(n));}
 function renderPrazos(){
@@ -1129,13 +1129,13 @@ function renderPrazos(){
   const abertos=db.pedidos.filter(p=>p.prazo&&p.situacao!=='Entregue'&&p.situacao!=='Cancelado');
   const atras=abertos.filter(p=>p.prazo<hj).sort((a,b)=>a.prazo<b.prazo?-1:1);
   const prox=abertos.filter(p=>p.prazo>=hj&&p.prazo<=em7).sort((a,b)=>a.prazo<b.prazo?-1:1);
-  const li=(p,late)=>{const prod=db.produtos.find(x=>x.id===p.produto);const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);const nome=cli?cli.nome:(p.cliente||'—');return `<div class="prazo-item ${late?'late':''}"><span>${late?ico('alerta','Atrasada')+' ':''}${esc(nome)} — ${prod?esc(prod.nome):esc(p.item||'pedido')}${Number(p.qtd||1)>1?' ×'+p.qtd:''}</span><b>${esc(p.prazo)}</b></div>`;};
+  const li=(p,late)=>{const prod=db.produtos.find(x=>x.id===p.produto);const cli=(db.clientes||[]).find(c=>c.id===p.clienteId);const nome=cli?cli.nome:(p.cliente||', ');return `<div class="prazo-item ${late?'late':''}"><span>${late?ico('alerta','Atrasada')+' ':''}${esc(nome)}, ${prod?esc(prod.nome):esc(p.item||'pedido')}${Number(p.qtd||1)>1?' ×'+p.qtd:''}</span><b>${esc(p.prazo)}</b></div>`;};
   // plano de produção: encomendas abertas menos peças prontas
   const porProd={};db.pedidos.filter(p=>p.situacao!=='Entregue'&&p.situacao!=='Cancelado'&&p.produto).forEach(p=>{porProd[p.produto]=(porProd[p.produto]||0)+Number(p.qtd||1);});
   const plano=Object.entries(porProd).map(([pid,q])=>{const prod=db.produtos.find(x=>x.id===pid);if(!prod)return null;const falta=q-Number(prod.pronto||0);return falta>0?{pid,nome:prod.nome,falta}:null;}).filter(Boolean);
   let html='';
   if(atras.length||prox.length)html+=`<div class="chartcard"><h3>Encomendas com prazo${atras.length?` · <span style="color:var(--ember)">${atras.length} atrasada${atras.length>1?'s':''}</span>`:''}</h3>${atras.map(p=>li(p,1)).join('')}${prox.map(p=>li(p,0)).join('')}</div>`;
-  if(plano.length)html+=`<div class="chartcard" style="margin-top:14px"><h3>Plano de produção — para cobrir as encomendas abertas</h3>${plano.map(x=>`<div class="prazo-item"><span>Produzir <b>${x.falta} × ${esc(x.nome)}</b></span><button class="btn2" style="padding:4px 12px;font-size:12px" onclick="criarTarefaProducao('${x.pid}',${x.falta})">criar tarefa</button></div>`).join('')}</div>`;
+  if(plano.length)html+=`<div class="chartcard" style="margin-top:14px"><h3>Plano de produção, para cobrir as encomendas abertas</h3>${plano.map(x=>`<div class="prazo-item"><span>Produzir <b>${x.falta} × ${esc(x.nome)}</b></span><button class="btn2" style="padding:4px 12px;font-size:12px" onclick="criarTarefaProducao('${x.pid}',${x.falta})">criar tarefa</button></div>`).join('')}</div>`;
   box.innerHTML=html;
   renderCal();
 }
@@ -1157,12 +1157,12 @@ function exportDRE(){
   const dLiq=B.liq!==0?Math.round((A.liq/B.liq-1)*100):null;
   const win=window.open('','_blank');
   const ln=(l,v,vb,neg)=>`<tr><td>${l}</td><td style="text-align:right;${neg?'color:#B5462A':''}">${neg?'− ':''}${brl(v)}</td><td style="text-align:right;color:#8A7E70">${brl(vb)}</td></tr>`;
-  win.document.write(`<html><head><title>Fechamento ${m} — ${esc(empresaNome||'Cinérea')}</title><style>body{font-family:Georgia,serif;color:#1C1A17;padding:40px;max-width:620px;margin:auto}h1{font-size:26px}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:15px}td,th{padding:9px 4px;border-bottom:1px solid #ddd}th{font-size:11px;text-transform:uppercase;color:#8A7E70;text-align:right}th:first-child{text-align:left}.tot td{border-top:2px solid #1C1A17;border-bottom:none;font-size:19px;font-weight:bold;${A.liq>=0?'':'color:#B5462A'}}</style></head><body>
-  <h1>Fechamento — ${m}</h1><p>${esc(empresaNome||'Cinérea')} · ${A.n} venda(s)${dLiq!==null?` · lucro ${dLiq>=0?'↑':'↓'}${Math.abs(dLiq)}% vs ${mAnt}`:''}</p>
+  win.document.write(`<html><head><title>Fechamento ${m}, ${esc(empresaNome||'Cinérea')}</title><style>body{font-family:Georgia,serif;color:#1C1A17;padding:40px;max-width:620px;margin:auto}h1{font-size:26px}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:15px}td,th{padding:9px 4px;border-bottom:1px solid #ddd}th{font-size:11px;text-transform:uppercase;color:#8A7E70;text-align:right}th:first-child{text-align:left}.tot td{border-top:2px solid #1C1A17;border-bottom:none;font-size:19px;font-weight:bold;${A.liq>=0?'':'color:#B5462A'}}</style></head><body>
+  <h1>Fechamento, ${m}</h1><p>${esc(empresaNome||'Cinérea')} · ${A.n} venda(s)${dLiq!==null?` · lucro ${dLiq>=0?'↑':'↓'}${Math.abs(dLiq)}% vs ${mAnt}`:''}</p>
   <table><tr><th>Linha</th><th>${m}</th><th>${mAnt}</th></tr>
   ${ln('Receita (pedidos pagos/entregues)',A.receita,B.receita)}${ln('Taxas de canal',A.taxas,B.taxas,1)}${ln('Frete / embalagem',A.frete,B.frete,1)}${ln('Custo das peças vendidas',A.custoPecas,B.custoPecas,1)}${ln('Custos fixos do mês',A.fixos,B.fixos,1)}
   <tr class="tot"><td>Lucro líquido</td><td style="text-align:right">${brl(A.liq)}</td><td style="text-align:right;font-size:14px;color:#8A7E70">${brl(B.liq)}</td></tr></table>
-  <p style="margin-top:36px;color:#999;font-size:11px">Gerado pelo sistema de gestão — ${new Date().toLocaleDateString('pt-BR')}</p>
+  <p style="margin-top:36px;color:#999;font-size:11px">Gerado pelo sistema de gestão, ${new Date().toLocaleDateString('pt-BR')}</p>
   </body></html>`);
   win.document.close();setTimeout(()=>win.print(),400);
 }
@@ -1219,61 +1219,61 @@ const FORMS={
   equip:{title:'Equipamento',fields:[{k:'nome',l:'Nome',t:'text'},{k:'tipo',l:'Tipo',t:'text'},{k:'compra',l:'Data de compra',t:'date'},{k:'custo',l:'Custo (R$)',t:'number'},{k:'vidaHoras',l:'Vida útil estimada (horas)',t:'number',hint:'Usada para ratear a depreciação no orçamento'},{k:'situacao',l:'Situação',t:'select',opts:['Ativo','Em manutenção','Inativo']}]},
   molde:{title:'Molde',fields:[{k:'nome',l:'Nome',t:'text'},{k:'material',l:'Material',t:'select',opts:['gesso','cera']},{k:'usos',l:'Usos já feitos',t:'number'},{k:'vida',l:'Vida útil (peças)',t:'number',hint:'Gesso ≈40, cera ≈120'}]},
   insumo:{title:'Insumo',fields:[{k:'nome',l:'Nome',t:'text'},{k:'unidade',l:'Unidade',t:'select',opts:['kg','g','L','ml','un']},{k:'estoque',l:'Estoque atual',t:'number'},{k:'minimo',l:'Estoque mínimo',t:'number'},{k:'custo',l:'Custo por unidade (R$)',t:'number'}]},
-  producao:{title:'Produção',fields:[{k:'data',l:'Data',t:'date'},{k:'produto',l:'Produto',t:'selectProd'},{k:'qtd',l:'Quantidade',t:'number',def:1},{k:'minutos',l:'Tempo por peça (min)',t:'number',hint:'Sua maior linha de custo'},{k:'variacao',l:'Variação / fragrância',t:'text',hint:'Opcional — ex.: lavanda'},{k:'molde',l:'Molde usado',t:'selectMolde'}]},
-  pedido:{title:'Pedido',fields:[{k:'data',l:'Data',t:'date'},{k:'clienteId',l:'Cliente',t:'selectCliente'},{k:'produto',l:'Produto',t:'selectProd',hint:'Ligue ao produto para ver o lucro e baixar o estoque pronto'},{k:'qtd',l:'Quantidade',t:'number',def:1},{k:'variacao',l:'Variação / fragrância',t:'text'},{k:'item',l:'Descrição livre',t:'text',hint:'Use se não for um produto cadastrado'},{k:'canal',l:'Canal de venda',t:'selectCanal',hint:'Define a taxa usada no lucro'},{k:'prazo',l:'Entregar até',t:'date',def:'',hint:'Opcional — aparece no Painel'},{k:'valor',l:'Valor (R$)',t:'number',hint:'Vazio = preço praticado × quantidade'},{k:'frete',l:'Frete/embalagem (R$)',t:'number',def:'',hint:'Custo de envio — desconta do lucro'},{k:'cupom',l:'Cupom usado',t:'text',hint:'O código que o cliente informou. É por ele que a comissão do vendedor é calculada'},{k:'situacao',l:'Situação',t:'select',opts:['Pendente','Pago','Em produção','Entregue','Cancelado']}]},
-  cliente:{title:'Cliente',fields:[{k:'nome',l:'Nome',t:'text'},{k:'whats',l:'WhatsApp',t:'text',hint:'Só números com DDD — vira link para conversar'},{k:'obs',l:'Observações',t:'text',hint:'Preferências, endereço…'}]},
+  producao:{title:'Produção',fields:[{k:'data',l:'Data',t:'date'},{k:'produto',l:'Produto',t:'selectProd'},{k:'qtd',l:'Quantidade',t:'number',def:1},{k:'minutos',l:'Tempo por peça (min)',t:'number',hint:'Sua maior linha de custo'},{k:'variacao',l:'Variação / fragrância',t:'text',hint:'Opcional, ex.: lavanda'},{k:'molde',l:'Molde usado',t:'selectMolde'}]},
+  pedido:{title:'Pedido',fields:[{k:'data',l:'Data',t:'date'},{k:'clienteId',l:'Cliente',t:'selectCliente'},{k:'produto',l:'Produto',t:'selectProd',hint:'Ligue ao produto para ver o lucro e baixar o estoque pronto'},{k:'qtd',l:'Quantidade',t:'number',def:1},{k:'variacao',l:'Variação / fragrância',t:'text'},{k:'item',l:'Descrição livre',t:'text',hint:'Use se não for um produto cadastrado'},{k:'canal',l:'Canal de venda',t:'selectCanal',hint:'Define a taxa usada no lucro'},{k:'prazo',l:'Entregar até',t:'date',def:'',hint:'Opcional, aparece no Painel'},{k:'valor',l:'Valor (R$)',t:'number',hint:'Vazio = preço praticado × quantidade'},{k:'frete',l:'Frete/embalagem (R$)',t:'number',def:'',hint:'Custo de envio, desconta do lucro'},{k:'cupom',l:'Cupom usado',t:'text',hint:'O código que o cliente informou. É por ele que a comissão do vendedor é calculada'},{k:'situacao',l:'Situação',t:'select',opts:['Pendente','Pago','Em produção','Entregue','Cancelado']}]},
+  cliente:{title:'Cliente',fields:[{k:'nome',l:'Nome',t:'text'},{k:'whats',l:'WhatsApp',t:'text',hint:'Só números com DDD, vira link para conversar'},{k:'obs',l:'Observações',t:'text',hint:'Preferências, endereço…'}]},
   canal:{title:'Canal de venda',fields:[{k:'nome',l:'Nome',t:'text'},{k:'taxa',l:'Taxa (%)',t:'number',def:0,hint:'Ex.: marketplace 12, Pix 0'}]},
   tarefa:{title:'Tarefa',fem:true,fields:[{k:'titulo',l:'Tarefa',t:'text'},{k:'desc',l:'Detalhes',t:'text',hint:'Opcional'},{k:'resp',l:'Responsável',t:'selectMembro'},{k:'prazo',l:'Prazo',t:'date',def:''},{k:'status',l:'Situação',t:'select',opts:['aberta','fazendo','feita']}]},
   compra:{title:'Compra',fem:true,fields:[{k:'data',l:'Data',t:'date'},{k:'insumo',l:'Insumo',t:'selectIns'},{k:'qtd',l:'Quantidade comprada',t:'number'},{k:'valor',l:'Valor total pago (R$)',t:'number',hint:'Recalcula o custo médio do insumo. Vazio = só dá entrada no estoque'},{k:'fornecedorId',l:'Fornecedor',t:'selectFornecedor'}]},
-  fornecedor:{title:'Fornecedor',fields:[{k:'nome',l:'Nome',t:'text'},{k:'categoria',l:'Categoria de material',t:'text',hint:'Ex.: gesso, essências, embalagens'},{k:'risco',l:'Risco',t:'select',opts:['Baixo','Médio','Alto']},{k:'whats',l:'WhatsApp principal',t:'text',hint:'Só números com DDD — vira link'},{k:'endereco',l:'Endereço',t:'text'},{k:'obs',l:'Observações',t:'text',hint:'Prazo típico, condições, mínimos…'}]},
+  fornecedor:{title:'Fornecedor',fields:[{k:'nome',l:'Nome',t:'text'},{k:'categoria',l:'Categoria de material',t:'text',hint:'Ex.: gesso, essências, embalagens'},{k:'risco',l:'Risco',t:'select',opts:['Baixo','Médio','Alto']},{k:'whats',l:'WhatsApp principal',t:'text',hint:'Só números com DDD, vira link'},{k:'endereco',l:'Endereço',t:'text'},{k:'obs',l:'Observações',t:'text',hint:'Prazo típico, condições, mínimos…'}]},
   fixo:{title:'Custo fixo',fields:[{k:'nome',l:'Nome',t:'text'},{k:'valor',l:'Valor mensal (R$)',t:'number'}]},
   acesso:{title:'Usuário',fields:[
     {k:'email',l:'E-mail',t:'text',hint:'O mesmo que a pessoa vai usar para entrar. Ela cria a própria senha'},
-    {k:'nome',l:'Nome',t:'text',hint:'Só para você saber de quem é — a pessoa pode trocar depois'},
+    {k:'nome',l:'Nome',t:'text',hint:'Só para você saber de quem é, a pessoa pode trocar depois'},
     {k:'papel',l:'Papel',t:'select',opts:['empregado','socio','admin']},
     {k:'obs',l:'Observação',t:'text',hint:'Opcional'},
   ]},
   banner:{title:'Banner da loja',fields:[
     {k:'ativo',l:'Situação',t:'select',opts:['ligado','desligado']},
     {k:'imagem',l:'Arte de fundo (opcional)',t:'imagem',pasta:'banners',lado:1600,teto:400,
-     hint:'<b>1600 × 500 px</b>, JPG, PNG ou WebP, até 400 KB. Encolhemos antes de enviar, então pode mandar maior.<br><b>O que sobrevive é o MEIO.</b> A faixa da loja é bem baixa: no computador some o terço de cima e o de baixo da arte; no celular somem as bordas laterais. Ponha o assunto na faixa central e não conte com cantos.<br><b>O texto vai por cima</b>, centralizado e com um véu escuro. Arte muito detalhada no centro atrapalha a leitura — luz e superfície ali funcionam melhor que objeto.'},
+     hint:'<b>1600 × 500 px</b>, JPG, PNG ou WebP, até 400 KB. Encolhemos antes de enviar, então pode mandar maior.<br><b>O que sobrevive é o MEIO.</b> A faixa da loja é bem baixa: no computador some o terço de cima e o de baixo da arte; no celular somem as bordas laterais. Ponha o assunto na faixa central e não conte com cantos.<br><b>O texto vai por cima</b>, centralizado e com um véu escuro. Arte muito detalhada no centro atrapalha a leitura, luz e superfície ali funcionam melhor que objeto.'},
     {k:'titulo',l:'Chamada',t:'text',hint:'Até 90 caracteres, mas mire em 40: no celular a faixa tem uma linha e meia. Ex.: "Frete grátis até domingo"'},
-    {k:'texto',l:'Detalhe',t:'text',hint:'Opcional, até 140 caracteres. A condição em uma linha — "Para todo o estado de São Paulo"'},
+    {k:'texto',l:'Detalhe',t:'text',hint:'Opcional, até 140 caracteres. A condição em uma linha, "Para todo o estado de São Paulo"'},
     {k:'cupom',l:'Cupom para divulgar',t:'text',hint:'Opcional, até 24 caracteres. Vira maiúscula e sem acento sozinho. Aparece destacado, e quem tocar já entra com ele na sacola'},
     {k:'ate',l:'Até',t:'date',def:'',hint:'Opcional. Passou a data, o banner some sozinho da loja'},
     {k:'cor',l:'Cor do banner',t:'select',opts:['brasa','carvão','areia']},
   ]},
   frete:{title:'Frete',fields:[
     {k:'ativo',l:'Situação',t:'select',opts:['ligado','desligado'],
-     hint:'Desligado, a loja não fecha venda com entrega — só retirada. Use enquanto a tabela não estiver pronta, em vez de deixar valores errados no ar'},
+     hint:'Desligado, a loja não fecha venda com entrega, só retirada. Use enquanto a tabela não estiver pronta, em vez de deixar valores errados no ar'},
     {k:'corte',l:'Frete grátis a partir de (R$)',t:'number',def:0,
-     hint:'0 desliga o frete grátis. É o único item desta tela que VENDE: o refil custa R$ 50 e as peças de R$ 200 a R$ 280, então um corte em R$ 250 é um degrau que se sobe com exatamente um refil — e o refil é o que traz o cliente de volta. Escolha olhando o quadro abaixo, não a média'},
+     hint:'0 desliga o frete grátis. É o único item desta tela que VENDE: o refil custa R$ 50 e as peças de R$ 200 a R$ 280, então um corte em R$ 250 é um degrau que se sobe com exatamente um refil, e o refil é o que traz o cliente de volta. Escolha olhando o quadro abaixo, não a média'},
     {k:'sudeste',l:'Sudeste (R$)',t:'number',def:0,hint:'SP, RJ, MG, ES'},
     {k:'sul',l:'Sul (R$)',t:'number',def:0,hint:'PR, SC, RS'},
     {k:'centrooeste',l:'Centro-Oeste (R$)',t:'number',def:0,hint:'DF, GO, MT, MS'},
     {k:'nordeste',l:'Nordeste (R$)',t:'number',def:0,hint:'BA, SE, AL, PE, PB, RN, CE, PI, MA'},
     {k:'norte',l:'Norte (R$)',t:'number',def:0,hint:'PA, AP, AM, RR, AC, RO, TO'},
     {k:'adicional',l:'Cada peça a mais custa (% do valor da região)',t:'number',def:60,
-     hint:'Seis esculturas não cabem na caixa de uma: o volume cresce e a cubagem manda no preço. 60 quer dizer que a segunda peça paga 60% do que a primeira pagou. Refis e chaveiros NÃO entram nesta conta — marque "vai na sobra da caixa" no cadastro da peça'},
+     hint:'Seis esculturas não cabem na caixa de uma: o volume cresce e a cubagem manda no preço. 60 quer dizer que a segunda peça paga 60% do que a primeira pagou. Refis e chaveiros NÃO entram nesta conta, marque "vai na sobra da caixa" no cadastro da peça'},
     {k:'gratisAte',l:'Frete grátis cobre até quantas peças',t:'number',def:3,
-     hint:'0 é ilimitado, que era como estava. Acima do limite, só o excedente é cobrado — cobrar o frete inteiro puniria quem levou uma peça a mais mais do que quem levou uma a menos'},
+     hint:'0 é ilimitado, que era como estava. Acima do limite, só o excedente é cobrado, cobrar o frete inteiro puniria quem levou uma peça a mais mais do que quem levou uma a menos'},
     {k:'origemCep',l:'CEP do ateliê',t:'text',hint:'De onde as peças saem. Não entra na conta hoje; é o que a cotação automática vai exigir quando entrar'},
     {k:'prazo',l:'Prazo que você promete',t:'text',hint:'Opcional. Ex.: "5 a 10 dias úteis". Aparece na sacola, ao lado do valor'},
   ]},
   vendedor:{title:'Vendedor',fields:[
     {k:'nome',l:'Nome',t:'text'},
-    {k:'whats',l:'WhatsApp',t:'text',hint:'Só números com DDD — vira link para combinar o pagamento'},
+    {k:'whats',l:'WhatsApp',t:'text',hint:'Só números com DDD, vira link para combinar o pagamento'},
     {k:'comissao',l:'Comissão (%)',t:'number',def:10,hint:'Sobre o valor efetivamente cobrado, já com o desconto do cupom aplicado'},
     {k:'chavePix',l:'Chave Pix',t:'text',hint:'Para onde a comissão vai'},
     {k:'obs',l:'Observações',t:'text',hint:'Onde divulga, o que foi combinado…'},
   ]},
   cupom:{title:'Cupom',fields:[
-    {k:'codigo',l:'Código',t:'text',hint:'O que o cliente digita. Vira maiúscula e sem acento sozinho — MARIA10, FEIRA-2026'},
+    {k:'codigo',l:'Código',t:'text',hint:'O que o cliente digita. Vira maiúscula e sem acento sozinho, MARIA10, FEIRA-2026'},
     {k:'vendedorId',l:'Vendedor',t:'selectVendedor',hint:'De quem é a comissão desta venda'},
     {k:'tipo',l:'Tipo de desconto',t:'select',opts:['percentual','valor']},
     {k:'valor',l:'Valor do desconto',t:'number',hint:'10 = 10% se for percentual, ou R$ 10 se for valor fixo'},
-    {k:'minimo',l:'Valor mínimo do pedido (R$)',t:'number',def:'',hint:'Opcional — abaixo disso o cupom não vale'},
-    {k:'ate',l:'Vale até',t:'date',def:'',hint:'Opcional — vazio não vence'},
+    {k:'minimo',l:'Valor mínimo do pedido (R$)',t:'number',def:'',hint:'Opcional, abaixo disso o cupom não vale'},
+    {k:'ate',l:'Vale até',t:'date',def:'',hint:'Opcional, vazio não vence'},
     {k:'ativo',l:'Situação',t:'select',opts:['ativo','desligado']},
   ]},
 };
@@ -1290,7 +1290,7 @@ function openForm(type,id){
   document.getElementById('modalTitle').textContent=(id?'Editar ':(fem?'Nova ':'Novo '))+(isP?'produto':FORMS[type].title.toLowerCase());
   const body=document.getElementById('modalBody');let ex=id?db[plural(type)].find(x=>x.id===id):{};
   if(isP){currentForm.recipe=ex.receita?JSON.parse(JSON.stringify(ex.receita)):[];
-    body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">— nenhum —</option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" inputmode="decimal" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto da peça</label><label class="fotoup">Escolher imagem do computador<input type="file" accept="image/*" onchange="escolherFoto(this)" hidden></label><img id="f_fotoPrev" class="fotoprev" src="${esc(ex.foto||'')}" style="display:${ex.foto?'block':'none'}" alt=""><div class="hint" id="f_fotoStatus">Reduzimos a imagem antes de enviar — foto crua de celular pesa demais para quem vai abrir a loja.</div><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px"></div><div class="field"><label>Segunda foto</label><label class="fotoup">Escolher imagem<input type="file" accept="image/jpeg,image/png,image/webp" onchange="escolherImagem(this,'foto2','produtos',1200,600)" hidden></label><img id="f_foto2Prev" class="fotoprev" src="${esc(ex.foto2||'')}" style="display:${ex.foto2?'block':'none'}" alt=""><div class="hint" id="f_foto2Status">Aparece quando o cliente passa o mouse sobre a peça, no lugar da primeira. Use outro ângulo, um detalhe ou a peça em uso — não uma variação da mesma foto, que ninguém percebe.</div><input id="f_foto2" value="${esc(ex.foto2||'')}" placeholder="ou cole o endereço" style="margin-top:8px"></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="loja-bloco"><div class="loja-tit">Loja — o que aparece para quem compra</div><div class="field-row"><div class="field"><label>Coleção</label><select id="f_colecao">${['<option value="">— sem coleção —</option>'].concat(colecoesOrdenadas().map(c=>`<option value="${c.id}" ${ex.colecao===c.id?'selected':''}>${esc(c.nome)}</option>`)).join('')}</select><div class="hint">A seção onde a peça aparece no site e no app</div></div><div class="field"><label>Posição na coleção</label><input id="f_posicao" type="number" inputmode="decimal" value="${ex.posicao||10}"><div class="hint">Menor aparece antes</div></div><div class="field"><label>Situação</label><select id="f_situacao"><option value="disponivel" ${ex.situacao!=='embreve'?'selected':''}>À venda</option><option value="embreve" ${ex.situacao==='embreve'?'selected':''}>Em breve</option></select><div class="hint">"Em breve" entra na lista de espera, sem sacola</div></div></div><div class="field"><label>Frase curta</label><input id="f_desc" value="${esc(ex.desc||'')}" maxlength="120" placeholder="Duas mãos em concha sustentam uma taça de areia perfumada."><div class="hint">Aparece embaixo do nome, no cartão</div></div><div class="field"><label>Descrição</label><textarea id="f_longa" rows="4" placeholder="O texto que convence, na tela da peça.">${esc(ex.longa||'')}</textarea></div><div class="field"><label>Ficha técnica</label><textarea id="f_ficha" rows="4" placeholder="Escultura: Gesso · duas mãos&#10;Altura: 22 cm&#10;Repõe-se com: Aura-Sand + pavios">${esc(fichaEmTexto(ex.ficha))}</textarea><div class="hint">Uma linha por item, no formato <code>rótulo: valor</code></div></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_destaque" ${ex.destaque?'checked':''} style="width:auto"> peça de destaque na vitrine</label></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_leve" ${ex.leve?'checked':''} style="width:auto"> vai na sobra da caixa</label><div class="hint">Marque para refil, chaveiro e o que não ocupa volume. Peça marcada não faz o frete crescer: ela viaja junto de uma escultura sem pedir caixa maior</div></div><div class="field"><label>Modelo 3D</label><input id="f_modelo" value="${esc(ex.modelo||'')}" placeholder="/3d/david.glb"><div class="hint">Opcional. Com ele, a ficha da peça ganha <b>Ver na sua casa</b> — no celular a peça aparece em tamanho real no espaço da pessoa. O arquivo tem de estar no próprio site, em <code>/3d/</code></div></div></div><div class="field"><label>Receita — insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" inputmode="decimal" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" inputmode="decimal" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" inputmode="decimal" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" inputmode="decimal" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" inputmode="decimal" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" inputmode="decimal" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
+    body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">, nenhum, </option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" inputmode="decimal" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto da peça</label><label class="fotoup">Escolher imagem do computador<input type="file" accept="image/*" onchange="escolherFoto(this)" hidden></label><img id="f_fotoPrev" class="fotoprev" src="${esc(ex.foto||'')}" style="display:${ex.foto?'block':'none'}" alt=""><div class="hint" id="f_fotoStatus">Reduzimos a imagem antes de enviar, foto crua de celular pesa demais para quem vai abrir a loja.</div><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px"></div><div class="field"><label>Segunda foto</label><label class="fotoup">Escolher imagem<input type="file" accept="image/jpeg,image/png,image/webp" onchange="escolherImagem(this,'foto2','produtos',1200,600)" hidden></label><img id="f_foto2Prev" class="fotoprev" src="${esc(ex.foto2||'')}" style="display:${ex.foto2?'block':'none'}" alt=""><div class="hint" id="f_foto2Status">Aparece quando o cliente passa o mouse sobre a peça, no lugar da primeira. Use outro ângulo, um detalhe ou a peça em uso, não uma variação da mesma foto, que ninguém percebe.</div><input id="f_foto2" value="${esc(ex.foto2||'')}" placeholder="ou cole o endereço" style="margin-top:8px"></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="loja-bloco"><div class="loja-tit">Loja, o que aparece para quem compra</div><div class="field-row"><div class="field"><label>Coleção</label><select id="f_colecao">${['<option value="">, sem coleção, </option>'].concat(colecoesOrdenadas().map(c=>`<option value="${c.id}" ${ex.colecao===c.id?'selected':''}>${esc(c.nome)}</option>`)).join('')}</select><div class="hint">A seção onde a peça aparece no site e no app</div></div><div class="field"><label>Posição na coleção</label><input id="f_posicao" type="number" inputmode="decimal" value="${ex.posicao||10}"><div class="hint">Menor aparece antes</div></div><div class="field"><label>Situação</label><select id="f_situacao"><option value="disponivel" ${ex.situacao!=='embreve'?'selected':''}>À venda</option><option value="embreve" ${ex.situacao==='embreve'?'selected':''}>Em breve</option></select><div class="hint">"Em breve" entra na lista de espera, sem sacola</div></div></div><div class="field"><label>Frase curta</label><input id="f_desc" value="${esc(ex.desc||'')}" maxlength="120" placeholder="Duas mãos em concha sustentam uma taça de areia perfumada."><div class="hint">Aparece embaixo do nome, no cartão</div></div><div class="field"><label>Descrição</label><textarea id="f_longa" rows="4" placeholder="O texto que convence, na tela da peça.">${esc(ex.longa||'')}</textarea></div><div class="field"><label>Ficha técnica</label><textarea id="f_ficha" rows="4" placeholder="Escultura: Gesso · duas mãos&#10;Altura: 22 cm&#10;Repõe-se com: Aura-Sand + pavios">${esc(fichaEmTexto(ex.ficha))}</textarea><div class="hint">Uma linha por item, no formato <code>rótulo: valor</code></div></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_destaque" ${ex.destaque?'checked':''} style="width:auto"> peça de destaque na vitrine</label></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_leve" ${ex.leve?'checked':''} style="width:auto"> vai na sobra da caixa</label><div class="hint">Marque para refil, chaveiro e o que não ocupa volume. Peça marcada não faz o frete crescer: ela viaja junto de uma escultura sem pedir caixa maior</div></div><div class="field"><label>Modelo 3D</label><input id="f_modelo" value="${esc(ex.modelo||'')}" placeholder="/3d/david.glb"><div class="hint">Opcional. Com ele, a ficha da peça ganha <b>Ver na sua casa</b>, no celular a peça aparece em tamanho real no espaço da pessoa. O arquivo tem de estar no próprio site, em <code>/3d/</code></div></div></div><div class="field"><label>Receita, insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" inputmode="decimal" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" inputmode="decimal" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" inputmode="decimal" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" inputmode="decimal" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" inputmode="decimal" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" inputmode="decimal" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
     renderRecipe();
   } else {
     if(type==='banner') ex = db.banner || {};
@@ -1305,7 +1305,7 @@ function openForm(type,id){
           sudeste:v.sudeste, sul:v.sul, centrooeste:v['centro-oeste'],
           nordeste:v.nordeste, norte:v.norte};
     }
-    body.innerHTML=FORMS[type].fields.map(f=>{let inp;const cur=ex[f.k]!==undefined?ex[f.k]:(id?'':(f.def!==undefined?f.def:(f.t==='date'?hoje():'')));if(f.t==='select')inp=`<select id="f_${f.k}">${f.opts.map(o=>`<option ${ex[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;else if(f.t==='selectProd')inp=`<select id="f_${f.k}"><option value="">—</option>${db.produtos.map(p=>`<option value="${p.id}" ${ex[f.k]===p.id?'selected':''}>${esc(p.nome)}</option>`).join('')}</select>`;else if(f.t==='selectMolde')inp=`<select id="f_${f.k}"><option value="">— nenhum —</option>${db.moldes.map(m=>`<option value="${m.id}" ${ex[f.k]===m.id?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>`;else if(f.t==='selectIns')inp=`<select id="f_${f.k}"><option value="">—</option>${db.insumos.map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectCliente')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickCliente(this)"><option value="">—</option>${(db.clientes||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}<option value="__new">+ Novo cliente…</option></select>`;else if(f.t==='selectCanal')inp=`<select id="f_${f.k}"><option value="">— taxa do produto —</option>${(db.canais||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)} (${Number(c.taxa||0)}%)</option>`).join('')}</select>`;else if(f.t==='selectMembro')inp=`<select id="f_${f.k}"><option value="">—</option>${Object.entries(membros).map(([id,m])=>`<option value="${id}" ${ex[f.k]===id?'selected':''}>${esc(m.nome||'membro')}</option>`).join('')}</select>`;else if(f.t==='selectVendedor')inp=`<select id="f_${f.k}"><option value="">—</option>${(db.vendedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectFornecedor')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickFornecedor(this)"><option value="">—</option>${(db.fornecedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}<option value="__new">+ Novo fornecedor…</option></select>`;else if(f.t==='imagem')inp=`<label class="fotoup">Escolher imagem<input type="file" accept="image/jpeg,image/png,image/webp" onchange="escolherImagem(this,'${f.k}','${f.pasta||'banners'}',${f.lado||1600},${f.teto||400})" hidden></label><img id="f_${f.k}Prev" class="fotoprev" src="${esc(cur||'')}" style="display:${cur?'block':'none'}" alt=""><div class="hint" id="f_${f.k}Status"></div><input id="f_${f.k}" value="${esc(cur||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px">`;else inp=`<input id="f_${f.k}" type="${f.t}" value="${esc(cur)}">`;return `<div class="field"><label>${f.l}</label>${inp}${f.hint?`<div class="hint">${f.hint}</div>`:''}</div>`;}).join('');
+    body.innerHTML=FORMS[type].fields.map(f=>{let inp;const cur=ex[f.k]!==undefined?ex[f.k]:(id?'':(f.def!==undefined?f.def:(f.t==='date'?hoje():'')));if(f.t==='select')inp=`<select id="f_${f.k}">${f.opts.map(o=>`<option ${ex[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;else if(f.t==='selectProd')inp=`<select id="f_${f.k}"><option value="">, </option>${db.produtos.map(p=>`<option value="${p.id}" ${ex[f.k]===p.id?'selected':''}>${esc(p.nome)}</option>`).join('')}</select>`;else if(f.t==='selectMolde')inp=`<select id="f_${f.k}"><option value="">, nenhum, </option>${db.moldes.map(m=>`<option value="${m.id}" ${ex[f.k]===m.id?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>`;else if(f.t==='selectIns')inp=`<select id="f_${f.k}"><option value="">, </option>${db.insumos.map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectCliente')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickCliente(this)"><option value="">, </option>${(db.clientes||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}<option value="__new">+ Novo cliente…</option></select>`;else if(f.t==='selectCanal')inp=`<select id="f_${f.k}"><option value="">, taxa do produto, </option>${(db.canais||[]).map(c=>`<option value="${c.id}" ${ex[f.k]===c.id?'selected':''}>${esc(c.nome)} (${Number(c.taxa||0)}%)</option>`).join('')}</select>`;else if(f.t==='selectMembro')inp=`<select id="f_${f.k}"><option value="">, </option>${Object.entries(membros).map(([id,m])=>`<option value="${id}" ${ex[f.k]===id?'selected':''}>${esc(m.nome||'membro')}</option>`).join('')}</select>`;else if(f.t==='selectVendedor')inp=`<select id="f_${f.k}"><option value="">, </option>${(db.vendedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`;else if(f.t==='selectFornecedor')inp=`<select id="f_${f.k}" onchange="if(this.value==='__new')quickFornecedor(this)"><option value="">, </option>${(db.fornecedores||[]).map(x=>`<option value="${x.id}" ${ex[f.k]===x.id?'selected':''}>${esc(x.nome)}</option>`).join('')}<option value="__new">+ Novo fornecedor…</option></select>`;else if(f.t==='imagem')inp=`<label class="fotoup">Escolher imagem<input type="file" accept="image/jpeg,image/png,image/webp" onchange="escolherImagem(this,'${f.k}','${f.pasta||'banners'}',${f.lado||1600},${f.teto||400})" hidden></label><img id="f_${f.k}Prev" class="fotoprev" src="${esc(cur||'')}" style="display:${cur?'block':'none'}" alt=""><div class="hint" id="f_${f.k}Status"></div><input id="f_${f.k}" value="${esc(cur||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px">`;else inp=`<input id="f_${f.k}" type="${f.t}" value="${esc(cur)}">`;return `<div class="field"><label>${f.l}</label>${inp}${f.hint?`<div class="hint">${f.hint}</div>`:''}</div>`;}).join('');
   }
   if(type==='producao'){const mf=document.getElementById('f_minutos');if(mf){const w=document.createElement('div');w.style.marginTop='6px';w.innerHTML='<button type="button" class="btn2" id="timerBtn" onclick="toggleTimer()">'+ico('play')+' Cronometrar uma peça</button> <span id="timerView" style="font-size:12px;color:var(--warm)"></span>';mf.parentElement.appendChild(w);}}
   if(type==='fornecedor'){currentForm.contatos=ex.contatos?JSON.parse(JSON.stringify(ex.contatos)):[];const box=document.createElement('div');box.className='field';box.innerHTML='<label>Contatos no fornecedor</label><div id="contatosLines"></div><button type="button" class="add-line" onclick="addContatoForn()">+ contato (vendedor, financeiro…)</button>';document.getElementById('modalBody').appendChild(box);renderContatosForn();}
@@ -1395,7 +1395,7 @@ function saveForm(){
   }
   // A tabela de frete também é UMA só, e mora direto no `db` pelo mesmo motivo
   // do banner. O que ela guarda é o VALOR por região; quem cruza CEP com região
-  // é o servidor, na hora de cobrar — aqui não se decide dinheiro de ninguém.
+  // é o servidor, na hora de cobrar, aqui não se decide dinheiro de ninguém.
   if(type==='frete'){
     const n=k=>Math.max(0,Number(String(val('f_'+k)).replace(',','.'))||0);
     db.frete={
@@ -1417,14 +1417,13 @@ function saveForm(){
   if(type==='produto'){obj={nome:val('f_nome'),receita:currentForm.recipe.filter(l=>l.insumo&&l.qtd),minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),markup:val('f_markup'),preco:val('f_preco'),taxa:val('f_taxa'),equip:val('f_equip'),pronto:Number(val('f_pronto')||0),foto:val('f_foto'),foto2:val('f_foto2'),publico:!!(document.getElementById('f_publico')||{}).checked,colecao:val('f_colecao'),posicao:Number(val('f_posicao'))||10,situacao:val('f_situacao')||'disponivel',desc:val('f_desc'),longa:val('f_longa'),ficha:parseFicha(val('f_ficha')),destaque:!!(document.getElementById('f_destaque')||{}).checked,
       /* O FORMULÁRIO DA PEÇA É HTML ESCRITO À MÃO, e este objeto também: ele
          NÃO percorre `FORMS.produto.fields` como os outros tipos fazem.
-         Acrescentar o campo só na lista de `FORMS` — que foi o que eu fiz
-         primeiro — não renderiza nada e não salva nada, e o dono procurou um
+         Acrescentar o campo só na lista de `FORMS`, que foi o que eu fiz
+         primeiro, não renderiza nada e não salva nada, e o dono procurou um
          campo que nunca existiu. Campo novo na peça precisa entrar em DOIS
          lugares: no HTML acima e nesta linha. */
       leve:!!(document.getElementById('f_leve')||{}).checked,
       modelo:val('f_modelo')};
-    // grava a margem de referência do momento em que o preço foi definido —
-    // é contra ela que o alerta de "preço defasado" compara depois
+    // grava a margem de referência do momento em que o preço foi definido, // é contra ela que o alerta de "preço defasado" compara depois
     if(num(obj.preco)>0){const ref=precoProduto({...obj,id:id||'tmp'},db);obj.margemRef=ref.margemPct;}
     else delete obj.margemRef;}
   else{FORMS[type].fields.forEach(f=>obj[f.k]=val('f_'+f.k));if(type==='fornecedor')obj.contatos=(currentForm.contatos||[]).filter(c=>c.nome&&c.nome.trim());if(!obj[FORMS[type].fields[0].k]){toast('Preencha o primeiro campo.');return;}}
@@ -1509,7 +1508,7 @@ function saveForm(){
       .then(()=>toast('Cupom <b>'+esc(salvo.codigo)+'</b> no ar'))
       .catch(e=>{console.error(e);toast('Salvei aqui, mas <b>não consegui atualizar a loja</b>. Use "Conferir o que está no ar".');});
   }
-  // registro de atividade (sem valores — visível a todos os papéis)
+  // registro de atividade (sem valores, visível a todos os papéis)
   if(type==='producao'&&!id){const pr=db.produtos.find(x=>x.id===obj.produto);logAtv('registrou produção de '+(obj.qtd||'?')+' × '+(pr?pr.nome:'peça'));}
   else logAtv((id?'editou ':'criou ')+(NOMES_TIPO[type]||type)+(obj.nome?' "'+obj.nome+'"':obj.titulo?' "'+obj.titulo+'"':''));
   cloudSave();closeModal();renderAll();
@@ -1518,7 +1517,7 @@ function del(type,id){
   // Chamar del() com o tipo no plural (o erro natural, porque a lista é
   // plural) fazia `db[undefined]` estourar sem dizer nada, e o botão parecia
   // morto. Falhar aqui é feio, mas é visível.
-  if(!plural(type)){console.error('del: tipo desconhecido',type);toast('Não sei remover isso — avise o desenvolvedor');return;}
+  if(!plural(type)){console.error('del: tipo desconhecido',type);toast('Não sei remover isso, avise o desenvolvedor');return;}
   // Remover a coleção deixaria as peças dela apontando para o nada, e elas
   // sumiriam da loja sem explicação. Melhor avisar antes.
   if(type==='colecao'){
@@ -1536,7 +1535,7 @@ function del(type,id){
   // apagado continuava dando desconto na loja, para sempre.
   if(type==='acesso'&&o&&o.email){
     // Retirar o acesso aqui TEM de retirar no servidor, senão a pessoa continua
-    // podendo entrar — e o cadastro diria que não.
+    // podendo entrar, e o cadastro diria que não.
     deleteDoc(doc(fdb,'acessos',o.email))
       .catch(e=>{console.error(e);toast('Removido daqui, mas <b>a autorização continua no ar</b>. Use "Conferir o que está no ar".');});
   }
@@ -1549,9 +1548,9 @@ function del(type,id){
   apagouDeProposito=true;
   logAtv('excluiu '+(NOMES_TIPO[type]||type)+(o&&(o.nome||o.titulo)?' "'+(o.nome||o.titulo)+'"':''));
   cloudSave();renderAll();
-  toastUndo({producao:'Produção excluída — estoque e molde restaurados.',compra:'Compra excluída — estoque e custo revertidos.'}[type]||'Excluído.',snap);
+  toastUndo({producao:'Produção excluída, estoque e molde restaurados.',compra:'Compra excluída, estoque e custo revertidos.'}[type]||'Excluído.',snap);
 }
-function renderContatosForn(){const box=document.getElementById('contatosLines');if(!box)return;box.innerHTML=(currentForm.contatos||[]).map((c,i)=>`<div class="recipe-line" style="grid-template-columns:1fr 1fr 1fr 30px"><input placeholder="nome" value="${esc(c.nome||'')}" oninput="currentForm.contatos[${i}].nome=this.value"><input placeholder="cargo" value="${esc(c.cargo||'')}" oninput="currentForm.contatos[${i}].cargo=this.value"><input placeholder="WhatsApp" value="${esc(c.whats||'')}" oninput="currentForm.contatos[${i}].whats=this.value"><button class="icon-btn" onclick="rmContatoForn(${i})">×</button></div>`).join('')||'<div class="hint">nenhum contato — adicione o vendedor que te atende</div>';}
+function renderContatosForn(){const box=document.getElementById('contatosLines');if(!box)return;box.innerHTML=(currentForm.contatos||[]).map((c,i)=>`<div class="recipe-line" style="grid-template-columns:1fr 1fr 1fr 30px"><input placeholder="nome" value="${esc(c.nome||'')}" oninput="currentForm.contatos[${i}].nome=this.value"><input placeholder="cargo" value="${esc(c.cargo||'')}" oninput="currentForm.contatos[${i}].cargo=this.value"><input placeholder="WhatsApp" value="${esc(c.whats||'')}" oninput="currentForm.contatos[${i}].whats=this.value"><button class="icon-btn" onclick="rmContatoForn(${i})">×</button></div>`).join('')||'<div class="hint">nenhum contato, adicione o vendedor que te atende</div>';}
 function addContatoForn(){currentForm.contatos=currentForm.contatos||[];currentForm.contatos.push({nome:'',cargo:'',whats:''});renderContatosForn();}
 function rmContatoForn(i){currentForm.contatos.splice(i,1);renderContatosForn();}
 function quickFornecedor(sel){const nome=prompt('Nome do fornecedor:');if(!nome){sel.value='';return;}const whats=prompt('WhatsApp (opcional):')||'';const f={id:uidGen(),nome:nome.trim(),whats,obs:''};db.fornecedores=db.fornecedores||[];db.fornecedores.push(f);cloudSave();const o=document.createElement('option');o.value=f.id;o.textContent=f.nome;sel.insertBefore(o,sel.querySelector('option[value="__new"]'));sel.value=f.id;toast('Fornecedor <b>'+esc(f.nome)+'</b> cadastrado');}
@@ -1561,16 +1560,16 @@ function renderFornecedores(){const tb=document.getElementById('tbFornecedores')
     const compras=(db.compras||[]).filter(c=>c.fornecedorId===f.id||(c.fornecedor&&c.fornecedor.toLowerCase()===f.nome.toLowerCase()));
     const tot=compras.reduce((s,c)=>s+Number(c.valor||0),0);
     const dg=String(f.whats||'').replace(/\D/g,'');
-    const wa=dg.length>=10?`<a href="https://wa.me/${dg.length>=12?dg:'55'+dg}" target="_blank" rel="noopener" style="color:var(--ember)">${esc(f.whats)}</a>`:(esc(f.whats)||'—');
+    const wa=dg.length>=10?`<a href="https://wa.me/${dg.length>=12?dg:'55'+dg}" target="_blank" rel="noopener" style="color:var(--ember)">${esc(f.whats)}</a>`:(esc(f.whats)||', ');
     const cont=(f.contatos||[]);
     const contHtml=cont.length?`<div style="font-size:11px;color:var(--warm)">${ico("pessoa")} ${esc(cont[0].nome)}${cont[0].cargo?' ('+esc(cont[0].cargo)+')':''}${cont.length>1?' +'+(cont.length-1):''}</div>`:'';
     const sc=scoreFornecedor(f.id);
     const scHtml=sc.resp?`<div style="font-size:11px;color:var(--warm)">${ico("grafico")} ${sc.resp} cotação(ões)${sc.winPct!==null?' · melhor preço em '+sc.winPct+'%':''}${sc.prazoMed!==null?' · prazo ~'+sc.prazoMed+'d':''}</div>`:'';
-    return `<tr><td>${esc(f.nome)}${contHtml}${scHtml}${f.endereco?`<div style="font-size:11px;color:var(--warm)">${ico("globo")} ${esc(f.endereco)}</div>`:''}${f.obs?`<div style="font-size:11px;color:var(--warm)">${esc(f.obs)}</div>`:''}</td><td>${esc(f.categoria)||'—'}</td><td>${f.risco?`<span class="pill ${rc[f.risco]||'warn'}">${esc(f.risco)}</span>`:'—'}</td><td>${wa}</td><td>${compras.length}</td><td class="money">${brl(tot)}</td><td>${rowActions('fornecedor',f.id)}</td></tr>`;
-  }).join(''):`<tr><td colspan=7><div class="empty-t">Nenhum fornecedor — importe uma cotação ou cadastre.</div></td></tr>`;}
+    return `<tr><td>${esc(f.nome)}${contHtml}${scHtml}${f.endereco?`<div style="font-size:11px;color:var(--warm)">${ico("globo")} ${esc(f.endereco)}</div>`:''}${f.obs?`<div style="font-size:11px;color:var(--warm)">${esc(f.obs)}</div>`:''}</td><td>${esc(f.categoria)||', '}</td><td>${f.risco?`<span class="pill ${rc[f.risco]||'warn'}">${esc(f.risco)}</span>`:', '}</td><td>${wa}</td><td>${compras.length}</td><td class="money">${brl(tot)}</td><td>${rowActions('fornecedor',f.id)}</td></tr>`;
+  }).join(''):`<tr><td colspan=7><div class="empty-t">Nenhum fornecedor, importe uma cotação ou cadastre.</div></td></tr>`;}
 function quickCliente(sel){const nome=prompt('Nome do cliente:');if(!nome){sel.value='';return;}const whats=prompt('WhatsApp (opcional, só números com DDD):')||'';const c={id:uidGen(),nome,whats,obs:''};db.clientes=db.clientes||[];db.clientes.push(c);cloudSave();const o=document.createElement('option');o.value=c.id;o.textContent=nome;sel.insertBefore(o,sel.querySelector('option[value="__new"]'));sel.value=c.id;toast('Cliente <b>'+esc(nome)+'</b> cadastrado');}
 /**
- * As coleções da loja — as seções do site e do app, na ordem em que aparecem.
+ * As coleções da loja, as seções do site e do app, na ordem em que aparecem.
  *
  * Antes isto era texto livre no produto: "Coleção Areia" e "Colecao Areia"
  * viravam duas seções, e não havia como dizer qual vem primeiro. Virou lista
@@ -1585,7 +1584,7 @@ function renderColecoes(){
   if(!box)return;
   const cs=colecoesOrdenadas();
   if(!cs.length){
-    box.innerHTML='<div class="hint-box">Nenhuma coleção ainda. Elas viram as seções da loja, no site e no app — e a ordem daqui é a ordem de lá.<div style="margin-top:10px"><button class="btn" onclick="semearColecoes()">Começar com as coleções da Cinérea</button></div></div>';
+    box.innerHTML='<div class="hint-box">Nenhuma coleção ainda. Elas viram as seções da loja, no site e no app, e a ordem daqui é a ordem de lá.<div style="margin-top:10px"><button class="btn" onclick="semearColecoes()">Começar com as coleções da Cinérea</button></div></div>';
     return;
   }
   box.innerHTML=`<div class="tablewrap"><table><thead><tr><th>Ordem</th><th>Coleção</th><th>Como aparece na loja</th><th>Peças</th><th></th></tr></thead><tbody>`+
@@ -1593,7 +1592,7 @@ function renderColecoes(){
       const n=(db.produtos||[]).filter(p=>p.colecao===c.id).length;
       return `<tr><td data-l="Ordem">${Number(c.ordem)||0}</td>
         <td data-l="Coleção"><b>${esc(c.nome)}</b></td>
-        <td data-l="Descrição" style="max-width:420px">${esc(c.desc||'—')}</td>
+        <td data-l="Descrição" style="max-width:420px">${esc(c.desc||', ')}</td>
         <td data-l="Peças">${n}</td>
         <td data-l=""><div class="row-actions"><button class="btn2" onclick="openForm('colecao','${c.id}')">Editar</button><button class="btn2" onclick="del('colecao','${c.id}')">Remover</button></div></td></tr>`;
     }).join('')+'</tbody></table></div>';
@@ -1604,18 +1603,18 @@ function semearColecoes(){
   if((db.colecoes||[]).length && !confirm('Já existem coleções. Acrescentar as da Cinérea mesmo assim?'))return;
   const base=[
     ['Coleção Areia','Esculturas duráveis que você preenche com areia perfumada. Sem molde, sem cera grudada: monta, acende e repõe. O coração da marca.'],
-    ['O Templo Anatômico','Arte para colecionar — anatomia clássica de domínio público, com o peso da dark academia e do gabinete de curiosidades.'],
+    ['O Templo Anatômico','Arte para colecionar, anatomia clássica de domínio público, com o peso da dark academia e do gabinete de curiosidades.'],
     ['Ritual & Aura','O universo astral e de bem-estar: sal de aura, cristais e óleos, em objetos feitos para o ritual diário.'],
-    ['Velas & Bustos','Bustos e velas de cera tradicional. Alguns recebem areia, outros copo removível — a técnica de cada um está na descrição.'],
+    ['Velas & Bustos','Bustos e velas de cera tradicional. Alguns recebem areia, outros copo removível, a técnica de cada um está na descrição.'],
     ['Difusão','Aroma sem chama: difusores de varetas, room spray e queimadores de cera.'],
-    ['Esculturas & Objetos','Esculturas de gesso puro e o altar de fragrância — presença, sem função de vela.'],
+    ['Esculturas & Objetos','Esculturas de gesso puro e o altar de fragrância, presença, sem função de vela.'],
     ['Acessórios','O ritual completo: candelabro, cuidado da vela, porta-incenso e porta-fósforos.'],
-    ['Refis & Consumíveis','O motor do negócio: areia perfumada, pavios, sal e óleos. É o que você repõe — e o que traz o cliente de volta.'],
+    ['Refis & Consumíveis','O motor do negócio: areia perfumada, pavios, sal e óleos. É o que você repõe, e o que traz o cliente de volta.'],
   ];
   db.colecoes=db.colecoes||[];
   base.forEach(([nome,desc],i)=>db.colecoes.push({id:uidGen(),nome,desc,ordem:(i+1)*10}));
   cloudSave();renderColecoes();renderProdutos();avisoCatalogo();
-  toast('8 coleções criadas — ajuste a ordem como quiser');
+  toast('8 coleções criadas, ajuste a ordem como quiser');
 }
 
 /**
@@ -1623,7 +1622,7 @@ function semearColecoes(){
  *
  * O app e o site leem `catalogo/{eid}`, que só muda quando alguém clica em
  * publicar. Editar um preço e esquecer de publicar deixa a loja vendendo pelo
- * valor velho — sem nenhum sinal de que isso aconteceu. Comparar esta
+ * valor velho, sem nenhum sinal de que isso aconteceu. Comparar esta
  * assinatura com a da última publicação transforma esse silêncio em aviso.
  */
 /**
@@ -1637,7 +1636,7 @@ function semearColecoes(){
 /**
  * O recorte público da tabela de frete.
  *
- * Desligada, devolve `null` e o documento sai SEM o campo — e o servidor, ao
+ * Desligada, devolve `null` e o documento sai SEM o campo, e o servidor, ao
  * não achar tabela, recusa a venda com entrega em vez de assumir frete zero.
  * Essa é a diferença que importa: uma tabela ausente tem de parar a venda, não
  * baratear silenciosamente o Brasil inteiro.
@@ -1713,7 +1712,7 @@ function renderBanner(){
  * inauguração com 15% OFF!" com o código INAUGURA15, e `cupons/INAUGURA15` não
  * existia. O estrago não é só o desconto que não sai. O banner da loja é
  * CLICÁVEL: tocar nele abre a sacola com o código já preenchido, e a loja
- * responde "não encontrei esse cupom, confira as letras" — culpando o cliente
+ * responde "não encontrei esse cupom, confira as letras", culpando o cliente
  * por um código que ele não digitou, na página em que ele ia comprar.
  *
  * A conferência é contra o cadastro DAQUI e não contra o ar, porque salvar
@@ -1757,7 +1756,7 @@ function itensDoCatalogo(){
       colecao:p.colecao||'', linha:col?col.nome:'', posicao:Number(p.posicao)||10,
       situacao:p.situacao||'disponivel',desc:p.desc||'',longa:p.longa||'',
       // FICHA VAI COMO TEXTO, uma linha por item. O Firestore recusa array
-      // dentro de array, e `itens` já é array — então nada aqui dentro pode
+      // dentro de array, e `itens` já é array, então nada aqui dentro pode
       // ser lista. A ficha era array de pares: dois níveis de aninhamento.
       // Mapa preservaria a estrutura, mas o Firestore não garante a ordem das
       // chaves, e ficha técnica fora de ordem não serve. Texto preserva.
@@ -1793,12 +1792,12 @@ function avisoCatalogo(){
  * Envia a vitrine. Só o envio: quem revisa e confirma é `revisarPublicacao`.
  *
  * O erro SOBE em vez de virar toast. Antes ele era engolido aqui e a mensagem
- * na tela era um chute fixo sobre regras do Firestore — o dono foi mexer em
+ * na tela era um chute fixo sobre regras do Firestore, o dono foi mexer em
  * regra que estava certa por causa disso.
  */
 async function publicarCatalogo(){
   if(!pode('fin'))throw new Error('Sem permissão para publicar');
-  if(!eid)throw new Error('Empresa não carregada — recarregue a página');
+  if(!eid)throw new Error('Empresa não carregada, recarregue a página');
 
   // O Firestore recusa `undefined` sem explicar qual campo. Limpar antes.
   const itens=itensDoCatalogo().map(i=>{
@@ -1824,7 +1823,7 @@ async function publicarCatalogo(){
 
   db.catalogoAssinatura=assinaturaCatalogo();
   cloudSave();
-  toast('Loja publicada — '+itens.length+' peça(s)');
+  toast('Loja publicada, '+itens.length+' peça(s)');
 }
 function closeModal(){
   if(timerInt){clearInterval(timerInt);timerInt=null;}timerT0=null;
@@ -1875,9 +1874,9 @@ function gerarCotacao(){ // abre a seleção de itens e quantidades
   if(typeof ExcelJS==='undefined'){toast('Preciso de internet para carregar o gerador de planilhas');return;}
   if(!db.insumos.length){toast('Cadastre insumos primeiro');return;}
   currentForm={type:'cotacaoSel',id:null,recipe:[]};window.currentForm=currentForm;
-  document.getElementById('modalTitle').textContent='Nova cotação — escolha itens e quantidades';
+  document.getElementById('modalTitle').textContent='Nova cotação, escolha itens e quantidades';
   const low=new Set(db.insumos.filter(i=>insumoStatus(i)!=='ok').map(i=>i.id));
-  document.getElementById('modalBody').innerHTML='<div class="hint-box" style="margin-bottom:14px">Itens da lista de compras já vêm marcados com a quantidade sugerida — ajuste como quiser.</div>'+db.insumos.map(i=>{const sug=Math.round(Math.max(0,(i.minimo||0)*2-i.estoque)*100)/100;return `<div class="recipe-line" style="grid-template-columns:24px 1fr 110px 40px"><input type="checkbox" data-cot="${i.id}" ${low.has(i.id)?'checked':''} style="width:auto"><span>${esc(i.nome)}<div style="font-size:11px;color:var(--warm)">tem ${i.estoque} ${esc(i.unidade)} · mín. ${i.minimo}</div></span><input type="number" inputmode="decimal" step="0.01" min="0" id="cotq_${i.id}" value="${low.has(i.id)?(sug||1):''}" placeholder="qtd"><span style="font-size:11px;color:var(--warm)">${esc(i.unidade)}</span></div>`;}).join('')
+  document.getElementById('modalBody').innerHTML='<div class="hint-box" style="margin-bottom:14px">Itens da lista de compras já vêm marcados com a quantidade sugerida, ajuste como quiser.</div>'+db.insumos.map(i=>{const sug=Math.round(Math.max(0,(i.minimo||0)*2-i.estoque)*100)/100;return `<div class="recipe-line" style="grid-template-columns:24px 1fr 110px 40px"><input type="checkbox" data-cot="${i.id}" ${low.has(i.id)?'checked':''} style="width:auto"><span>${esc(i.nome)}<div style="font-size:11px;color:var(--warm)">tem ${i.estoque} ${esc(i.unidade)} · mín. ${i.minimo}</div></span><input type="number" inputmode="decimal" step="0.01" min="0" id="cotq_${i.id}" value="${low.has(i.id)?(sug||1):''}" placeholder="qtd"><span style="font-size:11px;color:var(--warm)">${esc(i.unidade)}</span></div>`;}).join('')
     +`<div class="field-row" style="margin-top:16px"><div class="field"><label>Responder até</label><input id="cotValidade" type="date"><div class="hint">Cotações vencidas ficam marcadas</div></div><div class="field"><label>Condições de pagamento</label><input id="cotCond" placeholder="ex.: Pix à vista, 28 dias…"><div class="hint">Vai escrita na planilha</div></div></div>`
     +((db.fornecedores||[]).length?`<div class="field"><label>Enviar para quais fornecedores?</label>${db.fornecedores.map(f=>`<label style="display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13px;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" data-alvo="${f.id}" style="width:auto"> ${esc(f.nome)}${f.categoria?` <span style="color:var(--warm);font-size:11px">· ${esc(f.categoria)}</span>`:''}</label>`).join('')}</div>`:'');
   document.getElementById('overlay').classList.add('open');
@@ -1901,7 +1900,7 @@ async function gerarCotacaoXlsx(itens,extras){
   ws.getCell('H1').value='CINEREA-RFQ:'+id; // marcação oculta que liga a resposta a esta cotação
   ws.mergeCells('A3:F3');
   const s3=ws.getCell('A3');
-  s3.value='Preencha apenas as células destacadas — Preço, Prazo e Observações — e devolva este arquivo. O restante está protegido.'
+  s3.value='Preencha apenas as células destacadas, Preço, Prazo e Observações, e devolva este arquivo. O restante está protegido.'
     +(extras.validade?'  ·  Responder até '+extras.validade.split('-').reverse().join('/')+'.':'')
     +(extras.cond?'  ·  Condições: '+extras.cond+'.':'');
   s3.font={italic:true,size:10,color:{argb:C.smoke}};
@@ -1937,7 +1936,7 @@ async function gerarCotacaoXlsx(itens,extras){
   db.cotacoes=db.cotacoes||[];db.cotacoes.push({id,data:hoje(),itens,respostas:[],por:uid,validade:extras.validade||'',cond:extras.cond||'',alvos:extras.alvos||[]});
   logAtv('gerou a cotação '+id+' com '+itens.length+' itens');
   cloudSave();renderCotacoes();
-  toast('Planilha <b>cotacao-'+id+'.xlsx</b> baixada — bloqueada, só as células de preço/prazo/observações editáveis');
+  toast('Planilha <b>cotacao-'+id+'.xlsx</b> baixada, bloqueada, só as células de preço/prazo/observações editáveis');
 }
 function importarCotacao(){
   if(typeof XLSX==='undefined'){toast('Preciso de internet para ler planilhas');return;}
@@ -1951,7 +1950,7 @@ function importarCotacao(){
       if(!marker.startsWith('CINEREA-RFQ:')){toast('Esta planilha não é uma cotação gerada pelo app');return;}
       const cotId=marker.slice(12);
       const cot=(db.cotacoes||[]).find(c=>c.id===cotId);
-      if(!cot){toast('Cotação '+esc(cotId)+' não encontrada — foi excluída?');return;}
+      if(!cot){toast('Cotação '+esc(cotId)+' não encontrada, foi excluída?');return;}
       const precos={};let n=0;
       rows.slice(3).forEach(row=>{const insId=row[7];if(!insId)return;const preco=Number(String(row[3]??'').replace(',','.'));if(!isFinite(preco)||preco<=0)return;precos[insId]={preco,prazo:row[4]!==undefined&&row[4]!==''?String(row[4]):'',obs:row[5]!==undefined?String(row[5]):''};n++;});
       if(!n){toast('Nenhum preço preenchido na coluna D');return;}
@@ -1983,7 +1982,7 @@ function renderCotacoes(){const tb=document.getElementById('tbCotacoes');if(!tb)
     const pendComWhats=(c.alvos||[]).map(a=>(db.fornecedores||[]).find(x=>x.id===a)).filter(f=>f&&String(f.whats||'').replace(/\D/g,'').length>=10&&!(c.respostas||[]).some(r=>r.fornecedorId===f.id));
     const online=c.rfqToken?(c.rfqFechada?`<div style="font-size:11px;color:var(--warm)">${ico("globo")} portal encerrado</div>`:`<div style="font-size:11px;color:var(--ok)">${ico("globo")} aberto no portal</div>`):'';
     return `<tr><td style="font-family:monospace">${esc(c.id)}${alvosNomes.length?`<div style="font-size:11px;color:var(--warm)">→ ${esc(alvosNomes.join(', '))}</div>`:''}${c.cond?`<div style="font-size:11px;color:var(--warm)">${esc(c.cond)}</div>`:''}${online}</td><td>${esc(c.data)}</td><td>${c.itens.length}</td><td>${st}</td><td><div class="row-actions"><button class="icon-btn" title="${c.rfqToken?'Copiar link do portal':'Publicar cotação online'}" onclick="linkCotacao('${c.id}')">${ico("globo","Publicar cotação online")}</button>${c.rfqToken?`<button class="icon-btn" title="Buscar respostas enviadas pelo portal" onclick="buscarRespostasOnline('${c.id}')">⬇</button>`:''}${c.rfqToken&&!c.rfqFechada?`<button class="icon-btn" title="Encerrar cotação online" onclick="fecharRfq('${c.id}')">${ico("cadeado","Encerrar cotação online")}</button>`:''}${pendComWhats.length?`<button class="icon-btn" title="Enviar/cobrar no WhatsApp" onclick="enviarCotacaoWhats('${c.id}')">${ico("balao","Cobrar no WhatsApp")}</button>`:''}${nResp?`<button class="icon-btn" title="Comparar preços" onclick="verCotacao('${c.id}')">⇄</button>`:''}<button class="icon-btn" onclick="del('cotacao','${c.id}')">${ico("lixeira","Apagar")}</button></div></td></tr>`;
-  }).join(''):`<tr><td colspan=5><div class="empty-t">Nenhuma cotação — gere uma a partir da lista de compras.</div></td></tr>`;
+  }).join(''):`<tr><td colspan=5><div class="empty-t">Nenhuma cotação, gere uma a partir da lista de compras.</div></td></tr>`;
   // gasto com compras por mês
   if(typeof Chart!=='undefined'&&document.getElementById('chCompras')){
     const byMes={};(db.compras||[]).forEach(c=>{const m=(c.data||'').slice(0,7);if(m)byMes[m]=(byMes[m]||0)+Number(c.valor||0);});
@@ -1994,7 +1993,7 @@ function renderCotacoes(){const tb=document.getElementById('tbCotacoes');if(!tb)
 }
 // ---------- portal do fornecedor ----------
 // Publica a cotação numa página onde o fornecedor preenche os preços online.
-// O Excel continua funcionando para quem prefere — os dois caminhos convergem
+// O Excel continua funcionando para quem prefere, os dois caminhos convergem
 // para a mesma lista de respostas.
 async function publicarRfq(cotId){
   const c=(db.cotacoes||[]).find(x=>x.id===cotId);if(!c)return null;
@@ -2013,9 +2012,9 @@ async function linkCotacao(cotId){
     const url=await publicarRfq(cotId);
     if(!url)return;
     if(navigator.clipboard)navigator.clipboard.writeText(url).catch(()=>{});
-    toast('Link da cotação copiado — mande ao fornecedor. Ele preenche online e você importa com o ↓');
+    toast('Link da cotação copiado, mande ao fornecedor. Ele preenche online e você importa com o ↓');
     renderCotacoes();
-  }catch(e){console.error(e);toast('Erro ao publicar — confira as regras do Firestore');}
+  }catch(e){console.error(e);toast('Erro ao publicar, confira as regras do Firestore');}
 }
 async function buscarRespostasOnline(cotId){
   const c=(db.cotacoes||[]).find(x=>x.id===cotId);
@@ -2039,7 +2038,7 @@ async function buscarRespostasOnline(cotId){
     logAtv('importou '+novas+' resposta(s) online da cotação '+c.id);
     cloudSave();renderAll();
     toast('<b>'+novas+'</b> resposta(s) importada(s) do portal');
-  }catch(e){console.error(e);toast('Erro ao buscar respostas — confira as regras do Firestore');}
+  }catch(e){console.error(e);toast('Erro ao buscar respostas, confira as regras do Firestore');}
 }
 async function fecharRfq(cotId){
   const c=(db.cotacoes||[]).find(x=>x.id===cotId);
@@ -2059,15 +2058,15 @@ function enviarCotacaoWhats(cotId){
   const dg=String(f.whats).replace(/\D/g,'');
   const link=c.rfqToken?location.origin+location.pathname.replace(/index\.html$/,'')+'cotacao.html?c='+c.rfqToken:'';
   const msg=`Olá${(f.contatos||[])[0]?', '+f.contatos[0].nome.split(' ')[0]:''}! Aqui é da ${empresaNome||'Cinérea'}. Estou enviando nossa cotação ${c.id} (${c.itens.length} itens${c.validade?', responder até '+c.validade.split('-').reverse().join('/'):''}${c.cond?', condições: '+c.cond:''}). `
-    +(link?`Você pode preencher direto por aqui: ${link} — ou me pedir a planilha, como preferir. Obrigado!`
-          :`Vou anexar a planilha aqui — é só preencher as células destacadas e devolver o arquivo. Obrigado!`);
+    +(link?`Você pode preencher direto por aqui: ${link}, ou me pedir a planilha, como preferir. Obrigado!`
+          :`Vou anexar a planilha aqui, é só preencher as células destacadas e devolver o arquivo. Obrigado!`);
   window.open('https://wa.me/'+(dg.length>=12?dg:'55'+dg)+'?text='+encodeURIComponent(msg),'_blank');
-  if(fila.length>1)toast('Aberto para <b>'+esc(f.nome)+'</b> — toque de novo para o próximo ('+(fila.length-1)+' na fila)');
+  if(fila.length>1)toast('Aberto para <b>'+esc(f.nome)+'</b>, toque de novo para o próximo ('+(fila.length-1)+' na fila)');
 }
 function verCotacao(id){
   const c=(db.cotacoes||[]).find(x=>x.id===id);if(!c)return;
   currentForm={type:'cotacaoView',id:null,recipe:[]};window.currentForm=currentForm;
-  document.getElementById('modalTitle').textContent='Cotação '+c.id+' — comparação';
+  document.getElementById('modalTitle').textContent='Cotação '+c.id+', comparação';
   const forn=c.respostas||[];
   const totais=forn.map(f=>c.itens.reduce((s,it)=>{const p=f.precos[it.insumo];return s+(p?p.preco*it.qtd:Infinity);},0));
   const minTotal=Math.min(...totais);
@@ -2079,8 +2078,8 @@ function verCotacao(id){
   c.itens.forEach(it=>{const ins=db.insumos.find(x=>x.id===it.insumo);const ps=forn.map(f=>f.precos[it.insumo]?f.precos[it.insumo].preco:null);const valid=ps.filter(p=>p!==null);const min=valid.length?Math.min(...valid):null;
     const atual=ins&&Number(ins.custo)>0?Number(ins.custo):null;
     const sav=atual&&min!==null?Math.round((1-min/atual)*100):null;
-    html+='<tr><td>'+esc(ins?ins.nome:'?')+'</td><td>'+it.qtd+'</td><td style="color:var(--smoke)">'+(atual?brl(atual)+(sav!==null?` <span style="font-size:11px;color:${sav>=0?'var(--ok)':'var(--ember)'}">(${sav>=0?'−':'+'}${Math.abs(sav)}%)</span>`:''):'—')+'</td>'+ps.map((p,fi)=>'<td>'+(p===null?'—':(p===min?`<span class="pill ok">${brl(p)}</span>`:brl(p))+` <button class="icon-btn" title="Registrar compra com este preço" onclick="usarPrecoCotacao('${c.id}',${fi},'${it.insumo}')">${ico("carrinho","Usar este preço")}</button>`)+'</td>').join('')+'</tr>';});
-  html+='<tr><td style="font-weight:600">Total do pedido</td><td></td><td style="color:var(--smoke)">'+(temAtual?brl(custoAtual):'—')+'</td>'+totais.map(t=>'<td class="money" style="'+(t===minTotal&&isFinite(t)?'color:var(--ok);font-weight:600':'')+'">'+(isFinite(t)?brl(t):'—')+'</td>').join('')+'</tr>';
+    html+='<tr><td>'+esc(ins?ins.nome:'?')+'</td><td>'+it.qtd+'</td><td style="color:var(--smoke)">'+(atual?brl(atual)+(sav!==null?` <span style="font-size:11px;color:${sav>=0?'var(--ok)':'var(--ember)'}">(${sav>=0?'−':'+'}${Math.abs(sav)}%)</span>`:''):', ')+'</td>'+ps.map((p,fi)=>'<td>'+(p===null?', ':(p===min?`<span class="pill ok">${brl(p)}</span>`:brl(p))+` <button class="icon-btn" title="Registrar compra com este preço" onclick="usarPrecoCotacao('${c.id}',${fi},'${it.insumo}')">${ico("carrinho","Usar este preço")}</button>`)+'</td>').join('')+'</tr>';});
+  html+='<tr><td style="font-weight:600">Total do pedido</td><td></td><td style="color:var(--smoke)">'+(temAtual?brl(custoAtual):', ')+'</td>'+totais.map(t=>'<td class="money" style="'+(t===minTotal&&isFinite(t)?'color:var(--ok);font-weight:600':'')+'">'+(isFinite(t)?brl(t):', ')+'</td>').join('')+'</tr>';
   html+=`<tr><td style="font-weight:600;color:var(--ember)">Cesta ótima (melhor de cada)</td><td></td><td colspan="${forn.length+1}" class="money" style="color:var(--ember);font-weight:600">${brl(cestaOtima)}${temAtual&&custoAtual>0?` <span style="font-size:12px">· economia de ${brl(Math.max(0,custoAtual-cestaOtima))} vs seu custo atual</span>`:''}</td></tr>`;
   html+='</tbody></table></div><div class="hint" style="margin-top:10px">Verde = melhor preço · "Seu custo" = custo médio atual do insumo · o carrinho registra a compra já preenchida.</div>';
   html+=`<button class="btn2" style="width:100%;margin-top:12px" onclick="imprimirCotacao('${c.id}')">${ico("impressora")} Imprimir / salvar comparação em PDF</button>`;
@@ -2092,11 +2091,11 @@ function imprimirCotacao(id){
   const forn=c.respostas||[];
   const row=a=>'<tr>'+a.map(x=>`<td>${x}</td>`).join('')+'</tr>';
   const win=window.open('','_blank');
-  win.document.write(`<html><head><title>Cotação ${c.id} — ${esc(empresaNome||'Cinérea')}</title><style>body{font-family:Georgia,serif;color:#1C1A17;padding:40px;max-width:800px;margin:auto}h1{font-size:24px;font-weight:400}table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}td,th{border:1px solid #ccc;padding:7px 10px;text-align:left}th{background:#E7E3DC}.b{color:#3F7D5B;font-weight:bold}</style></head><body>
-  <h1>${esc(empresaNome||'Cinérea')} — Cotação ${c.id}</h1><p>${esc(c.data)}${c.validade?' · válida até '+esc(c.validade):''}${c.cond?' · '+esc(c.cond):''}</p>
+  win.document.write(`<html><head><title>Cotação ${c.id}, ${esc(empresaNome||'Cinérea')}</title><style>body{font-family:Georgia,serif;color:#1C1A17;padding:40px;max-width:800px;margin:auto}h1{font-size:24px;font-weight:400}table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}td,th{border:1px solid #ccc;padding:7px 10px;text-align:left}th{background:#E7E3DC}.b{color:#3F7D5B;font-weight:bold}</style></head><body>
+  <h1>${esc(empresaNome||'Cinérea')}, Cotação ${c.id}</h1><p>${esc(c.data)}${c.validade?' · válida até '+esc(c.validade):''}${c.cond?' · '+esc(c.cond):''}</p>
   <table><tr><th>Item</th><th>Qtd</th>${forn.map(f=>'<th>'+esc(f.fornecedor)+'</th>').join('')}</tr>
-  ${c.itens.map(it=>{const ins=db.insumos.find(x=>x.id===it.insumo);const ps=forn.map(f=>f.precos[it.insumo]?f.precos[it.insumo].preco:null);const valid=ps.filter(p=>p!==null);const min=valid.length?Math.min(...valid):null;return row([esc(ins?ins.nome:'?'),it.qtd,...ps.map(p=>p===null?'—':(p===min?`<span class="b">${brl(p)}</span>`:brl(p)))]);}).join('')}
-  </table><p style="margin-top:30px;color:#999;font-size:11px">Gerado pelo sistema de gestão — ${new Date().toLocaleDateString('pt-BR')}</p></body></html>`);
+  ${c.itens.map(it=>{const ins=db.insumos.find(x=>x.id===it.insumo);const ps=forn.map(f=>f.precos[it.insumo]?f.precos[it.insumo].preco:null);const valid=ps.filter(p=>p!==null);const min=valid.length?Math.min(...valid):null;return row([esc(ins?ins.nome:'?'),it.qtd,...ps.map(p=>p===null?', ':(p===min?`<span class="b">${brl(p)}</span>`:brl(p)))]);}).join('')}
+  </table><p style="margin-top:30px;color:#999;font-size:11px">Gerado pelo sistema de gestão, ${new Date().toLocaleDateString('pt-BR')}</p></body></html>`);
   win.document.close();setTimeout(()=>win.print(),400);
 }
 function usarPrecoCotacao(cotId,fi,insId){
@@ -2109,13 +2108,13 @@ function usarPrecoCotacao(cotId,fi,insId){
   if(g('f_qtd'))g('f_qtd').value=it.qtd;
   if(g('f_valor'))g('f_valor').value=Math.round(f.precos[insId].preco*it.qtd*100)/100;
   if(g('f_fornecedorId')&&f.fornecedorId)g('f_fornecedorId').value=f.fornecedorId;
-  toast('Compra pré-preenchida com o preço de <b>'+esc(f.fornecedor)+'</b> — confira e salve');
+  toast('Compra pré-preenchida com o preço de <b>'+esc(f.fornecedor)+'</b>, confira e salve');
 }
 // histórico de preços de um insumo (compras pagas + cotações recebidas)
 function verPrecos(insId){
   const ins=db.insumos.find(x=>x.id===insId);if(!ins)return;
   currentForm={type:'cotacaoView',id:null,recipe:[]};window.currentForm=currentForm;
-  document.getElementById('modalTitle').textContent='Preços — '+ins.nome;
+  document.getElementById('modalTitle').textContent='Preços, '+ins.nome;
   const compras=(db.compras||[]).filter(c=>c.insumo===insId&&Number(c.qtd)>0&&Number(c.valor)>0).map(c=>({d:c.data||'',v:Number(c.valor)/Number(c.qtd)}));
   const cots=[];(db.cotacoes||[]).forEach(ct=>(ct.respostas||[]).forEach(r=>{if(r.precos[insId])cots.push({d:r.data||'',v:r.precos[insId].preco,f:r.fornecedor});}));
   if(!compras.length&&!cots.length){toast('Ainda não há preços registrados para '+esc(ins.nome));return;}
@@ -2126,22 +2125,22 @@ function verPrecos(insId){
   const css=getComputedStyle(document.documentElement);const cv=(n,fb)=>((css.getPropertyValue(n)||'').trim()||fb);
   mkChart('chPrecoIns',{type:'line',data:{labels,datasets:[{label:'Pago (compras)',data:serie(compras),borderColor:cv('--ember','#B5462A'),spanGaps:true,tension:.2},{label:'Cotado (fornecedores)',data:serie(cots),borderColor:cv('--smoke','#6E6862'),borderDash:[5,4],spanGaps:true,tension:.2}]},options:{plugins:{legend:{position:'bottom',labels:{color:cv('--smoke','#6E6862'),boxWidth:12,font:{family:'Inter',size:11}}}},scales:{y:{ticks:{color:cv('--smoke','#6E6862')}},x:{ticks:{color:cv('--smoke','#6E6862')}}}}});
 }
-function exportJSON(){if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}dl('cinerea-backup-'+hoje()+'.json',JSON.stringify(db,null,2),'application/json');toast('Backup salvo — guarde este arquivo');}
+function exportJSON(){if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}dl('cinerea-backup-'+hoje()+'.json',JSON.stringify(db,null,2),'application/json');toast('Backup salvo, guarde este arquivo');}
 function importJSON(){
-  if(!pode('gerir')){toast('Só dono e admin restauram backups');return;}const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||typeof d!=='object'||!Array.isArray(d.insumos))throw 0;if(!confirm('Substituir TODOS os dados atuais pelos do arquivo de backup?'))return;db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],meta:0,checks:{},...d};cloudSave();renderAll();toast('Dados restaurados do backup');}catch(e){toast('Arquivo inválido — use um backup gerado pelo app');}};r.readAsText(f);};inp.click();}
+  if(!pode('gerir')){toast('Só dono e admin restauram backups');return;}const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||typeof d!=='object'||!Array.isArray(d.insumos))throw 0;if(!confirm('Substituir TODOS os dados atuais pelos do arquivo de backup?'))return;db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],meta:0,checks:{},...d};cloudSave();renderAll();toast('Dados restaurados do backup');}catch(e){toast('Arquivo inválido, use um backup gerado pelo app');}};r.readAsText(f);};inp.click();}
 function exportCompras(){
   const low=db.insumos.filter(i=>insumoStatus(i)!=='ok');
   if(!low.length){toast('Nada para comprar');return;}
   const txt='LISTA DE COMPRAS · Cinérea\n'+new Date().toLocaleDateString('pt-BR')+'\n\n'+low.map(i=>{const comprar=Math.max(0,(i.minimo*2-i.estoque));return `• ${i.nome}: comprar ${comprar.toFixed(comprar%1?2:0)} ${i.unidade} (tem ${i.estoque})`;}).join('\n');
-  navigator.clipboard?.writeText(txt).then(()=>toast('Lista copiada — cole no WhatsApp'),()=>dl('lista-compras.txt',txt,'text/plain'));
+  navigator.clipboard?.writeText(txt).then(()=>toast('Lista copiada, cole no WhatsApp'),()=>dl('lista-compras.txt',txt,'text/plain'));
 }
 function exportPDF(){
   if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}
   const receita=db.pedidos.filter(p=>p.situacao==='Pago'||p.situacao==='Entregue').reduce((s,p)=>s+Number(p.valor||0),0);
   const win=window.open('','_blank');
   const row=(a)=>'<tr>'+a.map(x=>`<td>${x}</td>`).join('')+'</tr>';
-  win.document.write(`<html><head><title>Cinérea — Relatório</title><style>body{font-family:Georgia,serif;color:#1C1A17;padding:40px;max-width:800px;margin:auto}h1{font-size:32px}h2{border-bottom:2px solid #B5462A;padding-bottom:6px;margin-top:32px;font-size:20px}table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}td,th{border:1px solid #ccc;padding:7px 10px;text-align:left}th{background:#eee}.big{font-size:22px;color:#B5462A}</style></head><body>
-  <h1>Cinérea — Relatório</h1><p>${new Date().toLocaleDateString('pt-BR')}</p>
+  win.document.write(`<html><head><title>Cinérea, Relatório</title><style>body{font-family:Georgia,serif;color:#1C1A17;padding:40px;max-width:800px;margin:auto}h1{font-size:32px}h2{border-bottom:2px solid #B5462A;padding-bottom:6px;margin-top:32px;font-size:20px}table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}td,th{border:1px solid #ccc;padding:7px 10px;text-align:left}th{background:#eee}.big{font-size:22px;color:#B5462A}</style></head><body>
+  <h1>Cinérea, Relatório</h1><p>${new Date().toLocaleDateString('pt-BR')}</p>
   <p class="big">Receita registrada: ${brl(receita)} · Peças produzidas: ${db.producao.reduce((s,p)=>s+Number(p.qtd||0),0)}</p>
   <h2>Produtos e custos</h2><table><tr><th>Produto</th><th>Custo</th><th>Preço</th><th>Margem</th><th>Prontas</th></tr>${db.produtos.map(p=>{const c=calcCusto(p).total;const sug=c*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const m=prat?Math.round((prat-taxa-c)/prat*100):0;return row([p.nome,brl(c),brl(prat),m+'%',p.pronto||0]);}).join('')}</table>
   <h2>Insumos em estoque</h2><table><tr><th>Insumo</th><th>Estoque</th><th>Mínimo</th><th>Situação</th></tr>${db.insumos.map(i=>row([i.nome,i.estoque+' '+i.unidade,i.minimo,insumoStatus(i)==='low'?'REPOR':insumoStatus(i)==='warn'?'baixo':'ok'])).join('')}</table>
@@ -2185,7 +2184,7 @@ function renderPostProdutos(){
   if(!sel)return;
   const atual=sel.value;
   const itens=(db.produtos||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
-  sel.innerHTML='<option value="">— escrever do zero —</option>'+
+  sel.innerHTML='<option value="">, escrever do zero, </option>'+
     itens.map(p=>`<option value="${esc(p.id)}">${esc(p.nome||'sem nome')}</option>`).join('');
   if(atual)sel.value=atual;
 }
@@ -2232,7 +2231,7 @@ function postToggle(t,btn){
   if(t==='frame')document.getElementById('po_frame').classList.toggle('nf',!on);
 }
 
-/** *palavra* vira itálico — escapando antes, para o texto não injetar HTML. */
+/** *palavra* vira itálico, escapando antes, para o texto não injetar HTML. */
 function postItalico(s){
   return esc(s).replace(/\*(.+?)\*/g,'<span class="it">$1</span>');
 }
@@ -2251,7 +2250,7 @@ function postSync(){
 function postLegenda(){
   const v=id=>(document.getElementById(id)||{}).value||'';
   const t=v('po_title').replace(/\*/g,''),e=v('po_eyebrow'),s=v('po_subtitle'),pr=v('po_price');
-  let c=t?(e?`${t} — ${e}.\n\n`:`${t}.\n\n`):'';
+  let c=t?(e?`${t}, ${e}.\n\n`:`${t}.\n\n`):'';
   if(s)c+=s.charAt(0).toUpperCase()+s.slice(1)+'.\n\n';
   c+='Feito à mão em Campos do Jordão. Cada peça é única.\n';
   if(pr)c+=`${pr} · link na bio.\n`;
@@ -2302,7 +2301,7 @@ async function exportarPost(){
 Object.assign(window,{postDoProduto,postFotoUrl,postRatio,postMood,postToggle,copiarLegenda,exportarPost});
 
 // ============================================================
-// ENCOMENDAS — a caixa de entrada da loja do app
+// ENCOMENDAS, a caixa de entrada da loja do app
 // Uma encomenda NÃO é um pedido: é um pedido de compra esperando aceite.
 // Sem pagamento online, quem decide é gente: confere estoque e preço antes.
 // ============================================================
@@ -2327,16 +2326,16 @@ async function carregarEncomendas(){
 }
 
 /**
- * Por que a busca das encomendas falhou — de verdade, não por palpite.
+ * Por que a busca das encomendas falhou, de verdade, não por palpite.
  *
  * O texto anterior era fixo: mandava publicar as regras e conferir `gestores`
  * para QUALQUER falha, inclusive falta de rede. E mandava mexer nas regras, que
- * já estavam publicadas — ou seja, apontava para o lugar errado com confiança.
+ * já estavam publicadas, ou seja, apontava para o lugar errado com confiança.
  *
  * Dá para saber. Duas coisas ajudam:
  *
  * 1. Listar `encomendas` SEM filtro exige `ehDaCasa()`. O Firestore não avalia
- *    "só as minhas" documento por documento numa consulta de coleção — por isso
+ *    "só as minhas" documento por documento numa consulta de coleção, por isso
  *    o app do cliente consegue (ele consulta `where clienteUid == uid`) e a
  *    gestão, que lista tudo, não.
  * 2. A regra deixa cada um LER o próprio documento em `gestores`. Então basta
@@ -2345,7 +2344,7 @@ async function carregarEncomendas(){
 async function porQueFalhouEncomendas(e){
   const cod=e?.code||e?.name||'erro';
   const cabeca='<strong>Não consegui buscar as encomendas.</strong><br>'
-    +'<code>'+esc(cod)+'</code> — '+esc(e?.message||'sem mensagem')+'<br><br>';
+    +'<code>'+esc(cod)+'</code>, '+esc(e?.message||'sem mensagem')+'<br><br>';
 
   if(cod!=='permission-denied'){
     return cabeca+'Não é recusa de permissão, então não é regra nem <code>gestores</code>. '
@@ -2360,12 +2359,12 @@ async function porQueFalhouEncomendas(e){
     const meu=await getDoc(doc(fdb,'gestores',u.uid));
     if(meu.exists()){
       return cabeca+'Você <strong>está</strong> em <code>gestores</code>, então não é isso. '
-        +'As regras publicadas devem estar atrás de <code>docs/firestore.rules</code> — '
+        +'As regras publicadas devem estar atrás de <code>docs/firestore.rules</code>, '
         +'publique com <code>npx firebase-tools deploy --only firestore:rules</code>.';
     }
     return cabeca+'Confirmado: <strong>você não está em <code>gestores</code></strong>, e listar '
       +'todas as encomendas exige isso.<br><br>Crie no Console do Firebase o documento '
-      +'<code>gestores/'+esc(u.uid)+'</code> — qualquer campo serve (ex.: <code>nome</code>). '
+      +'<code>gestores/'+esc(u.uid)+'</code>, qualquer campo serve (ex.: <code>nome</code>). '
       +'Nenhum app escreve nessa coleção, de propósito: é ela que decide quem é da casa.'
       +'<br><br>A encomenda do cliente provavelmente <strong>foi salva</strong>; o que falta é '
       +'permissão para ela ser listada aqui.';
@@ -2378,7 +2377,7 @@ async function porQueFalhouEncomendas(e){
 
 /**
  * O total que o app enviou é o que o CLIENTE VIU. Aqui recalculamos pelo nosso
- * próprio cadastro — é isso que impede um preço adulterado de virar venda
+ * próprio cadastro, é isso que impede um preço adulterado de virar venda
  * enquanto não existe servidor. Divergiu, aparece na tela.
  */
 function conferirTotal(enc){
@@ -2449,7 +2448,7 @@ function renderEncomendas(){
 /**
  * Aceitar cria UM PEDIDO POR ITEM, porque o pedido daqui é de um produto só.
  * Transformar o pedido em multi-item mexeria no painel, na receita e na baixa
- * de estoque — muito risco para o ganho.
+ * de estoque, muito risco para o ganho.
  */
 async function aceitarEncomenda(id){
   const e=encomendas.find(x=>x.id===id);if(!e)return;
@@ -2465,7 +2464,7 @@ async function aceitarEncomenda(id){
 
   // O desconto do cupom é rateado entre os pedidos na proporção do valor de
   // cada um. Aceitar cria UM PEDIDO POR ITEM, e jogar o desconto inteiro no
-  // primeiro deixaria a margem daquele item mentindo — e a comissão, que sai
+  // primeiro deixaria a margem daquele item mentindo, e a comissão, que sai
   // do valor do pedido, sairia certa por acaso.
   const cod=normalizarCupom(e.cupom);
   const precoDoItem=i=>{
@@ -2482,7 +2481,7 @@ async function aceitarEncomenda(id){
   // a comissão sair de um número que nunca existiu.
   //
   // Pago, o número está fechado desde o instante em que o dinheiro se moveu.
-  // Não pago, vale a conta de sempre — pelo cadastro desta casa, porque quem
+  // Não pago, vale a conta de sempre, pelo cadastro desta casa, porque quem
   // compra não pode ser dono do valor.
   const jaPago = e.situacao==='paga' && Number(e.totalFechado)>0;
   const cup=(!jaPago&&cod)?descontoDoCupom(cod,Math.round(bruto*100)/100):null;
@@ -2516,7 +2515,7 @@ async function aceitarEncomenda(id){
       totalFechado:Math.round((bruto-desconto)*100)/100,
     });
     e.situacao='aceita';
-    toast(`Pedido${(e.itens||[]).length>1?'s':''} criado${(e.itens||[]).length>1?'s':''} — veja em Pedidos`);
+    toast(`Pedido${(e.itens||[]).length>1?'s':''} criado${(e.itens||[]).length>1?'s':''}, veja em Pedidos`);
   }catch(err){console.error(err);toast('Pedidos criados aqui, mas não consegui avisar o cliente');}
   renderEncomendas();
 }
@@ -2562,13 +2561,13 @@ async function recusarEncomenda(id){
 /**
  * CONVITE POR E-MAIL DE VERDADE.
  *
- * Cadastrar a autorização não avisa ninguém — foi o buraco da primeira versão:
+ * Cadastrar a autorização não avisa ninguém, foi o buraco da primeira versão:
  * o cadastro dizia "aguardando" e a pessoa nunca soube que precisava fazer algo.
  *
  * `sendSignInLinkToEmail` é a única forma de o navegador mandar e-mail para um
  * endereço qualquer com o SDK do Firebase. E resolve dois problemas de uma vez:
  * a pessoa entra clicando no link, sem inventar senha, e o e-mail sai
- * CONFIRMADO por construção — quem clicou provou que tem a caixa. A regra exige
+ * CONFIRMADO por construção, quem clicou provou que tem a caixa. A regra exige
  * `email_verified`, então isso deixou de ser uma etapa extra.
  *
  * EXIGE UM INTERRUPTOR NO CONSOLE: Authentication > Sign-in method > "Email
@@ -2594,7 +2593,7 @@ async function convidarPorEmail(email){
       handleCodeInApp: true,
     });
     // Guardado para quando a pessoa abrir o link NESTE aparelho. Se ela abrir
-    // em outro, o código pergunta o e-mail — que é o caminho previsto.
+    // em outro, o código pergunta o e-mail, que é o caminho previsto.
     try{ localStorage.setItem('cinereaConvite', alvo); }catch(e){}
     toast('Convite enviado para <b>'+esc(alvo)+'</b>');
   }catch(e){
@@ -2614,7 +2613,7 @@ async function convidarPorEmail(email){
  * A outra ponta: a pessoa clicou no link do convite e voltou para cá.
  *
  * Roda antes de qualquer decisão de tela. Se o e-mail não estiver guardado
- * (link aberto em outro aparelho, que é o caso comum), pergunta — o Firebase
+ * (link aberto em outro aparelho, que é o caso comum), pergunta, o Firebase
  * exige o endereço para fechar a autenticação, e é ele que impede que um link
  * interceptado sirva para outra pessoa.
  */
@@ -2672,7 +2671,7 @@ function renderAcessos(){
     const divergiu = par && papelReal !== a.papel;
     return `<tr>
       <td>${esc(a.email)}${a.obs?`<div style="font-size:11px;color:var(--warm)">${esc(a.obs)}</div>`:''}</td>
-      <td>${esc(par ? (par[1].nome || a.nome || '') : (a.nome||'—'))}
+      <td>${esc(par ? (par[1].nome || a.nome || '') : (a.nome||', '))}
         ${par?`<div class="uid-linha">
           <code>${esc(par[0])}</code>
           <button class="icon-btn" title="Copiar o uid" onclick="copiarUid('${esc(par[0])}')">${ico("copiar","Copiar o uid")}</button>
@@ -2695,12 +2694,12 @@ function renderAcessos(){
   if(guia) guia.innerHTML = `<div class="hint-box" style="margin-top:16px">
     <b>Cadastrar não avisa ninguém.</b> Depois de cadastrar, toque no <b>envelope</b> da
     linha para mandar o convite. A pessoa recebe um e-mail com um link, clica, e
-    entra direto na empresa com o papel que você definiu — sem inventar senha e
+    entra direto na empresa com o papel que você definiu, sem inventar senha e
     sem código para passar.
     <br><br>
     <b>Por que o link, e não uma senha.</b> Quem clica no link prova que tem
     aquela caixa de e-mail. Sem essa prova, qualquer pessoa que soubesse o
-    endereço convidado criaria uma conta com ele e entraria no lugar dela — num
+    endereço convidado criaria uma conta com ele e entraria no lugar dela, num
     sistema que mostra faturamento, margem e a base de clientes. O servidor
     recusa quem não confirmou.
     <br><br>
@@ -2851,7 +2850,7 @@ function renderVendedores(){
   const vs=db.vendedores||[];
   tb.innerHTML=vs.length?vs.map(v=>{
     const c=com.find(x=>x.vendedor.id===v.id);
-    const zap=v.whats?`<a href="https://wa.me/${String(v.whats).replace(/\D/g,'')}" target="_blank" rel="noopener">${esc(v.whats)}</a>`:'—';
+    const zap=v.whats?`<a href="https://wa.me/${String(v.whats).replace(/\D/g,'')}" target="_blank" rel="noopener">${esc(v.whats)}</a>`:', ';
     return `<tr><td>${esc(v.nome)}${v.chavePix?`<div style="font-size:11px;color:var(--warm)">Pix: ${esc(v.chavePix)}</div>`:''}</td>
       <td>${zap}</td><td>${Number(v.comissao)||0}%</td>
       <td>${c?c.pedidos.length:0}</td><td class="money">${brl(c?c.vendido:0)}</td>
@@ -2871,7 +2870,7 @@ function renderCupons(){
     const venceu=c.ate&&hoje()>c.ate;
     const pill=c.ativo==='desligado'?'<span class="pill low">desligado</span>'
       :venceu?'<span class="pill warn">vencido</span>':'<span class="pill ok">ativo</span>';
-    const regras=[c.minimo?`mín. ${brl(c.minimo)}`:'',c.ate?`até ${String(c.ate).slice(8,10)}/${String(c.ate).slice(5,7)}`:''].filter(Boolean).join(' · ')||'—';
+    const regras=[c.minimo?`mín. ${brl(c.minimo)}`:'',c.ate?`até ${String(c.ate).slice(8,10)}/${String(c.ate).slice(5,7)}`:''].filter(Boolean).join(' · ')||', ';
     return `<tr><td><b>${esc(c.codigo)}</b></td>
       <td>${v?esc(v.nome):'<span style="color:var(--ember)">sem vendedor</span>'}</td>
       <td>${c.tipo==='valor'?brl(c.valor):`${Number(c.valor)||0}%`}</td>
@@ -2927,7 +2926,7 @@ function recortePublico(c){
  * Antes havia só um botão de publicar, e ele só ESCREVIA. Apagar um cupom aqui
  * deixava o documento vivo no servidor dando desconto para sempre: o cadastro
  * dizia uma coisa e a loja fazia outra. Desligar tinha o mesmo problema, e
- * renomear o código deixava o código velho valendo — inclusive pagando
+ * renomear o código deixava o código velho valendo, inclusive pagando
  * comissão.
  *
  * Agora salvar e apagar mexem no servidor na hora. Se a rede falhar, o aviso
@@ -2972,7 +2971,7 @@ async function publicarCupons(){
   const daqui=cs.map(c=>c.codigo);
   const orfaos=noAr.filter(id=>!daqui.includes(id));
 
-  if(!cs.length&&!orfaos.length){toast('Nada a acertar — o ar está igual a este cadastro.');return;}
+  if(!cs.length&&!orfaos.length){toast('Nada a acertar, o ar está igual a este cadastro.');return;}
   const aviso=[cs.length?`${cs.length} cupom(ns) deste cadastro sobem ou são atualizados`:'',
                orfaos.length?`${orfaos.length} sai(em) do ar por não existir(em) mais aqui: ${orfaos.join(', ')}`:'']
               .filter(Boolean).join('\n');
@@ -2988,7 +2987,7 @@ async function publicarCupons(){
     catch(e){ console.error('órfão',id,e); falhou++; }
   }
   toast(falhou
-    ? `${ok} no ar, ${fora} removido(s), ${falhou} falhou(aram) — veja o console`
+    ? `${ok} no ar, ${fora} removido(s), ${falhou} falhou(aram), veja o console`
     : `Acertado: ${ok} no ar${fora?`, ${fora} removido(s)`:''}`);
   renderCupons();
 }
@@ -2996,14 +2995,14 @@ async function publicarCupons(){
 Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes,renderBanner,renderAcessos,conferirAcessos,convidarPorEmail,publicarCupons,renderVendedores,renderCupons,renderComissoes});
 
 // ============================================================
-// FOTO DE PRODUTO — envio para o Cloud Storage
+// FOTO DE PRODUTO, envio para o Cloud Storage
 // ============================================================
 
 /**
  * Reduz a foto ANTES de subir.
  *
  * Foto de celular tem 3 a 6 MB. Subir crua custa duas vezes: você paga o
- * armazenamento e o cliente paga o download — na loja, em dados móveis, com a
+ * armazenamento e o cliente paga o download, na loja, em dados móveis, com a
  * peça demorando a aparecer. 1200px de lado maior é mais do que suficiente
  * para uma vitrine, e a regra do Storage recusa acima de 2 MB de qualquer jeito.
  */
@@ -3026,7 +3025,7 @@ function comprimirImagem(file, ladoMax=1200, qualidade=0.82){
 /**
  * Onde a foto vai morar.
  *
- * Se já existe uma foto NOSSA no campo, reescrevemos o mesmo arquivo — assim
+ * Se já existe uma foto NOSSA no campo, reescrevemos o mesmo arquivo, assim
  * trocar a foto não deixa a antiga ocupando espaço pago para sempre. Senão,
  * nome novo.
  *
@@ -3038,12 +3037,12 @@ function caminhoDaFoto(urlAtual){
   // O uid entra no CAMINHO porque é assim que a regra do Storage confere quem
   // pode escrever: cada um só grava dentro da própria pasta. Antes a regra
   // perguntava ao Firestore quem era da casa, e essa ponte exigia uma permissão
-  // que nunca foi concedida — dava `storage/unauthorized` sem dizer por quê.
+  // que nunca foi concedida, dava `storage/unauthorized` sem dizer por quê.
   const m=String(urlAtual||'').match(/\/o\/(produtos%2F[^?]+)/);
   if(m){
     const caminho=decodeURIComponent(m[1]);
     // Só reaproveita o arquivo se ele já estiver na pasta certa. Foto antiga,
-    // do formato sem uid, seria recusada — melhor gravar uma nova.
+    // do formato sem uid, seria recusada, melhor gravar uma nova.
     if(caminho.startsWith(`produtos/${uid}/`))return caminho;
   }
   return `produtos/${uid}/${uidGen()}${uidGen().slice(0,4)}.jpg`;
@@ -3055,7 +3054,7 @@ function caminhoDaFoto(urlAtual){
  *
  * A foto de produto tem a sua própria (`escolherFoto`), com caminho e teto
  * herdados; esta serve aos campos novos e recebe pasta, lado máximo e teto por
- * argumento — é o que permite ter TRÊS limites diferentes sem três funções.
+ * argumento, é o que permite ter TRÊS limites diferentes sem três funções.
  *
  * Os limites não são arbitrários: cada arquivo é servido a um público
  * diferente. Foto de produto sai uma vez por peça na loja; banner e logo saem a
@@ -3127,7 +3126,7 @@ async function escolherFoto(input){
 Object.assign(window,{escolherFoto});
 
 // ============================================================
-// PUBLICAR A LOJA — revisar antes de mandar
+// PUBLICAR A LOJA, revisar antes de mandar
 // ============================================================
 
 /**
@@ -3135,7 +3134,7 @@ Object.assign(window,{escolherFoto});
  *
  * Nada aqui impede a publicação: são escolhas do dono, não erros. Mas peça sem
  * foto aparece como um símbolo cinza na vitrine, e peça sem coleção fica fora
- * de todas as seções — sumindo do site sem explicação. Melhor ver antes.
+ * de todas as seções, sumindo do site sem explicação. Melhor ver antes.
  */
 function pendenciasDaLoja(){
   const p=[];
@@ -3143,9 +3142,9 @@ function pendenciasDaLoja(){
   publicas.forEach(x=>{
     const c=calcCusto(x).total;
     const preco=Number(x.preco)||c*Number(x.markup||3);
-    if(!x.foto) p.push([x.nome||'(sem nome)','sem foto — aparece só com o símbolo da marca']);
-    if(!x.colecao) p.push([x.nome||'(sem nome)','sem coleção — fica fora das seções do site']);
-    if(!preco) p.push([x.nome||'(sem nome)','sem preço — aparece como R$ 0']);
+    if(!x.foto) p.push([x.nome||'(sem nome)','sem foto, aparece só com o símbolo da marca']);
+    if(!x.colecao) p.push([x.nome||'(sem nome)','sem coleção, fica fora das seções do site']);
+    if(!preco) p.push([x.nome||'(sem nome)','sem preço, aparece como R$ 0']);
     if(!x.nome) p.push(['(peça sem nome)','o cliente vê o campo vazio']);
   });
   return p;
@@ -3177,7 +3176,7 @@ function revisarPublicacao(){
 
     ${pend.length?`<div class="field"><label>Vale conferir antes</label><div id="pendList">
       ${pend.map(([n,m])=>`<div class="prazo-item"><span>${esc(n)}</span><span style="color:var(--warm);font-size:12px">${esc(m)}</span></div>`).join('')}
-    </div><div class="hint">Nada disso impede publicar — só muda o que o cliente vê.</div></div>`:''}
+    </div><div class="hint">Nada disso impede publicar, só muda o que o cliente vê.</div></div>`:''}
 
     <div class="field">
       <label>WhatsApp para encomendas</label>
@@ -3187,7 +3186,7 @@ function revisarPublicacao(){
 
     <button class="btn" style="width:100%" onclick="confirmarPublicacao()">Publicar agora</button>
     <div class="hint" id="pubStatus" style="margin-top:10px"></div>`;
-  // Esta tela não salva nada — o rodapé padrão "Cancelar / Salvar" só
+  // Esta tela não salva nada, o rodapé padrão "Cancelar / Salvar" só
   // confundiria. O fechar fica no × do canto e no próprio fluxo.
   const rodape=document.querySelector('.modal-foot');
   if(rodape)rodape.style.display='none';
@@ -3222,7 +3221,7 @@ Object.assign(window,{revisarPublicacao,confirmarPublicacao});
 
    Ele não conserta nada. Ele responde, em ordem, as perguntas que separam as
    causas possíveis: a sessão existe? o documento é legível? o tamanho cabe?
-   e — a decisiva — uma escrita MÍNIMA passa?
+   e, a decisiva, uma escrita MÍNIMA passa?
 
    A escrita mínima é o coração: se ela passa e a completa não, o problema é o
    CONTEÚDO (tamanho ou valor inválido). Se nem a mínima passa, é PERMISSÃO.
@@ -3263,7 +3262,7 @@ async function diagnosticarGravacao(){
   try{
     const s=splitDb();
     await updateDoc(doc(fdb,'empresas',eid),{dados:s.op,atualizado:Date.now()});
-    diga('Escrita completa','PASSOU — os dados estão salvos agora');
+    diga('Escrita completa','PASSOU, os dados estão salvos agora');
     flashSync(true);
   }catch(e){
     diga('Escrita completa','RECUSADA · '+(e&&e.code||e.message));
@@ -3289,7 +3288,7 @@ Object.assign(window,{diagnosticarGravacao});
    que aparecem todas na tela do dono:
 
    - quem desenha é o SISTEMA OPERACIONAL. A mesma lixeira sai cinza no
-     macOS, verde no Android e azul no Windows — a paleta da marca não alcança;
+     macOS, verde no Android e azul no Windows, a paleta da marca não alcança;
    - a cor é fixa. `color:var(--warm)` não pinta emoji, então o botão de apagar
      ficava colorido no meio de uma interface de dois tons, e o tema escuro não
      mexia nele;
@@ -3346,14 +3345,14 @@ Object.assign(window,{ico});
    caía numa caixa cinza única, junto, separado por <br>:
 
        Atenção:
-       Repor Gesso branco — restam 2 kg
-       Molde Ondina — 38/40
-       Areia perfumada: peça hoje — acaba em 2 dia(s) e a entrega leva 5
-       Gesso branco subiu 14% na última compra — vale cotar de novo
+       Repor Gesso branco, restam 2 kg
+       Molde Ondina, 38/40
+       Areia perfumada: peça hoje, acaba em 2 dia(s) e a entrega leva 5
+       Gesso branco subiu 14% na última compra, vale cotar de novo
 
    "Peça hoje ou você para a produção" e "esse insumo ficou mais caro" no mesmo
    tamanho, na mesma cor, no mesmo parágrafo. Quando tudo tem a mesma urgência,
-   nada tem — e o que se perde é justamente o que a tela existe para mostrar.
+   nada tem, e o que se perde é justamente o que a tela existe para mostrar.
 
    Três níveis, e a ordem da lista é a ordem de resolver. Não é enfeite: é a
    diferença entre "isso trava a produção" e "isso é bom saber".
@@ -3396,8 +3395,8 @@ Object.assign(window,{montarAvisos});
    quase o lucro inteiro de um pedido que mal encostou no corte. Escolher R$ 250
    olhando "o frete médio é R$ 40" é escolher no escuro.
 
-   Por isso o quadro mostra o PIOR caso de cada região — o pedido que atingiu o
-   corte na régua, que é onde o frete pesa mais — e diz em vermelho onde a venda
+   Por isso o quadro mostra o PIOR caso de cada região, o pedido que atingiu o
+   corte na régua, que é onde o frete pesa mais, e diz em vermelho onde a venda
    dá prejuízo.
 
    A margem usada é a MÉDIA REAL das peças do catálogo, e não um chute: a gestão
@@ -3446,8 +3445,8 @@ function renderFrete(){
     return `<tr>
       <td>${nome}</td>
       <td class="money">${brl(frete)}</td>
-      <td class="money">${corte>0?brl(sobra):'—'}</td>
-      <td>${pct===null?'—':`<span class="pill ${pct>=100?'low':pct>=60?'warn':'ok'}">${pct}% do lucro</span>`}</td>
+      <td class="money">${corte>0?brl(sobra):', '}</td>
+      <td>${pct===null?', ':`<span class="pill ${pct>=100?'low':pct>=60?'warn':'ok'}">${pct}% do lucro</span>`}</td>
     </tr>`;
   }).join('');
 
@@ -3478,8 +3477,7 @@ Object.assign(window,{renderFrete,margemMediaDoCatalogo});
    desenha com `td::before{content:attr(data-l)}`.
 
    O mecanismo existia desde sempre e estava praticamente sem uso: 5 células
-   tinham `data-l` e 136 não. Ou seja, no aparelho em que o dono mais abre isto
-   — o celular, no meio do ateliê — a tabela de peças aparecia assim:
+   tinham `data-l` e 136 não. Ou seja, no aparelho em que o dono mais abre isto, o celular, no meio do ateliê, a tabela de peças aparecia assim:
 
        Ondina
        Coleção Areia
@@ -3493,7 +3491,7 @@ Object.assign(window,{renderFrete,margemMediaDoCatalogo});
 
    A correção NÃO é sair escrevendo `data-l` em 136 lugares. Isso conserta hoje
    e volta a quebrar na próxima coluna que alguém adicionar, sem erro nenhum
-   para avisar — foi exatamente assim que se chegou a 136. O rótulo passa a vir
+   para avisar, foi exatamente assim que se chegou a 136. O rótulo passa a vir
    do `<thead>` da própria tabela, que já tem o nome de cada coluna e já é a
    fonte da verdade quando a tela é larga. Uma coluna nova nasce rotulada.
 
@@ -3514,7 +3512,7 @@ function rotularCelulas(tabela){
   /* Qual coluna vira o TÍTULO do cartão no celular.
      A primeira coluna serve para quase todas as tabelas, e mente em três:
      Pedidos, Produção e Compras começam pela data, e um cartão intitulado
-     "12/07" não diz de quem é o pedido — que é justamente o que se procura ao
+     "12/07" não diz de quem é o pedido, que é justamente o que se procura ao
      correr o olho pela lista. Por isso o `<th data-titulo>` no HTML: é decisão
      de cada tabela, fica visível ao lado do nome da coluna, e quem não declara
      cai na primeira, que é o certo na maioria. */
@@ -3551,7 +3549,7 @@ function alinharColunasNumericas(tabela){
 
 /* A barra de grupos rola quando não cabe, e sem sinal a última aba some sem
    deixar rastro: no celular são 6 grupos e cabem 5. O esmaecido na direita é o
-   sinal, e some ao chegar no fim — mostrar "tem mais" quando não tem é o mesmo
+   sinal, e some ao chegar no fim, mostrar "tem mais" quando não tem é o mesmo
    defeito ao contrário. */
 function marcarRolagemDasAbas(){
   // Vale para os dois níveis: a barra de grupos tem 6 e cabem 5 no celular, e a

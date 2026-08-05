@@ -1,4 +1,4 @@
-# Cinérea Gestão Online — Guia de Configuração
+# Cinérea Gestão Online, Guia de Configuração
 
 O app `Cinerea_Gestao_Online.html` guarda seus dados na nuvem e sincroniza entre
 todos os aparelhos, com login. Para funcionar, ele precisa se conectar à SUA conta
@@ -6,11 +6,11 @@ Firebase (gratuita). São dois blocos de trabalho, feitos uma única vez: **conf
 o Firebase** e **publicar o app num link**. Reserve ~20 minutos.
 
 > Firebase é o serviço de nuvem do próprio Google. A faixa gratuita (plano Spark)
-> cobre com folga o uso de uma marca começando — você não vai pagar nada.
+> cobre com folga o uso de uma marca começando, você não vai pagar nada.
 
 ---
 
-## PARTE 1 — Criar o projeto no Firebase (~10 min)
+## PARTE 1, Criar o projeto no Firebase (~10 min)
 
 ### 1. Criar o projeto
 1. Acesse **console.firebase.google.com** e entre com sua conta Google.
@@ -28,8 +28,7 @@ o Firebase** e **publicar o app num link**. Reserve ~20 minutos.
 1. Abra o arquivo `Cinerea_Gestao_Online.html` num editor de texto (Bloco de Notas,
    VS Code, qualquer um).
 2. Procure por `firebaseConfig` (perto do fim, dentro do `<script>`).
-3. Substitua cada `"COLE_AQUI"` pelo valor correspondente da tela do Firebase —
-   apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId.
+3. Substitua cada `"COLE_AQUI"` pelo valor correspondente da tela do Firebase, apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId.
 4. Salve o arquivo.
 
 ### 4. Ativar o login por e-mail
@@ -44,14 +43,14 @@ o Firebase** e **publicar o app num link**. Reserve ~20 minutos.
 ### 6. Liberar quem pode abrir empresa
 
 Ainda no **Firestore Database**, crie uma coleção `gestores` com **um documento
-por pessoa que pode abrir empresa** — o ID do documento é o UID dela.
+por pessoa que pode abrir empresa**, o ID do documento é o UID dela.
 
 O seu UID está em **Authentication → Users**, coluna **User UID**. Copie, e no
 Firestore: **Iniciar coleção** → ID `gestores` → ID do documento: cole o UID (não
 use "ID automático") → campo `nome` (string) com seu nome.
 
 O conteúdo não importa: a regra só checa se o documento existe. Sem ele, ninguém
-cria empresa — nem você. Quem entra por convite (sócio, empregado) não precisa
+cria empresa, nem você. Quem entra por convite (sócio, empregado) não precisa
 estar aqui: entra como membro de uma empresa que já existe.
 
 ### 7. Publicar as regras de segurança
@@ -71,28 +70,28 @@ npx firebase-tools deploy --only firestore:rules --project SEU_PROJETO
 Se preferir o Console: aba **Regras (Rules)** → apague tudo → cole o arquivo
 `docs/firestore.rules` **inteiro** → **Publicar**.
 
-Pronto — o Firebase está configurado. Se você abrir o HTML agora (mesmo dando dois
+Pronto, o Firebase está configurado. Se você abrir o HTML agora (mesmo dando dois
 cliques nele), ele vai mostrar a tela de login em vez da tela de configuração. Crie
 sua conta com e-mail e senha, e comece a usar.
 
 ---
 
-## PARTE 2 — Publicar o app num link (~10 min)
+## PARTE 2, Publicar o app num link (~10 min)
 
 Abrir o arquivo local já funciona, mas para acessar **da rua, no celular**, ele
 precisa estar num endereço na web. O jeito mais fácil e grátis:
 
-### Opção A — Netlify Drop (a mais simples)
+### Opção A, Netlify Drop (a mais simples)
 1. Acesse **app.netlify.com/drop**.
 2. Arraste o arquivo `Cinerea_Gestao_Online.html` para a área indicada.
-   (Renomeie antes para `index.html` — assim o link fica limpo.)
+   (Renomeie antes para `index.html`, assim o link fica limpo.)
 3. Em segundos, o Netlify te dá um endereço tipo `algo-aleatorio.netlify.app`.
-4. Abra esse link no celular e no computador — o mesmo login, os mesmos dados.
+4. Abra esse link no celular e no computador, o mesmo login, os mesmos dados.
 5. Crie conta grátis no Netlify para o link não expirar e poder renomeá-lo.
 
-### Opção B — Firebase Hosting (tudo no mesmo lugar)
+### Opção B, Firebase Hosting (tudo no mesmo lugar)
 Se quiser manter tudo no Google, o próprio Firebase hospeda. Exige instalar uma
-ferramenta de linha de comando — mais passos que o Netlify. Só vale se você preferir
+ferramenta de linha de comando, mais passos que o Netlify. Só vale se você preferir
 não usar dois serviços. O guia do Netlify acima é mais rápido para começar.
 
 ### No celular, vira "app"
@@ -113,7 +112,7 @@ passa a abrir como um aplicativo, em tela cheia.
 
 ## Segurança e privacidade
 
-- Suas chaves do Firebase **podem** ficar visíveis no código do site — isso é normal
+- Suas chaves do Firebase **podem** ficar visíveis no código do site, isso é normal
   e esperado para apps web. A proteção real são as **regras do Firestore** (Parte 1,
   passo 7), que garantem que só você, logado, acessa seus dados. Não pule esse passo.
 - Use uma senha que você não usa em outro lugar.

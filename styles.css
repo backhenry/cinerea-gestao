@@ -178,7 +178,7 @@
   /* ============ Gerador de post ============
      ATENÇÃO: as cores do post são FIXAS, não usam var(--paper) e companhia.
      A interface tem tema escuro; o post não. Se ele herdasse o tema, mudar a
-     aparência do sistema mudaria a imagem exportada — e o feed do Instagram
+     aparência do sistema mudaria a imagem exportada, e o feed do Instagram
      sairia diferente do que a pessoa viu na tela. */
   .postgrid{display:grid;grid-template-columns:360px 1fr;gap:24px;align-items:start}
   @media(max-width:900px){.postgrid{grid-template-columns:1fr}}
@@ -192,10 +192,10 @@
   .poststage{display:flex;justify-content:center;padding:8px}
   .postwrap{box-shadow:0 20px 60px rgba(28,26,23,.18);max-width:100%}
 
-  /* o post em si — daqui para baixo, nada de variável de tema */
+  /* o post em si, daqui para baixo, nada de variável de tema */
   #po_post{position:relative;overflow:hidden;background:#F2EFEA;width:540px;height:540px;max-width:100%}
   /* No clima escuro o selo da marca fica claro, para contrastar com foto escura.
-     Sem foto, o fundo seria papel e a marca sumiria — branco no branco. Esta base
+     Sem foto, o fundo seria papel e a marca sumiria, branco no branco. Esta base
      escura resolve o estado vazio; com foto, ela fica coberta e não muda nada. */
   #po_post.dk{background:#2A2621}
   #po_post.r45{height:675px}
@@ -241,7 +241,7 @@
   /* ---- Painel reorganizado ---- */
   /* Ferramentas raras (backup, arquivar, exportar) recolhidas: elas ocupavam
      o lugar mais nobre da tela e competiam com o que importa. <details> é
-     nativo — abre com teclado e é lido por leitor de tela sem JS nenhum. */
+     nativo, abre com teclado e é lido por leitor de tela sem JS nenhum. */
   .ferramentas{position:relative}
   .ferramentas>summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:9px 14px;font-size:13px;color:var(--smoke);user-select:none}
   .ferramentas>summary::-webkit-details-marker{display:none}
@@ -264,7 +264,7 @@
 
   /* ---- Tela pequena: o cabeçalho não cabia ---- */
   /* O nome da marca em serifada de 20px empurrava "Sair" para fora da tela.
-     No celular o símbolo já identifica o app — o nome escrito é redundante e
+     No celular o símbolo já identifica o app, o nome escrito é redundante e
      custa a única coisa escassa ali, que é largura. */
   @media(max-width:560px){
     .head-in{padding:12px 14px;gap:8px}
@@ -290,8 +290,7 @@
 
 /* O uid de cada membro, na aba Usuários. Ele existe por um motivo estreito:
    liberar a caixa de entrada das encomendas exige criar `gestores/{uid}` no
-   Console do Firebase, e sem isto o dono não tinha como saber o uid de ninguém
-   — só a própria pessoa via o dela, e ainda por cima só dentro de uma mensagem
+   Console do Firebase, e sem isto o dono não tinha como saber o uid de ninguém, só a própria pessoa via o dela, e ainda por cima só dentro de uma mensagem
    de erro. */
 .uid-linha{display:flex;align-items:center;gap:6px;margin-top:3px}
 .uid-linha code{font-size:11px;color:var(--warm);word-break:break-all}
@@ -312,7 +311,7 @@
    para isso que ele existe.
 
    E dinheiro alinha à DIREITA. Alinhado à esquerda, o que salta aos olhos é a
-   quantidade de dígitos e não a grandeza — some a única vantagem de empilhar
+   quantidade de dígitos e não a grandeza, some a única vantagem de empilhar
    número embaixo de número. Vale para os valores e para o cabeçalho deles, que
    `rotularCelulas` marca sozinho quando a coluna inteira é numérica. */
 table{font-variant-numeric:tabular-nums}
@@ -326,7 +325,7 @@ td.money,td.num,th.num{text-align:right}
 @media(min-width:721px){
   /* `position:sticky` não funciona dentro de `overflow:hidden`, que era como o
      canto arredondado da moldura era feito. Tirando o recorte, o arredondado
-     tem de vir das próprias células dos cantos — senão o fundo do cabeçalho
+     tem de vir das próprias células dos cantos, senão o fundo do cabeçalho
      vaza para fora da borda e a tabela fica com quina quadrada dentro de uma
      moldura redonda. */
   .tablewrap{overflow:visible}
@@ -339,7 +338,7 @@ td.money,td.num,th.num{text-align:right}
 
 /* ── Foco visível ───────────────────────────────────────────────────────────
    Os campos tinham `outline:none` e só trocavam a cor da borda; os botões não
-   tinham nada. Quem navega por Tab ficava sem saber onde está — e num sistema
+   tinham nada. Quem navega por Tab ficava sem saber onde está, e num sistema
    de digitar pedido o teclado é o caminho rápido, não a exceção. `:focus-visible`
    não aparece no clique de mouse, então não custa nada a quem usa o mouse. */
 :where(button,input,select,textarea,a,summary,[tabindex]):focus-visible{
@@ -353,8 +352,7 @@ td.money,td.num,th.num{text-align:right}
    Não dá para ver onde um acaba. O primeiro cabeçalho é o do painel; do segundo
    em diante é uma seção, e ganha um fio acima e um título menor. */
 /* `.panel-head ~ .panel-head` e não `:not(:first-of-type)`: `first-of-type`
-   conta por TIPO de elemento, e `.panel-head` é uma `div` entre outras divs —
-   a regra pegava o cabeçalho do painel também, e ele nascia com fio em cima e
+   conta por TIPO de elemento, e `.panel-head` é uma `div` entre outras divs, a regra pegava o cabeçalho do painel também, e ele nascia com fio em cima e
    título encolhido. O combinador de irmão diz o que se quer de verdade: só o
    cabeçalho que vem DEPOIS de outro é uma seção. */
 .panel-head ~ .panel-head{
@@ -374,7 +372,7 @@ td.money,td.num,th.num{text-align:right}
 .subtabs button:not(.active):hover{background:var(--ash);color:var(--char)}
 
 /* A barra rola quando não cabe, e sem um sinal disso a última aba some sem
-   deixar rastro — no celular são 6 grupos e cabem 5. O esmaecido na direita é
+   deixar rastro, no celular são 6 grupos e cabem 5. O esmaecido na direita é
    o sinal, e some no fim da rolagem. */
 .tabs.tem-mais,.subtabs.tem-mais{
   -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);
@@ -386,7 +384,7 @@ nav.tabs::after{content:'';flex:0 0 12px}
 /* ── O cartão do celular ────────────────────────────────────────────────────
    Com rótulo em toda célula (ver `rotularCelulas`), o cartão ficou legível mas
    ainda sem hierarquia: o nome da peça era mais uma linha rotulada, do mesmo
-   tamanho do resto. Ele é o título do cartão — é por ele que se acha a linha. */
+   tamanho do resto. Ele é o título do cartão, é por ele que se acha a linha. */
 @media(max-width:720px){
   .tablewrap tr{padding:14px}
   .tablewrap td.celula-titulo{
@@ -444,7 +442,7 @@ nav.tabs::after{content:'';flex:0 0 12px}
    glifo de texto como estado tem dois problemas: some onde a fonte não o tem, e
    o rótulo do botão muda de tamanho a cada clique, empurrando o que está do
    lado. O estado agora é do botão, e `aria-pressed` diz o mesmo a quem usa
-   leitor de tela — que antes não tinha como saber. */
+   leitor de tela, que antes não tinha como saber. */
 .btn2.ligado,.mini.ligado{background:var(--char);color:var(--paper);border-color:var(--char)}
 
 /* ── A barra de filtros ─────────────────────────────────────────────────────
@@ -476,8 +474,7 @@ nav.tabs::after{content:'';flex:0 0 12px}
    no mesmo formulário, e conferir de relance exige a vírgula na mesma coluna.
 
    As setinhas de incremento saem. Elas roubam largura do número, e no meio de
-   um formulário de custo ninguém ajusta preço de centavo em centavo clicando —
-   digita. Em celular elas nem existem. */
+   um formulário de custo ninguém ajusta preço de centavo em centavo clicando, digita. Em celular elas nem existem. */
 .field input[type="number"]{text-align:right;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
 .field input[type="number"]::-webkit-outer-spin-button,
 .field input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
@@ -499,8 +496,7 @@ nav.tabs::after{content:'';flex:0 0 12px}
    "Insumos R$ 84,00" aparecia cortada ao meio, sem nada dizendo que ali há
    rolagem. Parece defeito de layout, e não conteúdo continuando.
 
-   A sombra no cabeçalho e no rodapé é o sinal, e é só quando há o que rolar —
-   `position:sticky` só a desenha quando o elemento efetivamente gruda. */
+   A sombra no cabeçalho e no rodapé é o sinal, e é só quando há o que rolar, `position:sticky` só a desenha quando o elemento efetivamente gruda. */
 .modal-head{box-shadow:0 1px 0 var(--line),0 6px 12px -10px rgba(28,26,23,.5)}
 .modal-foot{box-shadow:0 -1px 0 var(--line),0 -6px 12px -10px rgba(28,26,23,.5)}
 
@@ -512,7 +508,7 @@ nav.tabs::after{content:'';flex:0 0 12px}
 
 /* ── A dica solta ───────────────────────────────────────────────────────────
    `.hint` só existia como `.field .hint`. Toda dica que não está dentro de um
-   campo — "Alterne claro e escuro entre posts", o estado da publicação — saía
+   campo, "Alterne claro e escuro entre posts", o estado da publicação, saía
    em 14px na cor do texto, do mesmo tamanho do conteúdo, parecendo frase da
    interface e não nota de rodapé. A regra passa a valer pela classe, que é o
    que quem escreveu `class="hint"` quis dizer. */

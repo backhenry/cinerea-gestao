@@ -8,7 +8,7 @@
 //
 // A ficha técnica era `[[rótulo, valor], …]` e `db.produtos` já é um array, o
 // que dá `produtos[].ficha[][]`. Como a gestão grava o documento inteiro, a
-// recusa derrubava a gravação de TUDO — não só da ficha.
+// recusa derrubava a gravação de TUDO, não só da ficha.
 //
 // O estrago foi silencioso porque a etiqueta ficava em "salvando…" e o erro só
 // ia para o console. A única peça com ficha técnica era o David, então parecia

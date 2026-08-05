@@ -5,7 +5,7 @@
 // inauguração com 15% OFF!" com o código INAUGURA15, e `cupons/INAUGURA15`
 // nunca existiu. Como o banner da loja é CLICÁVEL e preenche a sacola sozinho,
 // o cliente tocava nele e a loja respondia "não encontrei esse cupom, confira
-// as letras" — culpando quem não tinha digitado nada, na página da compra.
+// as letras", culpando quem não tinha digitado nada, na página da compra.
 //
 // A função é extraída do `app.js` real, e não copiada: uma cópia passaria a
 // contar uma história que a gestão já não conta. `app.js` não é importável
