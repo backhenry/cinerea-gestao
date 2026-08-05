@@ -19,9 +19,14 @@ let app,auth,fdb,fstore,uid=null,saveTimer=null;
 let eid=null,empresaNome='',empresaDono='',membros={},unsubData=null,unsubMembros=null,unsubFin=null,backupChecado=false;
 let rawOp=null,rawFin=null,dbFinLoaded=false,migrouFin=false,minhasEmpresas={};
 /* GRAVAÇÃO PENDENTE: a memória é mais nova que o servidor.
-   Enquanto isto for verdade, snapshot NÃO pode remontar o `db` — ver
-   `rebuildDb` e o `onSnapshot` de `empresas/{eid}`. */
-let gravacaoPendente=0;
+   Enquanto isto for verdade, snapshot NÃO pode remontar o `db`.
+
+   É BOOLEANO, e não contador. Como contador ele vazava: `cloudSave` é
+   chamado a cada edição e faz `clearTimeout`, então N chamadas viram UMA
+   execução — N incrementos e um decremento. Depois de duas edições seguidas
+   ele nunca mais voltava a zero, e o app parava de aceitar snapshot para
+   sempre, inclusive o próprio eco da gravação. */
+let gravacaoPendente=false;
 /* Exclusão DELIBERADA desde o último snapshot. Existe para o guarda de
    `cloudSave` saber diferenciar "o dono apagou" de "a lista encolheu sozinha". */
 let apagouDeProposito=false;
@@ -445,9 +450,15 @@ function subscribe(){
        Ignorar uma mudança remota é perder o trabalho de OUTRA aba; remontar é
        perder o desta, que é o que a pessoa acabou de digitar e está vendo. */
     if(gravacaoPendente){
-      console.warn('snapshot ignorado: há edição local ainda não gravada');
-      renderAll();flashSync(false);
-      return;
+      /* SÓ IGNORA O ECO QUE NÃO É NOSSO. `hasPendingWrites` é o Firestore
+         dizendo "este snapshot já inclui a sua escrita local": quando é o
+         nosso próprio eco, remontar é seguro e necessário, senão a tela nunca
+         volta a refletir o servidor. */
+      if(!snap.metadata.hasPendingWrites){
+        console.warn('snapshot ignorado: há edição local ainda não gravada');
+        renderAll();
+        return;
+      }
     }
 
     rebuildDb();seedIfEmpty(false);
@@ -472,43 +483,43 @@ function subscribeMembros(){
 function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);
   // Sobe ANTES do debounce: a janela perigosa começa na edição, não na
   // gravação. Só desce quando o servidor confirma.
-  gravacaoPendente++;
+  gravacaoPendente=true;
   clearTimeout(saveTimer);saveTimer=setTimeout(()=>{try{
   let payloadOp,finToWrite=null;
   if(dbFinLoaded&&pode('fin')){const s=splitDb();payloadOp=s.op;finToWrite=s.fin;}
   else if(!pode('fin')){payloadOp=splitDb().op;} // empregado nunca grava campos financeiros
   else{payloadOp=JSON.parse(JSON.stringify(db));} // fin ainda não carregou: mantém tudo no operacional (a migração divide depois)
   /* ═══ O GUARDA DA LISTA QUE ENCOLHE ══════════════════════════════════════
-     A gestão grava o DOCUMENTO INTEIRO, então qualquer estado de memória
-     defeituoso vira perda permanente na primeira gravação. A corrida do
-     snapshot já foi fechada acima; isto é a rede embaixo dela, porque uma
-     arquitetura de "último a escrever ganha" merece duas.
+     Ele AVISA e não bloqueia, e essa distinção custou caro para ser aprendida.
 
-     A regra: se a lista encolheu e ninguém apagou nada de propósito, não é
-     edição, é estado corrompido. Melhor recusar a gravação e recarregar do
-     servidor do que escrever a perda por cima do que ainda está lá.
+     A primeira versão recusava a gravação e chamava `rebuildDb()` — ou seja,
+     apagava da tela exatamente o que devia proteger, e o trabalho da pessoa
+     ia junto. Pior: disparava em falso, porque `atividade` é um log limitado
+     a 60 entradas por `logAtv` e encolhe POR DESENHO. Bastava o servidor ter
+     mais de 60 para toda gravação ser recusada e toda peça nova sumir ao
+     recarregar.
 
-     Vale para todas as listas, e não só peças: cliente, insumo e pedido somem
-     do mesmo jeito e doem igual. */
-  const encolheu=[];
+     A lição: um guarda contra perda de dados que reage DESCARTANDO o estado
+     mais novo não é um guarda, é a própria perda com outro nome. Na dúvida,
+     grave — dá para recuperar do histórico de 7 dias. Não gravar não deixa
+     rastro nenhum.
+
+     `atividade` fica de fora da conta: ela encolher é o normal dela. */
+  const IGNORAR_NO_GUARDA=new Set(['atividade']);
   if(!apagouDeProposito && rawOp){
+    const encolheu=[];
     for(const k of Object.keys(payloadOp||{})){
+      if(IGNORAR_NO_GUARDA.has(k)) continue;
       const antes=Array.isArray(rawOp[k])?rawOp[k].length:null;
       const agora=Array.isArray(payloadOp[k])?payloadOp[k].length:null;
       if(antes!==null && agora!==null && agora<antes) encolheu.push(`${k}: ${antes} → ${agora}`);
     }
-  }
-  if(encolheu.length){
-    console.error('gravação recusada — a lista encolheu sem exclusão:', encolheu);
-    gravacaoPendente=Math.max(0,gravacaoPendente-1);
-    toast('Não gravei: os dados na tela estavam <b>desatualizados</b> e apagariam registros. Recarreguei do servidor.');
-    rebuildDb();renderAll();flashSync(true);
-    return;
+    if(encolheu.length) console.error('ATENÇÃO: lista encolheu sem exclusão —', encolheu.join(', '));
   }
 
   const p=updateDoc(doc(fdb,'empresas',eid),{dados:payloadOp,atualizado:Date.now()});
   if(finToWrite)setDoc(doc(fdb,'empresas',eid,'fin','dados'),finToWrite).catch(e=>console.error(e));
-  const solta=()=>{gravacaoPendente=Math.max(0,gravacaoPendente-1);};
+  const solta=()=>{gravacaoPendente=false;};
   if(navigator.onLine){p.then(()=>{solta();flashSync(true);}).catch(e=>{solta();console.error(e);});}
   else{
     /* OFFLINE: o Firestore só resolve a promessa quando a rede volta, e até lá
@@ -517,7 +528,7 @@ function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);
        aparelho, que é a verdade: a escrita já está na fila local. */
     solta();flashSync(true);
   }
-}catch(e){gravacaoPendente=Math.max(0,gravacaoPendente-1);console.error(e);}},400);}
+}catch(e){gravacaoPendente=false;console.error(e);}},400);}
 function flashSync(ok){const el=document.getElementById('syncState');if(!ok){el.innerHTML='<span class="dot off"></span> salvando…';return;}el.innerHTML=navigator.onLine?'<span class="dot"></span> sincronizado':'<span class="dot off"></span> offline · salvo no aparelho';}
 
 // helpers e cálculo vêm de core.js (puro e coberto por testes)

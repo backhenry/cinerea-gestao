@@ -44,6 +44,24 @@ test('o snapshot financeiro tem a mesma trava', () => {
   assert.match(bloco, /!gravacaoPendente/, 'o listener financeiro voltou a remontar sem trava');
 });
 
+test('a pendência é BOOLEANA, e não contador', () => {
+  // Como contador ela vazava: `cloudSave` faz `clearTimeout`, então N chamadas
+  // viram UMA execução — N incrementos e um decremento. Depois de duas edições
+  // seguidas ela nunca voltava a zero e o app parava de aceitar snapshot para
+  // sempre, inclusive o próprio eco da gravação.
+  assert.match(js, /let gravacaoPendente=false;/);
+  assert.doesNotMatch(js, /gravacaoPendente\+\+/, 'voltou a ser contador');
+  assert.doesNotMatch(js, /gravacaoPendente-1/, 'voltou a ser contador');
+});
+
+test('o eco da própria gravação NÃO é ignorado', () => {
+  // Ignorar tudo enquanto há pendência faria a tela nunca mais refletir o
+  // servidor. `hasPendingWrites` distingue o eco da escrita local.
+  const i = js.indexOf('if(gravacaoPendente){');
+  const bloco = js.slice(i, i + 700);
+  assert.match(bloco, /hasPendingWrites/, 'a trava voltou a ignorar o próprio eco');
+});
+
 test('a pendência sobe ANTES do debounce', () => {
   // A janela perigosa começa na edição, não na gravação. Subir a trava dentro
   // do `setTimeout` deixaria os 400 ms descobertos, que é exatamente o buraco.
@@ -58,23 +76,33 @@ test('a pendência é solta no sucesso, no erro e offline', () => {
   // entrar, e a tela para de refletir o servidor para sempre.
   const i = js.indexOf('function cloudSave');
   const bloco = js.slice(i, js.indexOf('function flashSync'));
-  const quedas = (bloco.match(/gravacaoPendente=Math\.max\(0,gravacaoPendente-1\)|solta\(\)/g) || []).length;
+  const quedas = (bloco.match(/gravacaoPendente=false|solta\(\)/g) || []).length;
   assert.ok(quedas >= 4, `só achei ${quedas} pontos que soltam a trava`);
   assert.match(bloco, /catch\(e=>\{solta\(\)/, 'o erro de rede não solta a trava');
 });
 
-test('gravar uma lista que encolheu sem exclusão é RECUSADO', () => {
-  // A rede embaixo da primeira: se a lista encolheu e ninguém apagou nada de
-  // propósito, não é edição, é estado corrompido.
-  const i = js.indexOf('const encolheu=[]');
+test('o guarda da lista que encolhe AVISA, e não bloqueia', () => {
+  // A primeira versão recusava a gravação e chamava `rebuildDb()`: apagava da
+  // tela exatamente o que devia proteger. Um guarda contra perda de dados que
+  // reage descartando o estado mais novo não é guarda, é a perda com outro
+  // nome. Na dúvida, gravar — o histórico de 7 dias recupera. Não gravar não
+  // deixa rastro nenhum.
+  const i = js.indexOf('const IGNORAR_NO_GUARDA');
   assert.notEqual(i, -1, 'sumiu o guarda da lista que encolhe');
-  const bloco = js.slice(i, i + 1200);
-  assert.match(bloco, /apagouDeProposito/);
-  assert.match(bloco, /agora<antes/);
-  assert.match(bloco, /return;/, 'o guarda detecta e grava assim mesmo');
-  // E ele roda ANTES do updateDoc, senão não impede nada.
-  assert.ok(js.indexOf('const encolheu=[]') < js.indexOf("updateDoc(doc(fdb,'empresas',eid),{dados:payloadOp"),
-    'o guarda ficou depois da gravação');
+  const bloco = js.slice(i, js.indexOf("const p=updateDoc", i));
+  assert.match(bloco, /console\.error/, 'o guarda deixou de avisar');
+  assert.doesNotMatch(bloco, /rebuildDb\(\)/,
+    'o guarda voltou a remontar o db, que é o que apagava o trabalho');
+  assert.doesNotMatch(bloco, /return;/,
+    'o guarda voltou a bloquear a gravação');
+});
+
+test('a atividade fica de fora do guarda', () => {
+  // `logAtv` limita a 60 por desenho. Sem a exceção, toda gravação disparava
+  // o alarme em falso — e, na versão que bloqueava, toda peça nova sumia.
+  assert.match(js, /IGNORAR_NO_GUARDA=new Set\(\['atividade'\]\)/);
+  assert.match(js, /db\.atividade=db\.atividade\.slice\(0,60\)/,
+    'o limite da atividade mudou — reveja a exceção do guarda');
 });
 
 test('apagar de propósito continua funcionando', () => {
