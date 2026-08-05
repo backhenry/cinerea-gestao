@@ -3,7 +3,7 @@
   "private": true,
   "description": "Dependências apenas para testar as regras do Firestore — o app em si não tem build.",
   "scripts": {
-    "test": "node --test tests/core.test.mjs tests/banner.test.mjs tests/pago.test.mjs tests/rateio.test.mjs tests/tabelas.test.mjs tests/interpolacao.test.mjs tests/perda.test.mjs",
+    "test": "node --test tests/core.test.mjs tests/banner.test.mjs tests/pago.test.mjs tests/rateio.test.mjs tests/tabelas.test.mjs tests/interpolacao.test.mjs tests/perda.test.mjs tests/aninhado.test.mjs",
     "test:rules": "firebase emulators:exec --only firestore \"node --test tests/rules.test.mjs tests/flows.test.mjs\""
   },
   "devDependencies": {

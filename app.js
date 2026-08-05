@@ -526,6 +526,34 @@ function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);
      Conferir antes não evita o problema de fundo (os dados cresceram), mas
      troca uma falha muda por uma frase que diz o que fazer. E o número
      aparece: sem ele, "arquive" é conselho sem tamanho. */
+  /* ═══ NENHUM ARRAY DENTRO DE ARRAY SAI DAQUI ═════════════════════════════
+     O Firestore recusa o documento inteiro quando encontra um, e a recusa
+     chegava como uma falha de gravação sem dono — a peça sumia e a causa
+     estava a três níveis de profundidade num campo que ninguém suspeitava.
+
+     Consertar a ficha resolve o caso conhecido. Isto resolve a CLASSE: qualquer
+     campo novo que um dia guarde uma lista de listas vira texto aqui, com aviso
+     no console, em vez de derrubar a gravação de tudo. Perder a forma de um
+     campo é ruim; perder o cadastro inteiro é pior. */
+  const achatarAninhados=(no,caminho='')=>{
+    if(Array.isArray(no)){
+      return no.map((item,i)=>{
+        if(Array.isArray(item)){
+          console.warn('array aninhado achatado em',caminho+'['+i+']');
+          return item.filter(x=>x!==''&&x!=null).join(': ');
+        }
+        return achatarAninhados(item,caminho+'['+i+']');
+      });
+    }
+    if(no && typeof no==='object'){
+      const fora={};
+      for(const k of Object.keys(no)) fora[k]=achatarAninhados(no[k],caminho?caminho+'.'+k:k);
+      return fora;
+    }
+    return no;
+  };
+  payloadOp=achatarAninhados(payloadOp);
+
   const tamanho=JSON.stringify({dados:payloadOp,atualizado:Date.now()}).length;
   const LIMITE=1048576;
   if(tamanho>LIMITE-4096){
@@ -665,11 +693,34 @@ function toggleTimer(){const b=document.getElementById('timerBtn'),v=document.ge
 let memoCusto=new Map();
 function limparMemo(){memoCusto=new Map();}
 /** Ficha técnica: uma linha por item, "rótulo: valor". Linha sem ":" vira só valor. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   A FICHA É UMA LISTA DE LINHAS, e não de pares. Isso é o conserto de um bug
+   que apagou a mesma peça quatro vezes.
+
+   O FIRESTORE NÃO ACEITA ARRAY DENTRO DE ARRAY. A ficha era `[[rótulo, valor]]`,
+   e `db.produtos` já é um array — então `produtos[].ficha[][]` tem um array
+   cujos elementos são arrays, e a gravação do documento INTEIRO era recusada
+   com "Nested arrays are not supported".
+
+   O estrago não ficou na ficha: a recusa derrubava a gravação de TUDO. Quem
+   cadastrava a única peça com ficha técnica via "salvando…" para sempre e
+   perdia o trabalho no recarregamento seguinte. A peça parecia estar sendo
+   apagada; ela nunca chegava a ser salva.
+
+   `["Material: Gesso", "Origem: Feito à mão"]` é array de STRINGS dentro de um
+   objeto: legal, e a mesma forma que o catálogo publicado já usava — o comentário
+   de `itensDoCatalogo` até explicava a regra, mas só para o recorte público.
+
+   `lerFicha` (na loja e aqui) já aceitava as duas formas, e continua aceitando:
+   cadastro antigo com pares segue sendo lido. */
 function parseFicha(txt){
-  return String(txt||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{
-    const i=l.indexOf(':');
-    return i>0 ? [l.slice(0,i).trim(), l.slice(i+1).trim()] : ['', l];
-  }).filter(par=>par[1]);
+  return String(txt||'').split('\n').map(l=>l.trim()).filter(Boolean)
+    .filter(l=>l.replace(/^[^:]*:/,'').trim());
+}
+
+/** A ficha em texto, venha ela como linhas (nova) ou como pares (antiga). */
+function fichaEmTexto(ficha){
+  return (ficha||[]).map(l=>Array.isArray(l)?l.filter(Boolean).join(': '):String(l)).join('\n');
 }
 
 function calcCusto(p){
@@ -1239,7 +1290,7 @@ function openForm(type,id){
   document.getElementById('modalTitle').textContent=(id?'Editar ':(fem?'Nova ':'Novo '))+(isP?'produto':FORMS[type].title.toLowerCase());
   const body=document.getElementById('modalBody');let ex=id?db[plural(type)].find(x=>x.id===id):{};
   if(isP){currentForm.recipe=ex.receita?JSON.parse(JSON.stringify(ex.receita)):[];
-    body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">— nenhum —</option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" inputmode="decimal" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto da peça</label><label class="fotoup">Escolher imagem do computador<input type="file" accept="image/*" onchange="escolherFoto(this)" hidden></label><img id="f_fotoPrev" class="fotoprev" src="${esc(ex.foto||'')}" style="display:${ex.foto?'block':'none'}" alt=""><div class="hint" id="f_fotoStatus">Reduzimos a imagem antes de enviar — foto crua de celular pesa demais para quem vai abrir a loja.</div><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px"></div><div class="field"><label>Segunda foto</label><label class="fotoup">Escolher imagem<input type="file" accept="image/jpeg,image/png,image/webp" onchange="escolherImagem(this,'foto2','produtos',1200,600)" hidden></label><img id="f_foto2Prev" class="fotoprev" src="${esc(ex.foto2||'')}" style="display:${ex.foto2?'block':'none'}" alt=""><div class="hint" id="f_foto2Status">Aparece quando o cliente passa o mouse sobre a peça, no lugar da primeira. Use outro ângulo, um detalhe ou a peça em uso — não uma variação da mesma foto, que ninguém percebe.</div><input id="f_foto2" value="${esc(ex.foto2||'')}" placeholder="ou cole o endereço" style="margin-top:8px"></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="loja-bloco"><div class="loja-tit">Loja — o que aparece para quem compra</div><div class="field-row"><div class="field"><label>Coleção</label><select id="f_colecao">${['<option value="">— sem coleção —</option>'].concat(colecoesOrdenadas().map(c=>`<option value="${c.id}" ${ex.colecao===c.id?'selected':''}>${esc(c.nome)}</option>`)).join('')}</select><div class="hint">A seção onde a peça aparece no site e no app</div></div><div class="field"><label>Posição na coleção</label><input id="f_posicao" type="number" inputmode="decimal" value="${ex.posicao||10}"><div class="hint">Menor aparece antes</div></div><div class="field"><label>Situação</label><select id="f_situacao"><option value="disponivel" ${ex.situacao!=='embreve'?'selected':''}>À venda</option><option value="embreve" ${ex.situacao==='embreve'?'selected':''}>Em breve</option></select><div class="hint">"Em breve" entra na lista de espera, sem sacola</div></div></div><div class="field"><label>Frase curta</label><input id="f_desc" value="${esc(ex.desc||'')}" maxlength="120" placeholder="Duas mãos em concha sustentam uma taça de areia perfumada."><div class="hint">Aparece embaixo do nome, no cartão</div></div><div class="field"><label>Descrição</label><textarea id="f_longa" rows="4" placeholder="O texto que convence, na tela da peça.">${esc(ex.longa||'')}</textarea></div><div class="field"><label>Ficha técnica</label><textarea id="f_ficha" rows="4" placeholder="Escultura: Gesso · duas mãos&#10;Altura: 22 cm&#10;Repõe-se com: Aura-Sand + pavios">${esc((ex.ficha||[]).map(l=>l.join(': ')).join('\n'))}</textarea><div class="hint">Uma linha por item, no formato <code>rótulo: valor</code></div></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_destaque" ${ex.destaque?'checked':''} style="width:auto"> peça de destaque na vitrine</label></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_leve" ${ex.leve?'checked':''} style="width:auto"> vai na sobra da caixa</label><div class="hint">Marque para refil, chaveiro e o que não ocupa volume. Peça marcada não faz o frete crescer: ela viaja junto de uma escultura sem pedir caixa maior</div></div><div class="field"><label>Modelo 3D</label><input id="f_modelo" value="${esc(ex.modelo||'')}" placeholder="/3d/david.glb"><div class="hint">Opcional. Com ele, a ficha da peça ganha <b>Ver na sua casa</b> — no celular a peça aparece em tamanho real no espaço da pessoa. O arquivo tem de estar no próprio site, em <code>/3d/</code></div></div></div><div class="field"><label>Receita — insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" inputmode="decimal" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" inputmode="decimal" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" inputmode="decimal" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" inputmode="decimal" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" inputmode="decimal" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" inputmode="decimal" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
+    body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">— nenhum —</option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" inputmode="decimal" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto da peça</label><label class="fotoup">Escolher imagem do computador<input type="file" accept="image/*" onchange="escolherFoto(this)" hidden></label><img id="f_fotoPrev" class="fotoprev" src="${esc(ex.foto||'')}" style="display:${ex.foto?'block':'none'}" alt=""><div class="hint" id="f_fotoStatus">Reduzimos a imagem antes de enviar — foto crua de celular pesa demais para quem vai abrir a loja.</div><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px"></div><div class="field"><label>Segunda foto</label><label class="fotoup">Escolher imagem<input type="file" accept="image/jpeg,image/png,image/webp" onchange="escolherImagem(this,'foto2','produtos',1200,600)" hidden></label><img id="f_foto2Prev" class="fotoprev" src="${esc(ex.foto2||'')}" style="display:${ex.foto2?'block':'none'}" alt=""><div class="hint" id="f_foto2Status">Aparece quando o cliente passa o mouse sobre a peça, no lugar da primeira. Use outro ângulo, um detalhe ou a peça em uso — não uma variação da mesma foto, que ninguém percebe.</div><input id="f_foto2" value="${esc(ex.foto2||'')}" placeholder="ou cole o endereço" style="margin-top:8px"></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="loja-bloco"><div class="loja-tit">Loja — o que aparece para quem compra</div><div class="field-row"><div class="field"><label>Coleção</label><select id="f_colecao">${['<option value="">— sem coleção —</option>'].concat(colecoesOrdenadas().map(c=>`<option value="${c.id}" ${ex.colecao===c.id?'selected':''}>${esc(c.nome)}</option>`)).join('')}</select><div class="hint">A seção onde a peça aparece no site e no app</div></div><div class="field"><label>Posição na coleção</label><input id="f_posicao" type="number" inputmode="decimal" value="${ex.posicao||10}"><div class="hint">Menor aparece antes</div></div><div class="field"><label>Situação</label><select id="f_situacao"><option value="disponivel" ${ex.situacao!=='embreve'?'selected':''}>À venda</option><option value="embreve" ${ex.situacao==='embreve'?'selected':''}>Em breve</option></select><div class="hint">"Em breve" entra na lista de espera, sem sacola</div></div></div><div class="field"><label>Frase curta</label><input id="f_desc" value="${esc(ex.desc||'')}" maxlength="120" placeholder="Duas mãos em concha sustentam uma taça de areia perfumada."><div class="hint">Aparece embaixo do nome, no cartão</div></div><div class="field"><label>Descrição</label><textarea id="f_longa" rows="4" placeholder="O texto que convence, na tela da peça.">${esc(ex.longa||'')}</textarea></div><div class="field"><label>Ficha técnica</label><textarea id="f_ficha" rows="4" placeholder="Escultura: Gesso · duas mãos&#10;Altura: 22 cm&#10;Repõe-se com: Aura-Sand + pavios">${esc(fichaEmTexto(ex.ficha))}</textarea><div class="hint">Uma linha por item, no formato <code>rótulo: valor</code></div></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_destaque" ${ex.destaque?'checked':''} style="width:auto"> peça de destaque na vitrine</label></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_leve" ${ex.leve?'checked':''} style="width:auto"> vai na sobra da caixa</label><div class="hint">Marque para refil, chaveiro e o que não ocupa volume. Peça marcada não faz o frete crescer: ela viaja junto de uma escultura sem pedir caixa maior</div></div><div class="field"><label>Modelo 3D</label><input id="f_modelo" value="${esc(ex.modelo||'')}" placeholder="/3d/david.glb"><div class="hint">Opcional. Com ele, a ficha da peça ganha <b>Ver na sua casa</b> — no celular a peça aparece em tamanho real no espaço da pessoa. O arquivo tem de estar no próprio site, em <code>/3d/</code></div></div></div><div class="field"><label>Receita — insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" inputmode="decimal" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" inputmode="decimal" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" inputmode="decimal" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" inputmode="decimal" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" inputmode="decimal" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" inputmode="decimal" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
     renderRecipe();
   } else {
     if(type==='banner') ex = db.banner || {};
@@ -1710,7 +1761,7 @@ function itensDoCatalogo(){
       // ser lista. A ficha era array de pares: dois níveis de aninhamento.
       // Mapa preservaria a estrutura, mas o Firestore não garante a ordem das
       // chaves, e ficha técnica fora de ordem não serve. Texto preserva.
-      ficha:(p.ficha||[]).map(l=>Array.isArray(l)?l.join(': '):String(l)).join('\n'),
+      ficha:fichaEmTexto(p.ficha),
       destaque:!!p.destaque,pronto:Number(p.pronto)||0,
       // Peça que vai na sobra da caixa não faz o frete crescer. Sobe no recorte
       // público porque quem conta as peças é o servidor, na hora de cobrar.
@@ -3159,6 +3210,75 @@ async function confirmarPublicacao(){
 }
 
 Object.assign(window,{revisarPublicacao,confirmarPublicacao});
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIAGNÓSTICO DE GRAVAÇÃO
+   ═══════════════════════════════════════════════════════════════════════════
+   Existe porque a mesma peça se perdeu quatro vezes e, a cada rodada, a
+   pergunta voltava a ser "o que apareceu na tela?". Adivinhar de fora custou
+   três diagnósticos errados; um teste que roda AQUI, com a sessão real, custa
+   um clique.
+
+   Ele não conserta nada. Ele responde, em ordem, as perguntas que separam as
+   causas possíveis: a sessão existe? o documento é legível? o tamanho cabe?
+   e — a decisiva — uma escrita MÍNIMA passa?
+
+   A escrita mínima é o coração: se ela passa e a completa não, o problema é o
+   CONTEÚDO (tamanho ou valor inválido). Se nem a mínima passa, é PERMISSÃO.
+   Sem separar esses dois, todo palpite é chute.
+*/
+async function diagnosticarGravacao(){
+  const linhas=[];
+  const diga=(rot,txt)=>linhas.push(`<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)"><b style="flex:0 0 150px">${rot}</b><span>${esc(String(txt))}</span></div>`);
+
+  diga('Usuário', uid||'(sem sessão)');
+  diga('Empresa', eid||'(nenhuma)');
+  diga('Papel', meuPapel()||'(desconhecido)');
+  diga('Financeiro carregado', dbFinLoaded?'sim':'não');
+  diga('Gravação pendente', gravacaoPendente?'sim':'não');
+
+  let tam=0;
+  try{ tam=JSON.stringify({dados:splitDb().op,atualizado:Date.now()}).length; }catch(e){}
+  diga('Tamanho a gravar', `${Math.round(tam/1024)} KB de 1024 (${tam} bytes)`);
+  if(tam>1048576-4096) diga('→ VEREDITO','PASSOU DO LIMITE de 1 MB. Use Ferramentas → Arquivar ano.');
+
+  // 1) sou membro? (a leitura do próprio documento de membro é o que a regra exige)
+  try{
+    const m=await getDoc(doc(fdb,'empresas',eid,'membros',uid));
+    diga('Documento de membro', m.exists()?('existe · papel '+(m.data().papel||'?')):'NÃO EXISTE');
+    if(!m.exists()) diga('→ VEREDITO','Sem documento de membro, a regra recusa TODA gravação.');
+  }catch(e){ diga('Documento de membro','erro ao ler: '+(e&&e.code||e.message)); }
+
+  // 2) a escrita MÍNIMA passa? Só o carimbo de hora, sem tocar em `dados`.
+  try{
+    await updateDoc(doc(fdb,'empresas',eid),{atualizado:Date.now()});
+    diga('Escrita mínima','PASSOU');
+  }catch(e){
+    diga('Escrita mínima','RECUSADA · '+(e&&e.code||e.message));
+    diga('→ VEREDITO','O servidor recusa até a escrita mais simples: é PERMISSÃO, não conteúdo.');
+  }
+
+  // 3) a escrita COMPLETA passa? É a que o app faz de verdade.
+  try{
+    const s=splitDb();
+    await updateDoc(doc(fdb,'empresas',eid),{dados:s.op,atualizado:Date.now()});
+    diga('Escrita completa','PASSOU — os dados estão salvos agora');
+    flashSync(true);
+  }catch(e){
+    diga('Escrita completa','RECUSADA · '+(e&&e.code||e.message));
+    if(String(e&&e.message||'').length) diga('Mensagem do servidor',(e.message||'').slice(0,300));
+  }
+
+  const body=document.getElementById('modalBody');
+  document.getElementById('modalTitle').textContent='Diagnóstico de gravação';
+  body.innerHTML=`<div style="font-size:13.5px">${linhas.join('')}</div>
+    <p class="hint" style="margin-top:14px">Se a <b>escrita completa</b> passou, seus dados acabaram de ser salvos.
+      Se foi recusada, mande esta tela para o desenvolvedor.</p>`;
+  const rodape=document.querySelector('.modal-foot'); if(rodape)rodape.style.display='none';
+  document.getElementById('overlay').classList.add('open');
+}
+Object.assign(window,{diagnosticarGravacao});
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
