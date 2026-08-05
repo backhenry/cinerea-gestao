@@ -18,12 +18,21 @@ const isConfigured = firebaseConfig.apiKey !== "COLE_AQUI";
 let app,auth,fdb,fstore,uid=null,saveTimer=null;
 let eid=null,empresaNome='',empresaDono='',membros={},unsubData=null,unsubMembros=null,unsubFin=null,backupChecado=false;
 let rawOp=null,rawFin=null,dbFinLoaded=false,migrouFin=false,minhasEmpresas={};
+/* GRAVAÇÃO PENDENTE: a memória é mais nova que o servidor.
+   Enquanto isto for verdade, snapshot NÃO pode remontar o `db` — ver
+   `rebuildDb` e o `onSnapshot` de `empresas/{eid}`. */
+let gravacaoPendente=0;
+/* Exclusão DELIBERADA desde o último snapshot. Existe para o guarda de
+   `cloudSave` saber diferenciar "o dono apagou" de "a lista encolheu sozinha". */
+let apagouDeProposito=false;
 let db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],colecoes:[],meta:0,checks:{}};
 // dados financeiros vivem num doc separado (empresas/{eid}/fin/dados) — só dono/admin/sócio leem
 const FIN_KEYS=['fixos','meta','meiTeto','ultimoBackup'];
 const PROD_FIN=['preco','markup','taxa','custohora','perda','equip'];
 function rebuildDb(){
   limparMemo();
+  // A memória passa a ser o servidor: o que foi apagado já está refletido.
+  apagouDeProposito=false;
   const base=JSON.parse(JSON.stringify(rawOp||{}));
   db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],meta:0,checks:{},...base};
   if(rawFin){
@@ -416,6 +425,31 @@ function subscribe(){
   unsubData=onSnapshot(doc(fdb,'empresas',eid),snap=>{
     if(snap.exists()){const d=snap.data();empresaNome=d.nome||'';empresaDono=d.dono||'';rawOp=d.dados||{};}
     else{rawOp={};}
+
+    /* ═══ A CORRIDA QUE APAGAVA PEÇA ═══════════════════════════════════════
+       `cloudSave` espera 400 ms antes de gravar. Se um snapshot chegasse
+       nessa janela, o `rebuildDb` abaixo trocava o `db` inteiro pelo
+       documento do SERVIDOR — que ainda não tinha a edição — e a gravação
+       agendada disparava em seguida, escrevendo esse estado por cima. A peça
+       recém-criada sumia do cadastro E do servidor, sem ninguém tocar em
+       lixeira nenhuma.
+
+       Aconteceu duas vezes com a mesma peça antes de eu achar. O sintoma
+       enganava: parecia exclusão acidental, porque exclusão é a única coisa
+       que a cabeça associa a "sumiu".
+
+       Duas abas abertas tornam isso rotina: o save de uma vira snapshot na
+       outra, e `persistentMultipleTabManager` está ligado.
+
+       A regra agora é simples: com gravação pendente, a memória é a verdade.
+       Ignorar uma mudança remota é perder o trabalho de OUTRA aba; remontar é
+       perder o desta, que é o que a pessoa acabou de digitar e está vendo. */
+    if(gravacaoPendente){
+      console.warn('snapshot ignorado: há edição local ainda não gravada');
+      renderAll();flashSync(false);
+      return;
+    }
+
     rebuildDb();seedIfEmpty(false);
     const bn=document.getElementById('brandName');if(bn)bn.textContent=(empresaNome||'Cinérea')+' · Gestão';
     // guarda o nome real da empresa no perfil (o convite entra com placeholder)
@@ -424,7 +458,10 @@ function subscribe(){
   },err=>{console.error(err);eid=null;mostrarOnboarding('Você não tem mais acesso a esta empresa — crie outra ou peça um novo convite.');setDoc(doc(fdb,'usuarios',uid),{empresaId:null},{merge:true}).catch(()=>{});});
   unsubFin=onSnapshot(doc(fdb,'empresas',eid,'fin','dados'),snap=>{
     rawFin=snap.exists()?snap.data():{};dbFinLoaded=true;
-    if(rawOp!==null){rebuildDb();renderAll();}
+    // Mesma trava do operacional: `rebuildDb` remonta o `db` INTEIRO, então
+    // um snapshot financeiro chegando no meio de uma edição levaria junto o
+    // que ainda não foi gravado no operacional.
+    if(rawOp!==null && !gravacaoPendente){rebuildDb();renderAll();}
     migrarFinSePreciso();checkBackup();
   },err=>{dbFinLoaded=false;}); // empregado: sem acesso ao financeiro — segue só com o operacional
 }
@@ -432,15 +469,55 @@ function subscribeMembros(){
   if(unsubMembros)unsubMembros();
   unsubMembros=onSnapshot(collection(fdb,'empresas',eid,'membros'),qs=>{membros={};qs.forEach(d=>membros[d.id]=d.data());renderAll();},err=>console.error(err));
 }
-function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);clearTimeout(saveTimer);saveTimer=setTimeout(()=>{try{
+function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);
+  // Sobe ANTES do debounce: a janela perigosa começa na edição, não na
+  // gravação. Só desce quando o servidor confirma.
+  gravacaoPendente++;
+  clearTimeout(saveTimer);saveTimer=setTimeout(()=>{try{
   let payloadOp,finToWrite=null;
   if(dbFinLoaded&&pode('fin')){const s=splitDb();payloadOp=s.op;finToWrite=s.fin;}
   else if(!pode('fin')){payloadOp=splitDb().op;} // empregado nunca grava campos financeiros
   else{payloadOp=JSON.parse(JSON.stringify(db));} // fin ainda não carregou: mantém tudo no operacional (a migração divide depois)
+  /* ═══ O GUARDA DA LISTA QUE ENCOLHE ══════════════════════════════════════
+     A gestão grava o DOCUMENTO INTEIRO, então qualquer estado de memória
+     defeituoso vira perda permanente na primeira gravação. A corrida do
+     snapshot já foi fechada acima; isto é a rede embaixo dela, porque uma
+     arquitetura de "último a escrever ganha" merece duas.
+
+     A regra: se a lista encolheu e ninguém apagou nada de propósito, não é
+     edição, é estado corrompido. Melhor recusar a gravação e recarregar do
+     servidor do que escrever a perda por cima do que ainda está lá.
+
+     Vale para todas as listas, e não só peças: cliente, insumo e pedido somem
+     do mesmo jeito e doem igual. */
+  const encolheu=[];
+  if(!apagouDeProposito && rawOp){
+    for(const k of Object.keys(payloadOp||{})){
+      const antes=Array.isArray(rawOp[k])?rawOp[k].length:null;
+      const agora=Array.isArray(payloadOp[k])?payloadOp[k].length:null;
+      if(antes!==null && agora!==null && agora<antes) encolheu.push(`${k}: ${antes} → ${agora}`);
+    }
+  }
+  if(encolheu.length){
+    console.error('gravação recusada — a lista encolheu sem exclusão:', encolheu);
+    gravacaoPendente=Math.max(0,gravacaoPendente-1);
+    toast('Não gravei: os dados na tela estavam <b>desatualizados</b> e apagariam registros. Recarreguei do servidor.');
+    rebuildDb();renderAll();flashSync(true);
+    return;
+  }
+
   const p=updateDoc(doc(fdb,'empresas',eid),{dados:payloadOp,atualizado:Date.now()});
   if(finToWrite)setDoc(doc(fdb,'empresas',eid,'fin','dados'),finToWrite).catch(e=>console.error(e));
-  if(navigator.onLine){p.then(()=>flashSync(true)).catch(e=>console.error(e));}else{flashSync(true);}
-}catch(e){console.error(e);}},400);}
+  const solta=()=>{gravacaoPendente=Math.max(0,gravacaoPendente-1);};
+  if(navigator.onLine){p.then(()=>{solta();flashSync(true);}).catch(e=>{solta();console.error(e);});}
+  else{
+    /* OFFLINE: o Firestore só resolve a promessa quando a rede volta, e até lá
+       a trava ficaria de pé — o que é o comportamento certo, mas deixaria a
+       tela em "salvando…" para sempre. Solta a trava e avisa que está salvo no
+       aparelho, que é a verdade: a escrita já está na fila local. */
+    solta();flashSync(true);
+  }
+}catch(e){gravacaoPendente=Math.max(0,gravacaoPendente-1);console.error(e);}},400);}
 function flashSync(ok){const el=document.getElementById('syncState');if(!ok){el.innerHTML='<span class="dot off"></span> salvando…';return;}el.innerHTML=navigator.onLine?'<span class="dot"></span> sincronizado':'<span class="dot off"></span> offline · salvo no aparelho';}
 
 // helpers e cálculo vêm de core.js (puro e coberto por testes)
@@ -1340,6 +1417,7 @@ function del(type,id){
       .catch(e=>{console.error(e);toast('Removido daqui, mas <b>ainda está no ar</b>. Use "Conferir o que está no ar".');});
   }
   db[list]=db[list].filter(x=>x.id!==id);
+  apagouDeProposito=true;
   logAtv('excluiu '+(NOMES_TIPO[type]||type)+(o&&(o.nome||o.titulo)?' "'+(o.nome||o.titulo)+'"':''));
   cloudSave();renderAll();
   toastUndo({producao:'Produção excluída — estoque e molde restaurados.',compra:'Compra excluída — estoque e custo revertidos.'}[type]||'Excluído.',snap);
