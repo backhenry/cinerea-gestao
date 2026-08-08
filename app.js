@@ -1609,7 +1609,7 @@ function semearColecoes(){
     ['Difusão','Aroma sem chama: difusores de varetas, room spray e queimadores de cera.'],
     ['Esculturas & Objetos','Esculturas de gesso puro e o altar de fragrância, presença, sem função de vela.'],
     ['Acessórios','As peças pequenas que acompanham as grandes, e que cabem no bolso ou na mão.'],
-    ['Refis & Consumíveis','Areia perfumada, pavios e óleos. É o que se esgota numa peça Cinérea, e é só isso: a escultura continua a mesma.'],
+    ['Refis & Consumíveis','Acender marca a hora em que o dia muda de ritmo. Aqui ficam as areias perfumadas e os pavios que fazem isso, e que se repõem quando acabam.'],
   ];
   db.colecoes=db.colecoes||[];
   base.forEach(([nome,desc],i)=>db.colecoes.push({id:uidGen(),nome,desc,ordem:(i+1)*10}));
