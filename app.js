@@ -1602,14 +1602,14 @@ function renderColecoes(){
 function semearColecoes(){
   if((db.colecoes||[]).length && !confirm('Já existem coleções. Acrescentar as da Cinérea mesmo assim?'))return;
   const base=[
-    ['Coleção Areia','Esculturas duráveis que você preenche com areia perfumada. Sem molde, sem cera grudada: monta, acende e repõe. O coração da marca.'],
+    ['Coleção Areia','Esculturas de gesso que você mesmo preenche com areia perfumada. Sem molde, sem cera grudada no vidro: monta, acende e repõe quando acabar.'],
     ['O Templo Anatômico','Arte para colecionar, anatomia clássica de domínio público, com o peso da dark academia e do gabinete de curiosidades.'],
     ['Ritual & Aura','O universo astral e de bem-estar: sal de aura, cristais e óleos, em objetos feitos para o ritual diário.'],
     ['Velas & Bustos','Bustos e velas de cera tradicional. Alguns recebem areia, outros copo removível, a técnica de cada um está na descrição.'],
     ['Difusão','Aroma sem chama: difusores de varetas, room spray e queimadores de cera.'],
     ['Esculturas & Objetos','Esculturas de gesso puro e o altar de fragrância, presença, sem função de vela.'],
-    ['Acessórios','O ritual completo: candelabro, cuidado da vela, porta-incenso e porta-fósforos.'],
-    ['Refis & Consumíveis','O motor do negócio: areia perfumada, pavios, sal e óleos. É o que você repõe, e o que traz o cliente de volta.'],
+    ['Acessórios','As peças pequenas que acompanham as grandes, e que cabem no bolso ou na mão.'],
+    ['Refis & Consumíveis','Areia perfumada, pavios e óleos. É o que se esgota numa peça Cinérea, e é só isso: a escultura continua a mesma.'],
   ];
   db.colecoes=db.colecoes||[];
   base.forEach(([nome,desc],i)=>db.colecoes.push({id:uidGen(),nome,desc,ordem:(i+1)*10}));
