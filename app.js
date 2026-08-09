@@ -1606,6 +1606,30 @@ function colecoesOrdenadas(){
   return (db.colecoes||[]).slice().sort((a,b)=>(Number(a.ordem)||0)-(Number(b.ordem)||0));
 }
 
+/**
+ * Quantas peças a coleção tem, e quantas delas o CLIENTE vê.
+ *
+ * Os dois números são diferentes e essa diferença já custou caro. A loja só
+ * recebe peça marcada como pública (`itensDoCatalogo` filtra por `publico`),
+ * então uma coleção pode dizer "3 peças" nesta tela e estar completamente
+ * vazia no site. Quem olha daqui conclui que está tudo certo.
+ *
+ * Foi assim que quatro coleções vazias passaram meses no ar: a loja pulava a
+ * seção sem peça, esta tela mostrava números, e as duas estavam certas cada
+ * uma no seu idioma.
+ */
+function contarNaColecao(c){
+  const dela=(db.produtos||[]).filter(p=>p.colecao===c.id);
+  return {total:dela.length, publicas:dela.filter(p=>p.publico).length};
+}
+
+/** As coleções que NÃO vão aparecer na loja, com o motivo de cada uma. */
+function colecoesInvisiveis(){
+  return colecoesOrdenadas().map(c=>({c, ...contarNaColecao(c)}))
+    .filter(x=>x.publicas===0)
+    .map(x=>({nome:x.c.nome, total:x.total}));
+}
+
 function renderColecoes(){
   const box=document.getElementById('colecoesLista');
   if(!box)return;
@@ -1614,13 +1638,27 @@ function renderColecoes(){
     box.innerHTML='<div class="hint-box">Nenhuma coleção ainda. Elas viram as seções da loja, no site e no app, e a ordem daqui é a ordem de lá.<div style="margin-top:10px"><button class="btn" onclick="semearColecoes()">Começar com as coleções da Cinérea</button></div></div>';
     return;
   }
-  box.innerHTML=`<div class="tablewrap"><table><thead><tr><th>Ordem</th><th>Coleção</th><th>Como aparece na loja</th><th>Peças</th><th></th></tr></thead><tbody>`+
+  // O AVISO VEM ANTES DA TABELA porque coleção vazia não dá erro em lugar
+  // nenhum: a loja simplesmente pula a seção, e a barra de seções nem oferece
+  // o nome. Sem esta linha, o único jeito de descobrir é abrir o site e contar.
+  const cegas=colecoesInvisiveis();
+  const aviso=cegas.length ? `<div class="hint-box" style="margin-bottom:12px">
+    <b>${cegas.length} coleção(ões) não aparecem na loja</b>, porque não têm nenhuma
+    peça marcada como pública: ${cegas.map(x=>`${esc(x.nome)}${x.total?` (tem ${x.total}, nenhuma pública)`:''}`).join(', ')}.
+    Coleção sem peça não vira seção nem botão no site. Ou marque as peças como
+    públicas, ou remova a coleção: prateleira vazia com etiqueta bonita gasta o
+    toque que o cliente tinha para comprar.</div>` : '';
+  box.innerHTML=aviso+`<div class="tablewrap"><table><thead><tr><th>Ordem</th><th>Coleção</th><th>Como aparece na loja</th><th>Peças</th><th></th></tr></thead><tbody>`+
     cs.map(c=>{
-      const n=(db.produtos||[]).filter(p=>p.colecao===c.id).length;
+      const {total,publicas}=contarNaColecao(c);
+      // Um número só esconderia a diferença que importa. "3, nenhuma pública" é
+      // a frase que faz o dono entender por que a seção não está no site.
+      const celula = publicas===total ? String(total)
+        : `${publicas} <span class="pill warn">${total} no cadastro</span>`;
       return `<tr><td data-l="Ordem">${Number(c.ordem)||0}</td>
-        <td data-l="Coleção"><b>${esc(c.nome)}</b></td>
+        <td data-l="Coleção"><b>${esc(c.nome)}</b>${publicas?'':' <span class="pill low">fora da loja</span>'}</td>
         <td data-l="Descrição" style="max-width:420px">${esc(c.desc||', ')}</td>
-        <td data-l="Peças">${n}</td>
+        <td data-l="Peças na loja">${celula}</td>
         <td data-l=""><div class="row-actions"><button class="btn2" onclick="openForm('colecao','${c.id}')">Editar</button><button class="btn2" onclick="del('colecao','${c.id}')">Remover</button></div></td></tr>`;
     }).join('')+'</tbody></table></div>';
 }
