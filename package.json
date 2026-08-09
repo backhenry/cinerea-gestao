@@ -3,7 +3,8 @@
   "private": true,
   "description": "Dependências apenas para testar as regras do Firestore, o app em si não tem build.",
   "scripts": {
-    "test": "node --test tests/core.test.mjs tests/banner.test.mjs tests/pago.test.mjs tests/rateio.test.mjs tests/tabelas.test.mjs tests/interpolacao.test.mjs tests/perda.test.mjs tests/aninhado.test.mjs",
+    "_test": "VARRE a pasta em vez de listar os arquivos à mão. Listar à mão já custou caro no repositório do app: a lista ficou desatualizada e SEIS arquivos de teste deixaram de rodar. Todos passavam sozinhos, então nada parecia quebrado; o que não existia era a garantia. Esquecer de citar um arquivo novo aqui é a pior espécie de falha, a suíte fica verde justamente por não ter executado o teste. Os dois de emulador ficam de fora porque exigem o Firestore local.",
+    "test": "node --test $(ls tests/*.test.mjs | grep -v -e rules -e flows)",
     "test:rules": "firebase emulators:exec --only firestore \"node --test tests/rules.test.mjs tests/flows.test.mjs\""
   },
   "devDependencies": {

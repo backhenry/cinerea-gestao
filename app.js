@@ -30,7 +30,7 @@ let gravacaoPendente=false;
 /* Exclusão DELIBERADA desde o último snapshot. Existe para o guarda de
    `cloudSave` saber diferenciar "o dono apagou" de "a lista encolheu sozinha". */
 let apagouDeProposito=false;
-let db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],colecoes:[],meta:0,checks:{}};
+let db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],colecoes:[],banners:[],meta:0,checks:{}};
 // dados financeiros vivem num doc separado (empresas/{eid}/fin/dados), só dono/admin/sócio leem
 const FIN_KEYS=['fixos','meta','meiTeto','ultimoBackup'];
 const PROD_FIN=['preco','markup','taxa','custohora','perda','equip'];
@@ -44,6 +44,25 @@ function rebuildDb(){
     FIN_KEYS.forEach(k=>{if(rawFin[k]!==undefined)db[k]=rawFin[k];});
     const pf=rawFin.prodFin||{};db.produtos.forEach(p=>Object.assign(p,pf[p.id]||{}));
   }
+  migrarBanner();
+}
+
+/**
+ * O banner era UM só e morava em `db.banner`. Virou lista em ago/2026.
+ *
+ * A conversão acontece na LEITURA e não numa rotina de uma vez: o dono pode
+ * abrir a gestão de outro computador com o dado antigo em cache, e sem isto o
+ * banner que ele cadastrou simplesmente sumiria da tela.
+ *
+ * `db.banner` é apagado depois de convertido, senão a próxima leitura converte
+ * de novo e cria um duplicado a cada vez que a página abre.
+ */
+function migrarBanner(){
+  if(!Array.isArray(db.banners)) db.banners=[];
+  if(db.banner && db.banner.titulo && !db.banners.length){
+    db.banners=[{...db.banner,id:uidGen(),ordem:10}];
+  }
+  delete db.banner;
 }
 function splitDb(){
   const op=JSON.parse(JSON.stringify(db));
@@ -1233,15 +1252,20 @@ const FORMS={
     {k:'papel',l:'Papel',t:'select',opts:['empregado','socio','admin']},
     {k:'obs',l:'Observação',t:'text',hint:'Opcional'},
   ]},
+  // A CHAMADA VEM PRIMEIRO porque o caminho genérico do salvar recusa o
+  // cadastro quando o PRIMEIRO campo está vazio. Com "Situação" no topo, que
+  // é um select e nunca vem vazio, um banner sem chamada seria salvo e a loja
+  // mostraria uma faixa muda.
   banner:{title:'Banner da loja',fields:[
-    {k:'ativo',l:'Situação',t:'select',opts:['ligado','desligado']},
-    {k:'imagem',l:'Arte de fundo (opcional)',t:'imagem',pasta:'banners',lado:1600,teto:400,
-     hint:'<b>1600 × 500 px</b>, JPG, PNG ou WebP, até 400 KB. Encolhemos antes de enviar, então pode mandar maior.<br><b>O que sobrevive é o MEIO.</b> A faixa da loja é bem baixa: no computador some o terço de cima e o de baixo da arte; no celular somem as bordas laterais. Ponha o assunto na faixa central e não conte com cantos.<br><b>O texto vai por cima</b>, centralizado e com um véu escuro. Arte muito detalhada no centro atrapalha a leitura, luz e superfície ali funcionam melhor que objeto.'},
     {k:'titulo',l:'Chamada',t:'text',hint:'Até 90 caracteres, mas mire em 40: no celular a faixa tem uma linha e meia. Ex.: "Frete grátis até domingo"'},
     {k:'texto',l:'Detalhe',t:'text',hint:'Opcional, até 140 caracteres. A condição em uma linha, "Para todo o estado de São Paulo"'},
+    {k:'imagem',l:'Arte de fundo (opcional)',t:'imagem',pasta:'banners',lado:1600,teto:400,
+     hint:'<b>1600 × 500 px</b>, JPG, PNG ou WebP, até 400 KB. Encolhemos antes de enviar, então pode mandar maior.<br><b>O que sobrevive é o MEIO.</b> A faixa da loja é bem baixa: no computador some o terço de cima e o de baixo da arte; no celular somem as bordas laterais. Ponha o assunto na faixa central e não conte com cantos.<br><b>O texto vai por cima</b>, centralizado e com um véu escuro. Arte muito detalhada no centro atrapalha a leitura, luz e superfície ali funcionam melhor que objeto.'},
     {k:'cupom',l:'Cupom para divulgar',t:'text',hint:'Opcional, até 24 caracteres. Vira maiúscula e sem acento sozinho. Aparece destacado, e quem tocar já entra com ele na sacola'},
     {k:'ate',l:'Até',t:'date',def:'',hint:'Opcional. Passou a data, o banner some sozinho da loja'},
-    {k:'cor',l:'Cor do banner',t:'select',opts:['brasa','carvão','areia']},
+    {k:'cor',l:'Cor do banner',t:'select',opts:['brasa','carvão','areia'],hint:'Só vale quando o banner NÃO tem arte de fundo'},
+    {k:'ativo',l:'Situação',t:'select',opts:['ligado','desligado']},
+    {k:'ordem',l:'Ordem no rodízio',t:'number',def:'10',hint:'Menor aparece antes. Com dois ou mais ligados, a loja reveza entre eles a cada 7 segundos'},
   ]},
   frete:{title:'Frete',fields:[
     {k:'ativo',l:'Situação',t:'select',opts:['ligado','desligado'],
@@ -1277,8 +1301,8 @@ const FORMS={
     {k:'ativo',l:'Situação',t:'select',opts:['ativo','desligado']},
   ]},
 };
-function plural(t){return{equip:'equip',molde:'moldes',insumo:'insumos',produto:'produtos',producao:'producao',pedido:'pedidos',compra:'compras',fixo:'fixos',cliente:'clientes',canal:'canais',tarefa:'tarefas',cotacao:'cotacoes',fornecedor:'fornecedores',colecao:'colecoes',vendedor:'vendedores',cupom:'cupons',acesso:'acessos'}[t];}
-const NOMES_TIPO={equip:'equipamento',molde:'molde',insumo:'insumo',produto:'produto',producao:'produção',pedido:'pedido',compra:'compra',fixo:'custo fixo',cliente:'cliente',canal:'canal',tarefa:'tarefa',cotacao:'cotação',fornecedor:'fornecedor',colecao:'coleção',vendedor:'vendedor',cupom:'cupom',acesso:'usuário'};
+function plural(t){return{equip:'equip',molde:'moldes',insumo:'insumos',produto:'produtos',producao:'producao',pedido:'pedidos',compra:'compras',fixo:'fixos',cliente:'clientes',canal:'canais',tarefa:'tarefas',cotacao:'cotacoes',fornecedor:'fornecedores',colecao:'colecoes',vendedor:'vendedores',cupom:'cupons',acesso:'acessos',banner:'banners'}[t];}
+const NOMES_TIPO={equip:'equipamento',molde:'molde',insumo:'insumo',produto:'produto',producao:'produção',pedido:'pedido',compra:'compra',fixo:'custo fixo',cliente:'cliente',canal:'canal',tarefa:'tarefa',cotacao:'cotação',fornecedor:'fornecedor',colecao:'coleção',vendedor:'vendedor',cupom:'cupom',acesso:'usuário',banner:'banner'};
 function val(id){const el=document.getElementById(id);return el?el.value:'';}
 function openForm(type,id){
   const rodape=document.querySelector('.modal-foot');
@@ -1293,7 +1317,6 @@ function openForm(type,id){
     body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">, nenhum, </option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" inputmode="decimal" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto da peça</label><label class="fotoup">Escolher imagem do computador<input type="file" accept="image/*" onchange="escolherFoto(this)" hidden></label><img id="f_fotoPrev" class="fotoprev" src="${esc(ex.foto||'')}" style="display:${ex.foto?'block':'none'}" alt=""><div class="hint" id="f_fotoStatus">Reduzimos a imagem antes de enviar, foto crua de celular pesa demais para quem vai abrir a loja.</div><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px"></div><div class="field"><label>Segunda foto</label><label class="fotoup">Escolher imagem<input type="file" accept="image/jpeg,image/png,image/webp" onchange="escolherImagem(this,'foto2','produtos',1200,600)" hidden></label><img id="f_foto2Prev" class="fotoprev" src="${esc(ex.foto2||'')}" style="display:${ex.foto2?'block':'none'}" alt=""><div class="hint" id="f_foto2Status">Aparece quando o cliente passa o mouse sobre a peça, no lugar da primeira. Use outro ângulo, um detalhe ou a peça em uso, não uma variação da mesma foto, que ninguém percebe.</div><input id="f_foto2" value="${esc(ex.foto2||'')}" placeholder="ou cole o endereço" style="margin-top:8px"></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="loja-bloco"><div class="loja-tit">Loja, o que aparece para quem compra</div><div class="field-row"><div class="field"><label>Coleção</label><select id="f_colecao">${['<option value="">, sem coleção, </option>'].concat(colecoesOrdenadas().map(c=>`<option value="${c.id}" ${ex.colecao===c.id?'selected':''}>${esc(c.nome)}</option>`)).join('')}</select><div class="hint">A seção onde a peça aparece no site e no app</div></div><div class="field"><label>Posição na coleção</label><input id="f_posicao" type="number" inputmode="decimal" value="${ex.posicao||10}"><div class="hint">Menor aparece antes</div></div><div class="field"><label>Situação</label><select id="f_situacao"><option value="disponivel" ${ex.situacao!=='embreve'?'selected':''}>À venda</option><option value="embreve" ${ex.situacao==='embreve'?'selected':''}>Em breve</option></select><div class="hint">"Em breve" entra na lista de espera, sem sacola</div></div></div><div class="field"><label>Frase curta</label><input id="f_desc" value="${esc(ex.desc||'')}" maxlength="120" placeholder="Duas mãos em concha sustentam uma taça de areia perfumada."><div class="hint">Aparece embaixo do nome, no cartão</div></div><div class="field"><label>Descrição</label><textarea id="f_longa" rows="4" placeholder="O texto que convence, na tela da peça.">${esc(ex.longa||'')}</textarea></div><div class="field"><label>Ficha técnica</label><textarea id="f_ficha" rows="4" placeholder="Escultura: Gesso · duas mãos&#10;Altura: 22 cm&#10;Repõe-se com: Aura-Sand + pavios">${esc(fichaEmTexto(ex.ficha))}</textarea><div class="hint">Uma linha por item, no formato <code>rótulo: valor</code></div></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_destaque" ${ex.destaque?'checked':''} style="width:auto"> peça de destaque na vitrine</label></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_leve" ${ex.leve?'checked':''} style="width:auto"> vai na sobra da caixa</label><div class="hint">Marque para refil, chaveiro e o que não ocupa volume. Peça marcada não faz o frete crescer: ela viaja junto de uma escultura sem pedir caixa maior</div></div><div class="field"><label>Modelo 3D</label><input id="f_modelo" value="${esc(ex.modelo||'')}" placeholder="/3d/david.glb"><div class="hint">Opcional. Com ele, a ficha da peça ganha <b>Ver na sua casa</b>, no celular a peça aparece em tamanho real no espaço da pessoa. O arquivo tem de estar no próprio site, em <code>/3d/</code></div></div></div><div class="field"><label>Receita, insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" inputmode="decimal" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" inputmode="decimal" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" inputmode="decimal" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" inputmode="decimal" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" inputmode="decimal" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" inputmode="decimal" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
     renderRecipe();
   } else {
-    if(type==='banner') ex = db.banner || {};
     if(type==='frete'){
       // O formulário é achatado (um campo por região) e a tabela é aninhada,
       // porque é assim que o servidor a lê. A tradução acontece aqui e no
@@ -1379,20 +1402,11 @@ function saveForm(){
     gerarCotacaoXlsx(itens,{validade:val('cotValidade')||'',cond:val('cotCond')||'',alvos});
     closeModal();return;
   }
-  // O banner é UM só, então não vira lista: mora direto no `db`. Uma loja com
-  // cinco promoções competindo no alto não é promoção, é ruído.
-  if(type==='banner'){
-    db.banner={
-      ativo:val('f_ativo')||'ligado', titulo:val('f_titulo').trim(),
-      texto:val('f_texto').trim(), cupom:normalizarCupom(val('f_cupom')), imagem:val('f_imagem').trim(),
-      ate:val('f_ate')||'', cor:val('f_cor')||'brasa',
-    };
-    if(!db.banner.titulo){toast('Escreva a chamada do banner.');return;}
-    logAtv('editou o banner da loja');
-    cloudSave();closeModal();renderAll();
-    toast('Banner salvo. <b>Publique a loja</b> para ele entrar no ar.');
-    return;
-  }
+  // O banner ERA um só e morava direto no `db`. Virou lista em ago/2026, a
+  // pedido do dono: guardar vários e ligar e desligar cada um evita reescrever
+  // o único banner toda vez que a promoção muda, e perder o texto anterior.
+  // Por isso ele segue o caminho GENÉRICO das listas daqui para baixo, com
+  // apenas a normalização abaixo de diferente.
   // A tabela de frete também é UMA só, e mora direto no `db` pelo mesmo motivo
   // do banner. O que ela guarda é o VALOR por região; quem cruza CEP com região
   // é o servidor, na hora de cobrar, aqui não se decide dinheiro de ninguém.
@@ -1427,6 +1441,19 @@ function saveForm(){
     if(num(obj.preco)>0){const ref=precoProduto({...obj,id:id||'tmp'},db);obj.margemRef=ref.margemPct;}
     else delete obj.margemRef;}
   else{FORMS[type].fields.forEach(f=>obj[f.k]=val('f_'+f.k));if(type==='fornecedor')obj.contatos=(currentForm.contatos||[]).filter(c=>c.nome&&c.nome.trim());if(!obj[FORMS[type].fields[0].k]){toast('Preencha o primeiro campo.');return;}}
+  if(type==='banner'){
+    obj.titulo=String(obj.titulo||'').trim();
+    // O caminho genérico já recusa o primeiro campo vazio, mas ele confere
+    // ANTES do `trim`: uma chamada só de espaços passaria por ele e viraria
+    // uma faixa muda no alto da loja.
+    if(!obj.titulo){toast('Escreva a chamada do banner.');return;}
+    obj.texto=String(obj.texto||'').trim();
+    obj.imagem=String(obj.imagem||'').trim();
+    obj.cupom=normalizarCupom(obj.cupom);
+    obj.ativo=obj.ativo||'ligado';
+    obj.cor=obj.cor||'brasa';
+    obj.ordem=Number(obj.ordem)||10;
+  }
   if(type==='acesso'){
     currentForm.emailAntigo = id ? ((db.acessos||[]).find(x=>x.id===id)||{}).email : null;
   }
@@ -1664,10 +1691,19 @@ function fretePublicavel(){
   };
 }
 
-function bannerPublicavel(){
-  const b = db.banner;
-  if(!b || b.ativo === 'desligado' || !b.titulo) return null;
-  if(b.ate && hoje() > b.ate) return null;
+/** Um banner está no ar? Ligado, com chamada, e ainda dentro da validade. */
+function bannerNoAr(b){
+  return !!b && b.ativo !== 'desligado' && !!b.titulo && !(b.ate && hoje() > b.ate);
+}
+
+/** Os banners na ORDEM em que a loja reveza. Menor `ordem` aparece antes. */
+function bannersOrdenados(){
+  return [...(db.banners||[])].sort((a,b)=>(Number(a.ordem)||10)-(Number(b.ordem)||10));
+}
+
+/** O recorte público de um banner, ou `null` se ele não deve subir. */
+function bannerPublicavel(b){
+  if(!bannerNoAr(b)) return null;
   return {
     titulo: String(b.titulo).slice(0,90),
     texto: String(b.texto||'').slice(0,140),
@@ -1681,28 +1717,46 @@ function bannerPublicavel(){
   };
 }
 
+/** Todos os recortes que sobem com o catálogo, já na ordem do rodízio. */
+function bannersPublicaveis(){
+  return bannersOrdenados().map(bannerPublicavel).filter(Boolean);
+}
+
 function renderBanner(){
   const box = document.getElementById('bannerPreview');
   if(!box) return;
-  const b = db.banner;
-  if(!b || !b.titulo){
-    box.innerHTML = '<div class="hint-box">Nenhum banner. Ele aparece no alto da loja, no site, e serve para anunciar frete grátis, um cupom da semana ou uma coleção nova.</div>';
+  const lista = bannersOrdenados();
+  if(!lista.length){
+    box.innerHTML = '<div class="hint-box">Nenhum banner. Ele aparece no alto da loja, no site, e serve para anunciar frete grátis, um cupom da semana ou uma coleção nova. Você pode guardar vários e ligar só o da vez.</div>';
     return;
   }
-  const vencido = b.ate && hoje() > b.ate;
-  const desligado = b.ativo === 'desligado';
-  const situacao = desligado ? '<span class="pill low">desligado</span>'
-    : vencido ? '<span class="pill warn">venceu em '+esc(b.ate)+'</span>'
-    : '<span class="pill ok">no ar</span>';
-  const problema = cupomDoBannerFalha(b);
-  box.innerHTML = `<div class="chartcard">
-    <h3>${esc(b.titulo)} ${situacao}</h3>
-    ${b.texto?`<div class="hint" style="margin-top:6px">${esc(b.texto)}</div>`:''}
-    ${b.cupom?`<div class="hint" style="margin-top:6px">Cupom divulgado: <b>${esc(b.cupom)}</b></div>`:''}
-    ${b.ate&&!vencido?`<div class="hint" style="margin-top:6px">Sai do ar em ${esc(b.ate)}</div>`:''}
-    ${problema?`<div class="hint-box" style="margin-top:10px"><b>O banner promete um desconto que a loja não dá.</b><br>${problema}</div>`:''}
-    ${(desligado||vencido)?'<div class="hint-box" style="margin-top:10px">Neste estado ele <b>não sobe</b> quando você publicar a loja, e sai do ar se já estava lá.</div>':''}
-  </div>`;
+  const noAr = lista.filter(bannerNoAr);
+  // O AVISO DO RODÍZIO existe porque ligar o segundo banner é o momento em que
+  // o comportamento da loja muda, e essa mudança não se vê daqui. Sem esta
+  // linha, o dono liga dois e descobre o revezamento pelo site, achando que é
+  // defeito.
+  const aviso = noAr.length > 1
+    ? `<div class="hint-box" style="margin-bottom:12px"><b>${noAr.length} banners no ar.</b> A loja reveza entre eles a cada 7 segundos, na ordem abaixo. Quem pediu menos movimento no aparelho vê os ${noAr.length} empilhados, sem troca.</div>`
+    : '';
+  box.innerHTML = aviso + lista.map(b=>{
+    const vencido = b.ate && hoje() > b.ate;
+    const desligado = b.ativo === 'desligado';
+    const situacao = desligado ? '<span class="pill low">desligado</span>'
+      : vencido ? '<span class="pill warn">venceu em '+esc(b.ate)+'</span>'
+      : '<span class="pill ok">no ar</span>';
+    const problema = cupomDoBannerFalha(b);
+    return `<div class="chartcard" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+        <h3 style="margin:0">${esc(b.titulo)} ${situacao}</h3>
+        ${rowActions('banner',b.id)}
+      </div>
+      ${b.texto?`<div class="hint" style="margin-top:6px">${esc(b.texto)}</div>`:''}
+      ${b.cupom?`<div class="hint" style="margin-top:6px">Cupom divulgado: <b>${esc(b.cupom)}</b></div>`:''}
+      ${b.ate&&!vencido?`<div class="hint" style="margin-top:6px">Sai do ar em ${esc(b.ate)}</div>`:''}
+      ${problema?`<div class="hint-box" style="margin-top:10px"><b>O banner promete um desconto que a loja não dá.</b><br>${problema}</div>`:''}
+      ${(desligado||vencido)?'<div class="hint-box" style="margin-top:10px">Neste estado ele <b>não sobe</b> quando você publicar a loja, e sai do ar se já estava lá.</div>':''}
+    </div>`;
+  }).join('');
 }
 
 /**
@@ -1742,7 +1796,7 @@ function assinaturaCatalogo(){
   // O frete entra na assinatura pela mesma razão do banner: sem isso, mudar só
   // a tabela deixava o aviso de "catálogo desatualizado" calado, e a loja
   // seguiria cobrando o frete antigo.
-  return JSON.stringify([itensDoCatalogo(), bannerPublicavel(), fretePublicavel()]);
+  return JSON.stringify([itensDoCatalogo(), bannersPublicaveis(), fretePublicavel()]);
 }
 
 /** O recorte público de cada produto marcado para o catálogo. */
@@ -1813,7 +1867,15 @@ async function publicarCatalogo(){
     whats:db.catWhats||'',
     // O banner viaja com o catálogo de propósito: é dado da loja, e um segundo
     // botão de publicar seria mais uma coisa para esquecer de apertar.
-    ...(bannerPublicavel() ? {banner:bannerPublicavel()} : {}),
+    //
+    // SOBEM OS DOIS FORMATOS. `banners` é a lista, que é o que a loja de hoje
+    // lê; `banner` no singular é o primeiro dela, e existe só como ponte: o
+    // GitHub Pages serve com dez minutos de cache, e nesse intervalo há gente
+    // com a loja ANTIGA carregada lendo este catálogo novo. Sem a ponte, o
+    // banner sumiria para essas pessoas sem motivo aparente.
+    ...(bannersPublicaveis().length
+        ? {banners:bannersPublicaveis(), banner:bannersPublicaveis()[0]}
+        : {}),
     // O frete viaja no MESMO documento dos preços, e não num à parte. Se
     // viessem separados, uma publicação pela metade cobraria o preço novo com
     // o frete velho, e ninguém descobriria isso olhando a loja.
@@ -2127,7 +2189,7 @@ function verPrecos(insId){
 }
 function exportJSON(){if(!pode('fin')){toast('Sem permissão para dados financeiros');return;}dl('cinerea-backup-'+hoje()+'.json',JSON.stringify(db,null,2),'application/json');toast('Backup salvo, guarde este arquivo');}
 function importJSON(){
-  if(!pode('gerir')){toast('Só dono e admin restauram backups');return;}const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||typeof d!=='object'||!Array.isArray(d.insumos))throw 0;if(!confirm('Substituir TODOS os dados atuais pelos do arquivo de backup?'))return;db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],meta:0,checks:{},...d};cloudSave();renderAll();toast('Dados restaurados do backup');}catch(e){toast('Arquivo inválido, use um backup gerado pelo app');}};r.readAsText(f);};inp.click();}
+  if(!pode('gerir')){toast('Só dono e admin restauram backups');return;}const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=()=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||typeof d!=='object'||!Array.isArray(d.insumos))throw 0;if(!confirm('Substituir TODOS os dados atuais pelos do arquivo de backup?'))return;db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],banners:[],meta:0,checks:{},...d};migrarBanner();cloudSave();renderAll();toast('Dados restaurados do backup');}catch(e){toast('Arquivo inválido, use um backup gerado pelo app');}};r.readAsText(f);};inp.click();}
 function exportCompras(){
   const low=db.insumos.filter(i=>insumoStatus(i)!=='ok');
   if(!low.length){toast('Nada para comprar');return;}

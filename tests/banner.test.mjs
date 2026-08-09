@@ -108,3 +108,71 @@ test('o banner de inauguração de ago/2026 seria pego', () => {
   assert.notEqual(m, '', 'o banner que estava no ar tem de acusar');
   assert.match(m, /INAUGURA15/);
 });
+
+// ---------------------------------------------------------------------------
+// O RECORTE QUE SOBE, agora que os banners são vários (ago/2026).
+//
+// O pedido do dono foi guardar mais de um e ligar e desligar cada um. O risco
+// novo não é desenhar dois: é um banner desligado, ou vencido, ou com arte
+// apontada para fora do nosso Storage, ATRAVESSAR a publicação escondido no
+// meio da lista, onde ninguém confere um por um.
+// ---------------------------------------------------------------------------
+
+const publicar = (banners) => new Function('db', 'hoje', `
+  ${extrair('bannerNoAr')}
+  ${extrair('bannersOrdenados')}
+  ${extrair('bannerPublicavel')}
+  ${extrair('bannersPublicaveis')}
+  ${extrair('normalizarCupom')}
+  return bannersPublicaveis;
+`)({ banners }, () => HOJE)();
+
+const OK = { id: 'a', titulo: 'Refis de areia, agora na loja', ativo: 'ligado' };
+
+test('sobe o que está ligado, na ordem do rodízio', () => {
+  const fora = publicar([
+    { ...OK, id: 'b', titulo: 'Segundo', ordem: 20 },
+    { ...OK, id: 'a', titulo: 'Primeiro', ordem: 5 },
+  ]);
+  assert.deepEqual(fora.map((b) => b.titulo), ['Primeiro', 'Segundo']);
+});
+
+test('sem ordem, o padrão é 10 e a lista não se embaralha', () => {
+  const fora = publicar([{ ...OK, titulo: 'Um' }, { ...OK, id: 'b', titulo: 'Dois' }]);
+  assert.deepEqual(fora.map((b) => b.titulo), ['Um', 'Dois']);
+});
+
+test('desligado, vencido e sem chamada não sobem', () => {
+  const fora = publicar([
+    { ...OK, id: 'x', titulo: 'Desligado', ativo: 'desligado' },
+    { ...OK, id: 'y', titulo: 'Vencido', ate: '2020-01-01' },
+    { ...OK, id: 'z', titulo: '' },
+    OK,
+  ]);
+  assert.deepEqual(fora.map((b) => b.titulo), [OK.titulo]);
+});
+
+test('o dia do "até" vale inteiro, e o seguinte não', () => {
+  assert.equal(publicar([{ ...OK, ate: HOJE }]).length, 1);
+  assert.equal(publicar([{ ...OK, ate: '2026-07-31' }]).length, 0);
+});
+
+test('arte de fora do nosso Storage NÃO sobe, mesmo com o resto certo', () => {
+  // Um pixel de rastreamento em servidor de terceiro, rodando no domínio da
+  // marca, em toda visita à loja. A trava é a mesma do logo da peça.
+  const [b] = publicar([{ ...OK, imagem: 'https://malvado.example/pixel.png' }]);
+  assert.equal(b.imagem, undefined);
+  const [c] = publicar([{ ...OK, imagem: 'https://firebasestorage.googleapis.com/v0/b/x/o/y.webp' }]);
+  assert.match(c.imagem, /firebasestorage/);
+});
+
+test('chamada e detalhe são cortados no tamanho que a faixa aguenta', () => {
+  const [b] = publicar([{ ...OK, titulo: 'x'.repeat(200), texto: 'y'.repeat(300) }]);
+  assert.equal(b.titulo.length, 90);
+  assert.equal(b.texto.length, 140);
+});
+
+test('lista vazia publica lista vazia, e não um banner fantasma', () => {
+  assert.deepEqual(publicar([]), []);
+  assert.deepEqual(publicar(undefined), []);
+});
