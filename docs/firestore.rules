@@ -39,6 +39,44 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/gestores/$(request.auth.uid));
     }
 
+    // ---------- posse da peça ----------
+    //
+    // O PROBLEMA QUE ISTO RESOLVE: até aqui, conhecer o UID do chip era a única
+    // credencial de uma peça, e conhecer o UID é encostar o celular nela uma
+    // vez. Numa peça AINDA NÃO PUBLICADA, quem encostasse primeiro (um
+    // convidado na festa, um visitante na prateleira do ateliê) registrava a
+    // peça na conta dele, publicava a vitrine e virava "quem chegou primeiro":
+    // o dono de verdade ficava trancado para fora da própria peça, sem volta.
+    //
+    // A correção é exigir POSSE, e não só conhecimento do UID. Duas provas,
+    // porque os dois canais de venda são diferentes:
+    //
+    //   `pecas/{tagUid}.dono`      — venda pela loja, onde a casa já sabe o uid
+    //                                de quem comprou (está em `encomendas`).
+    //   `ativacoes/{tagUid}.codigo`— venda de balcão, onde não há uid: a peça
+    //                                sai com um código impresso no cartão, e só
+    //                                quem tem o cartão registra a peça.
+    //
+    // AS DUAS SÃO OPCIONAIS, e é isso que faz esta mudança não quebrar nada:
+    // peça sem `dono` e sem `ativacao` continua funcionando exatamente como
+    // antes. A casa vai apertando peça a peça, no ritmo dela.
+
+    // A certidão de fábrica diz de quem é a peça? Se disser, ela manda.
+    function pecaBateComODono(tagUid, uid) {
+      return !exists(/databases/$(database)/documents/pecas/$(tagUid))
+        || get(/databases/$(database)/documents/pecas/$(tagUid)).data.get('dono', '') == ''
+        || get(/databases/$(database)/documents/pecas/$(tagUid)).data.get('dono', '') == uid;
+    }
+
+    // O código de ativação, quando existe, viaja no próprio registro da peça na
+    // conta. Ele NÃO fica em `pecas/{tagUid}`, que é de leitura pública: mora em
+    // `ativacoes/`, que ninguém lê, e a regra o compara aqui dentro.
+    function ativacaoConfere(tagUid) {
+      return !exists(/databases/$(database)/documents/ativacoes/$(tagUid))
+        || request.resource.data.get('ativacao', '')
+           == get(/databases/$(database)/documents/ativacoes/$(tagUid)).data.get('codigo', '(sem codigo)');
+    }
+
     // Lista de quem é da casa. Um documento vazio por uid basta, o que importa
     // é existir. Só se mexe pelo Console do Firebase: nenhum app escreve aqui.
     //
@@ -74,6 +112,17 @@ service cloud.firestore {
       allow list: if false;
       allow create, update: if ehDaCasa();
       allow delete: if false;
+    }
+
+    // O código de ativação de cada peça. NINGUÉM lê, nem quem é da casa: o
+    // código é conferido DENTRO da regra (`get()` do lado do servidor enxerga o
+    // documento mesmo com a leitura negada). Se fosse legível, bastaria pedir o
+    // documento para descobrir o código e o cartão impresso não valeria nada.
+    //
+    // A casa escreve pela gestão, na hora de embalar a peça.
+    match /ativacoes/{tagUid} {
+      allow read: if false;
+      allow write: if ehDaCasa();
     }
 
     // Conta individual: ponteiro para a empresa + preferências + dados legados
@@ -287,6 +336,10 @@ service cloud.firestore {
       // têm o campo, e não podem ficar impossíveis de atualizar.
       allow write: if request.auth != null
         && exists(/databases/$(database)/documents/clientes/$(request.auth.uid)/pecas/$(tagUid))
+        // Cinto e suspensório: o registro na conta já foi conferido lá em
+        // `clientes/`, mas um registro FEITO ANTES desta regra continua valendo,
+        // e a certidão de fábrica é a palavra final sobre de quem é a peça.
+        && pecaBateComODono(tagUid, request.auth.uid)
         && request.resource.data.dono == request.auth.uid
         && (!exists(/databases/$(database)/documents/vitrines/$(tagUid))
             || !('dono' in resource.data)
@@ -340,9 +393,18 @@ service cloud.firestore {
 
       // Apagar também é de quem publicou, senão a trava acima se contornaria
       // apagando a vitrine alheia e publicando outra por cima.
+      //
+      // A CASA TAMBÉM APAGA, e isto é o conserto de última instância: numa peça
+      // vendida antes do `dono` de fábrica, se alguém tomou a vitrine primeiro,
+      // sem esta linha o dono de verdade ficava trancado para sempre e não
+      // havia o que fazer, nem pelo suporte. Com ela, o sequestro vira um
+      // chamado: a casa apaga, o dono publica a dele.
       allow delete: if request.auth != null
-        && exists(/databases/$(database)/documents/clientes/$(request.auth.uid)/pecas/$(tagUid))
-        && (!('dono' in resource.data) || resource.data.dono == request.auth.uid);
+        && (
+          ehDaCasa()
+          || (exists(/databases/$(database)/documents/clientes/$(request.auth.uid)/pecas/$(tagUid))
+              && (!('dono' in resource.data) || resource.data.dono == request.auth.uid))
+        );
     }
 
     // Encomendas feitas pela loja do app.
@@ -417,7 +479,26 @@ service cloud.firestore {
       // Conteúdo e histórico ficam dentro do documento (histórico é array, não
       // subcoleção), então uma regra só cobre a peça inteira.
       match /pecas/{tagUid} {
-        allow read, write: if ehOCliente(uid);
+        allow read: if ehOCliente(uid);
+
+        // REGISTRAR a peça na conta é o momento em que a posse se prova, e é o
+        // ponto mais cedo onde dá para barrar o sequestro: sem registro na
+        // conta, a regra de `vitrines/` já não deixa publicar.
+        //
+        // Peça sem `dono` de fábrica e sem código de ativação continua como
+        // sempre foi: qualquer conta registra. É o caso de tudo que foi vendido
+        // antes desta regra, e nada disso pode quebrar.
+        allow create: if ehOCliente(uid)
+          && pecaBateComODono(tagUid, uid)
+          && ativacaoConfere(tagUid);
+
+        // Depois de registrada, o conteúdo e o histórico são do dono, que
+        // reescreve à vontade. O código não se repete a cada gravação: ele
+        // provou a posse uma vez, no registro.
+        allow update: if ehOCliente(uid) && pecaBateComODono(tagUid, uid);
+
+        // Soltar a peça (passar adiante, devolver) nunca depende de prova.
+        allow delete: if ehOCliente(uid);
       }
 
       // Subcoleção nova daqui para frente precisa do próprio bloco: sem match,

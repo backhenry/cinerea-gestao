@@ -28,10 +28,15 @@ jobs:
         with:
           node-version: 20
       - run: npm install --no-audit --no-fund
-      # lógica pura: cálculo (core.js) e o aviso do cupom do banner.
-      # Rodam sem emulador. Teste novo sem emulador ENTRA AQUI, senão fica
-      # no repositório sem nunca rodar na CI.
-      - run: node --test tests/core.test.mjs tests/banner.test.mjs tests/rateio.test.mjs tests/pago.test.mjs
+      # Lógica pura, sem emulador. VARRE A PASTA, e é `npm test` quem varre.
+      #
+      # A lista à mão que estava aqui já tinha apodrecido: citava quatro
+      # arquivos e a pasta tinha nove. `colecoes`, `aninhado`, `interpolacao`,
+      # `perda` e `tabelas` estavam no repositório sem nunca rodar na CI, e
+      # nada avisava — a suíte ficava verde justamente por não os executar.
+      # É a pior espécie de falha, e é a que o próprio package.json já
+      # descrevia, dois metros ao lado.
+      - run: npm test
       # regras de segurança: precisam do emulador do Firestore
       - run: npx firebase emulators:exec --only firestore "node --test tests/rules.test.mjs tests/flows.test.mjs"
 

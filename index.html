@@ -110,6 +110,11 @@
            para começar pelo fim. -->
       <button class="active" role="tab" aria-selected="true" data-sub="encomendas" onclick="subAba('encomendas');carregarEncomendas()">Encomendas</button>
       <button class="" role="tab" aria-selected="false" data-sub="pedidos" onclick="subAba('pedidos')">Pedidos</button>
+      <!-- TAGS DEPOIS DE PEDIDOS porque é onde ela entra no dia: a encomenda
+           vira pedido, o pedido vira peça embalada, e é embalando que a tag
+           ganha dono. Antes de Pedidos ela pediria para amarrar uma peça a
+           uma venda que ainda não aconteceu. -->
+      <button class="" role="tab" aria-selected="false" data-sub="tags" onclick="subAba('tags');carregarEncomendas()">Tags</button>
       <button class="" role="tab" aria-selected="false" data-sub="vendedores" onclick="subAba('vendedores')">Vendedores</button>
       <button class="" role="tab" aria-selected="false" data-sub="posts" onclick="subAba('posts')">Posts</button>
     </nav>
@@ -128,6 +133,45 @@
       <div class="head-btns"><button class="btn2" onclick="carregarEncomendas()">Atualizar</button></div>
     </div>
     <div id="encList"></div>
+  </div>
+    <div class="subpanel" id="s-tags">
+    <div class="panel-head">
+      <div><h2>Tags</h2><div class="desc">A certidão de cada peça e de quem ela é. É o que impede outra conta de registrar no lugar do dono a peça que ele ainda não cadastrou</div></div>
+    </div>
+    <div id="tagsAviso"></div>
+    <div class="postgrid">
+      <div class="chartcard">
+        <div class="field">
+          <label>UID da tag</label>
+          <input id="tg_uid" placeholder="04A2B3C4D5E6F7" oninput="tagPreview()">
+          <div class="hint" id="tg_uidHint">O número que o app mostra ao ler a peça. Pode colar com dois-pontos ou traço, arrumamos aqui.</div>
+        </div>
+        <div class="field">
+          <label>Modelo</label>
+          <select id="tg_produto" onchange="tagDoProduto(this.value)"></select>
+          <div class="hint">Preenche o nome abaixo com o do cadastro. É esse nome que o dono vê como procedência ao ler a peça.</div>
+        </div>
+        <div class="field"><label>Nome na certidão</label><input id="tg_modelo" placeholder="Ondina"></div>
+        <div class="field"><label>Peça número</label><input id="tg_serie" type="number" inputmode="numeric" placeholder="12"></div>
+        <div class="field"><label>de uma série de</label><input id="tg_total" type="number" inputmode="numeric" placeholder="40"><div class="hint">Os dois vazios se a peça não é numerada</div></div>
+        <div class="field"><label>Link do refil</label><input id="tg_refil" placeholder="cinerea.com.br/refil"><div class="hint">Opcional. Onde o dono compra a areia perfumada deste modelo; vazio usa o link geral da marca</div></div>
+        <div class="field">
+          <label>Dono</label>
+          <select id="tg_dono" onchange="tagPreview()"></select>
+          <div class="hint">Venda pelo app: escolha a encomenda e a peça já sai amarrada na conta de quem comprou. Balcão: ninguém ainda.</div>
+        </div>
+        <div class="field" id="tg_codigoBloco">
+          <label>Código de ativação</label>
+          <div class="uid-linha"><input id="tg_codigo" placeholder="ACDE-FGHJ" oninput="tagPreview()"><button class="btn2" onclick="gerarCodigoTag()">Sortear</button></div>
+          <div class="hint" id="tg_codigoHint"></div>
+        </div>
+        <button class="btn" onclick="salvarTag()">Gravar certidão</button>
+      </div>
+      <div>
+        <div class="tablewrap"><table><thead><tr><th data-titulo>Tag</th><th>Modelo</th><th>Peça</th><th>Dono</th><th>Ativação</th><th></th></tr></thead><tbody id="tbTags"></tbody></table></div>
+        <div id="tagsGuia"></div>
+      </div>
+    </div>
   </div>
     <div class="subpanel" id="s-vendedores">
     <div class="panel-head">

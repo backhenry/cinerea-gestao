@@ -257,6 +257,37 @@ Armadilhas que apareceram no caminho, e que voltam:
 - **Aba escondida congela `requestAnimationFrame`.** Esperar por quadro no painel
   do navegador trava sem erro. Medir direto, ou buscar o instante.
 
+## Posse da peça (ago/2026)
+
+O UID do chip NFC não é segredo (ler é encostar o celular), então ele sozinho
+não provava posse: quem encostasse primeiro numa peça AINDA NÃO CADASTRADA a
+registrava na própria conta, publicava a vitrine, e o dono de verdade ficava
+trancado para fora da peça, sem volta. Reproduzido no emulador com as regras
+antigas.
+
+A prova virou uma escada, retrocompatível: peça sem marca continua como sempre;
+`pecas/{tagUid}.dono` amarra na conta de quem comprou pela loja do app;
+`ativacoes/{tagUid}.codigo` (leitura NEGADA para todos, conferida dentro da
+regra) cobre a venda de balcão, onde não há conta para amarrar. A casa pode
+APAGAR uma vitrine sequestrada, nunca escrever no lugar do cliente.
+
+- Tela: aba **Vender → Tags**. Grava a certidão (`pecas/{tagUid}`: modelo,
+  série, refil, `feitaEm` só no nascimento) e o dono, escolhido entre as
+  encomendas com `clienteUid`. `renderTags` + `salvarTag` + `soltarTag`
+  (desfaz o vínculo, para revenda ou engano) + `conferirTag` (busca UMA por
+  id, porque `pecas` tem `list: if false`).
+- A tabela sai de `db.tags`, ESPELHO local: listar `pecas` é proibido de
+  propósito, senão qualquer um enumera os UIDs de todas as peças vendidas.
+- `Core.normalizarTag/tagValida/tagTipica/codigoAtivacao/normalizarCodigo`,
+  puros e testados. O alfabeto do código não tem B, I, O, S, Z, 0, 1, 2, 5, 8:
+  o cliente copia de um cartão impresso e a regra compara texto exato.
+- CHAVE DE SEGURANÇA `db.checks.appPedeCodigo`: enquanto o app do cliente não
+  mandar o campo `ativacao` no primeiro `setDoc`, uma tag com código não é
+  registrada por NINGUÉM, nem pelo dono, e não há tela no celular que desfaça.
+  A aba recusa gravar código até a chave ser ligada à mão.
+- O contrato completo com o app está em `docs/posse-da-peca.md`. O que falta lá:
+  campo opcional "código do cartão" e `ativacao` no `setDoc` de `adicionarPeca`.
+
 ## Pendente / próximo
 - Domínio próprio: passos no README (exige compra do domínio pelo dono).
 - Push com app fechado (FCM + backend) se a equipe sentir falta.
