@@ -367,3 +367,142 @@ test('o dono apaga a própria vitrine; estranho não', async () => {
   await assertFails(fs('bruno').doc(`vitrines/${TAG}`).delete());
   await assertSucceeds(fs('ana').doc(`vitrines/${TAG}`).delete());
 });
+// ---------------------------------------------------------------------------
+// Encomendas: o caminho do DINHEIRO
+// ---------------------------------------------------------------------------
+// O teto de tamanho já era testado acima. O que faltava era o resto do
+// contrato, que é o que separa uma encomenda de um pedido forjado: de quem ela
+// é, com que situação nasce, e quem pode mexer nela depois de enviada.
+
+test('encomenda: cliente NÃO encomenda em nome de outro', () =>
+  // `clienteUid` é a única coisa que amarra a encomenda a uma pessoa: a casa
+  // cobra e entrega por ele. Livre, alguém enche a fila da produção assinando
+  // com o nome de quem nunca pediu nada.
+  assertFails(fs('bruno').collection('encomendas').doc('e_falsa').set({
+    clienteUid: 'ana', clienteNome: 'Ana', clienteEmail: 'a@b.c',
+    clienteTelefone: '11999999999', endereco: 'Rua X, 1', recado: '',
+    itens: [{ id: 'p1', nome: 'Apolo', preco: 200, qtd: 1 }],
+    totalVisto: 200, situacao: 'nova',
+  })));
+
+test('encomenda NASCE nova: ninguém cria uma já paga', () =>
+  // Sem esta linha da regra, o navegador escrevia `situacao: 'paga'` e pulava o
+  // pagamento inteiro: a gestão veria uma encomenda quitada que nunca foi.
+  assertFails(fs('ana').collection('encomendas').doc('e_paga').set({
+    clienteUid: 'ana', clienteNome: 'Ana', clienteEmail: 'a@b.c',
+    clienteTelefone: '11999999999', endereco: 'Rua X, 1', recado: '',
+    itens: [{ id: 'p1', nome: 'Apolo', preco: 200, qtd: 1 }],
+    totalVisto: 200, situacao: 'paga',
+  })));
+
+test('encomenda: o cliente NÃO reescreve o que já mandou', async () => {
+  // A regressão mais cara possível neste arquivo: se `update` escapar para o
+  // cliente, ele marca a própria encomenda como paga depois de criada, e a
+  // trava do teste acima não vale nada. Quem muda situação é a casa.
+  await assertFails(fs('ana').doc('encomendas/e1').update({ situacao: 'paga' }));
+  await assertFails(fs('ana').doc('encomendas/e1').update({ totalVisto: 1 }));
+  await assertSucceeds(fs('dacasa').doc('encomendas/e1').update({ situacao: 'aceita' }));
+});
+
+test('encomenda: nem o cliente nem a casa apagam', async () => {
+  // O histórico de compra é o comprovante dos dois lados.
+  await assertFails(fs('ana').doc('encomendas/e1').delete());
+  await assertFails(fs('dacasa').doc('encomendas/e1').delete());
+});
+
+test('encomenda: cada um lê as suas; a casa lê todas', async () => {
+  await assertSucceeds(fs('ana').doc('encomendas/e1').get());
+  await assertFails(fs('bruno').doc('encomendas/e1').get());
+  await assertSucceeds(fs('dacasa').doc('encomendas/e1').get());
+});
+
+test('encomendas: ninguém baixa a coleção inteira', async () => {
+  // Nome, e-mail, telefone e endereço de toda a clientela num `get()` só.
+  // A consulta filtrada por `clienteUid` é a que o app faz, e é a que passa.
+  await assertFails(fs('ana').collection('encomendas').get());
+  await assertFails(semLogin.collection('encomendas').get());
+  await assertSucceeds(
+    fs('ana').collection('encomendas').where('clienteUid', '==', 'ana').get());
+});
+
+// ---------------------------------------------------------------------------
+// Cupons: desconto é dinheiro
+// ---------------------------------------------------------------------------
+
+test('cupom: quem tem o código lê; ninguém baixa a lista', async () => {
+  await env.withSecurityRulesDisabled(async ctx =>
+    ctx.firestore().doc('cupons/AMIGA10').set({ desconto: 10, ativo: true }));
+  // O cupom nasce para ser divulgado: digitar o código já é prova de tê-lo
+  // recebido.
+  await assertSucceeds(semLogin.doc('cupons/AMIGA10').get());
+  // Mas a coleção inteira, não: com `list` aberto, qualquer visitante baixava
+  // todos e usava o maior desconto que existisse, sem ter visto anúncio nenhum.
+  await assertFails(semLogin.collection('cupons').get());
+  await assertFails(fs('ana').collection('cupons').get());
+  // A casa lista porque precisa apagar da loja o que já não existe no cadastro.
+  await assertSucceeds(fs('dacasa').collection('cupons').get());
+});
+
+test('cupom: cliente NÃO se auto-concede desconto', async () => {
+  await assertFails(fs('ana').doc('cupons/EU90').set({ desconto: 90, ativo: true }));
+  await assertFails(fs('ana').doc('cupons/AMIGA10').update({ desconto: 90 }));
+  await assertSucceeds(fs('dacasa').doc('cupons/DACASA20').set({ desconto: 20, ativo: true }));
+});
+
+// ---------------------------------------------------------------------------
+// Acessos: a porta de entrada da gestão
+// ---------------------------------------------------------------------------
+// Quem entra aqui enxerga faturamento, margem e a base de clientes. A regra
+// depende de `email_verified`, e essa dependência não tinha teste: era possível
+// removê-la sem nada ficar vermelho.
+
+test('acesso: só gestor autoriza um e-mail', async () => {
+  await assertSucceeds(
+    fs('dono1').doc('acessos/nova@cinerea.com.br').set({ empresaId: 'E1', papel: 'empregado' }));
+  await assertFails(
+    fs('emp1').doc('acessos/golpe@cinerea.com.br').set({ empresaId: 'E1', papel: 'admin' }));
+  await assertFails(
+    fs('forasteiro').doc('acessos/golpe@cinerea.com.br').set({ empresaId: 'E1', papel: 'admin' }));
+});
+
+test('acesso: cada um lê a própria autorização, não a dos outros', async () => {
+  const dela = env.authenticatedContext('nova', {
+    email: 'nova@cinerea.com.br', email_verified: true }).firestore();
+  const outra = env.authenticatedContext('curiosa', {
+    email: 'curiosa@cinerea.com.br', email_verified: true }).firestore();
+  await assertSucceeds(dela.doc('acessos/nova@cinerea.com.br').get());
+  await assertFails(outra.doc('acessos/nova@cinerea.com.br').get());
+  // A lista expõe os e-mails da equipe: é da casa, e de mais ninguém.
+  await assertFails(outra.collection('acessos').get());
+  await assertSucceeds(fs('dacasa').collection('acessos').get());
+});
+
+test('acesso: e-mail NÃO verificado não entra', async () => {
+  // ESTE É O TESTE QUE GUARDA A CASA. O Firebase não confere o e-mail no
+  // cadastro por senha: sem `email_verified`, quem descobrisse que
+  // nova@cinerea.com.br foi autorizada criava uma conta com esse endereço e
+  // entrava no lugar dela.
+  const fingindo = env.authenticatedContext('impostor', {
+    email: 'nova@cinerea.com.br', email_verified: false }).firestore();
+  await assertFails(
+    fingindo.doc('empresas/E1/membros/impostor').set({ nome: 'Eu', papel: 'empregado' }));
+});
+
+test('acesso: com o e-mail verificado, entra com o papel autorizado', async () => {
+  const dela = env.authenticatedContext('nova', {
+    email: 'nova@cinerea.com.br', email_verified: true }).firestore();
+  // O papel é o que a autorização diz, e não o que o navegador pede: sem esta
+  // conferência, a empregada autorizada entrava como admin e abria o
+  // financeiro.
+  await assertFails(
+    dela.doc('empresas/E1/membros/nova').set({ nome: 'Nova', papel: 'admin' }));
+  await assertSucceeds(
+    dela.doc('empresas/E1/membros/nova').set({ nome: 'Nova', papel: 'empregado' }));
+});
+
+test('acesso: autorização de um e-mail não serve para outro', async () => {
+  const outro = env.authenticatedContext('outro', {
+    email: 'outro@cinerea.com.br', email_verified: true }).firestore();
+  await assertFails(
+    outro.doc('empresas/E1/membros/outro').set({ nome: 'Outro', papel: 'empregado' }));
+});
