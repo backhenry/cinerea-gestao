@@ -506,3 +506,110 @@ test('acesso: autorização de um e-mail não serve para outro', async () => {
   await assertFails(
     outro.doc('empresas/E1/membros/outro').set({ nome: 'Outro', papel: 'empregado' }));
 });
+
+// ---------------------------------------------------------------------------
+// Posse da peça: o sequestro da vitrine ainda não publicada
+// ---------------------------------------------------------------------------
+// O buraco que estes testes fecham: conhecer o UID do chip era a única
+// credencial de uma peça, e conhecer o UID é encostar o celular nela uma vez.
+// Numa peça ainda NÃO publicada, quem encostasse primeiro registrava a peça na
+// conta dele, publicava a vitrine e travava o dono de verdade para sempre.
+
+test('peça sem dono e sem ativação: nada muda para quem já tinha', async () => {
+  // Tudo que foi vendido antes desta regra tem de continuar funcionando: é o
+  // único jeito de publicar a mudança sem quebrar a base instalada.
+  await assertSucceeds(fs('ana').doc('clientes/ana/pecas/LIVRE01').set({ nome: 'Peça antiga' }));
+  await assertSucceeds(fs('ana').doc('vitrines/LIVRE01').set({
+    dono: 'ana', tipo: 'recado', titulo: 'Recado', dados: 'como sempre foi',
+  }));
+});
+
+test('peça com dono de fábrica: o convidado não registra nem publica', async () => {
+  // A casa vendeu pela loja, onde ela SABE o uid de quem comprou, e carimbou a
+  // certidão. A partir daí o UID do chip não basta mais.
+  await env.withSecurityRulesDisabled(async ctx =>
+    ctx.firestore().doc('pecas/VENDIDA').set({ modelo: 'Apolo', serie: 7, dono: 'ana' }));
+
+  // O convidado encostou o celular na festa e tem o tagUid. Só isso.
+  await assertFails(fs('bruno').doc('clientes/bruno/pecas/VENDIDA').set({ nome: 'alheia' }));
+  await assertFails(fs('bruno').doc('vitrines/VENDIDA').set({
+    dono: 'bruno', tipo: 'recado', titulo: 'Oi', dados: 'sequestrada',
+  }));
+
+  // E a dona publica a dela, que é o ponto: a trava não pode atrapalhar quem é
+  // de direito.
+  await assertSucceeds(fs('ana').doc('clientes/ana/pecas/VENDIDA').set({ nome: 'Meu Apolo' }));
+  await assertSucceeds(fs('ana').doc('vitrines/VENDIDA').set({
+    dono: 'ana', tipo: 'recado', titulo: 'Recado', dados: 'minha peça',
+  }));
+});
+
+test('registro velho não fura a certidão de fábrica', async () => {
+  // Cinto e suspensório: um registro criado ANTES desta regra continua na conta
+  // do invasor, e sem a conferência na vitrine ele ainda publicaria.
+  await env.withSecurityRulesDisabled(async ctx =>
+    ctx.firestore().doc('clientes/bruno/pecas/VENDIDA').set({ nome: 'registro antigo' }));
+  await assertFails(fs('bruno').doc('vitrines/VENDIDA').set({
+    dono: 'bruno', tipo: 'recado', titulo: 'Oi', dados: 'pela porta dos fundos',
+  }));
+});
+
+test('código de ativação: sem o cartão, não registra', async () => {
+  // Venda de balcão: no ateliê não há uid para carimbar, então a peça sai com um
+  // código impresso no cartão. Quem tem o cartão teve a peça na mão.
+  await env.withSecurityRulesDisabled(async ctx => {
+    const d = ctx.firestore();
+    await d.doc('pecas/BALCAO').set({ modelo: 'Ondina', serie: 3 });
+    await d.doc('ativacoes/BALCAO').set({ codigo: 'K7M2-P9' });
+  });
+  await assertFails(fs('bruno').doc('clientes/bruno/pecas/BALCAO').set({ nome: 'sem codigo' }));
+  await assertFails(
+    fs('bruno').doc('clientes/bruno/pecas/BALCAO').set({ nome: 'chutando', ativacao: 'AAAA-11' }));
+  await assertSucceeds(
+    fs('ana').doc('clientes/ana/pecas/BALCAO').set({ nome: 'Minha Ondina', ativacao: 'K7M2-P9' }));
+});
+
+test('o código não se lê: nem cliente, nem quem é da casa', async () => {
+  // Se desse para pedir o documento, bastava lê-lo para descobrir o código, e o
+  // cartão impresso não valeria nada. Quem confere é a regra, por dentro.
+  await assertFails(fs('bruno').doc('ativacoes/BALCAO').get());
+  await assertFails(fs('dacasa').doc('ativacoes/BALCAO').get());
+  await assertFails(semLogin.doc('ativacoes/BALCAO').get());
+  // Escrever, só a casa: é ela que embala a peça.
+  await assertFails(fs('ana').doc('ativacoes/BALCAO').set({ codigo: 'MEU' }));
+  await assertSucceeds(fs('dacasa').doc('ativacoes/NOVA01').set({ codigo: 'X1Y2-Z3' }));
+});
+
+test('o código se prova uma vez, e não a cada gravação', async () => {
+  // Exigir o código em toda gravação obrigaria o app a guardá-lo para sempre no
+  // aparelho, que é o oposto de um segredo.
+  await assertSucceeds(
+    fs('ana').doc('clientes/ana/pecas/BALCAO').set({ nome: 'Ondina da sala' }, { merge: true }));
+});
+
+test('a casa desfaz o sequestro de uma peça antiga', async () => {
+  // Para tudo que foi vendido antes da certidão com `dono`, o conserto não pode
+  // ser "não há o que fazer". A casa apaga a vitrine tomada, e o dono publica.
+  await env.withSecurityRulesDisabled(async ctx => {
+    const d = ctx.firestore();
+    await d.doc('clientes/bruno/pecas/ANTIGA').set({ nome: 'tomada' });
+    await d.doc('clientes/ana/pecas/ANTIGA').set({ nome: 'a de verdade' });
+    await d.doc('vitrines/ANTIGA').set({
+      dono: 'bruno', tipo: 'recado', titulo: 'Oi', dados: 'cheguei primeiro' });
+  });
+  // A dona de verdade continua barrada enquanto a vitrine do outro estiver lá.
+  await assertFails(fs('ana').doc('vitrines/ANTIGA').set({
+    dono: 'ana', tipo: 'recado', titulo: 'Recado', dados: 'minha peça' }));
+  // A casa apaga...
+  await assertSucceeds(fs('dacasa').doc('vitrines/ANTIGA').delete());
+  // ...e aí sim.
+  await assertSucceeds(fs('ana').doc('vitrines/ANTIGA').set({
+    dono: 'ana', tipo: 'recado', titulo: 'Recado', dados: 'minha peça' }));
+});
+
+test('a casa não publica em nome de ninguém, só apaga', async () => {
+  // A porta de serviço é estreita de propósito: apagar resolve o sequestro,
+  // escrever seria a casa falando pela boca do cliente.
+  await assertFails(fs('dacasa').doc('vitrines/ANTIGA').set({
+    dono: 'dacasa', tipo: 'recado', titulo: 'Oi', dados: 'pela casa' }));
+});
