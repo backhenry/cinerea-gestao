@@ -366,3 +366,45 @@ test('brl formata em real brasileiro', () => {
   assert.equal(C.brl(0), 'R$ 0,00');
   assert.equal(C.brl('abc'), 'R$ 0,00');
 });
+
+// ---------- posse da peça ----------
+
+test('normalizarTag: três grafias do mesmo chip viram um id só', () => {
+  assert.equal(C.normalizarTag('04:A2:B3:C4:D5'), '04A2B3C4D5');
+  assert.equal(C.normalizarTag('04-a2-b3-c4-d5'), '04A2B3C4D5');
+  assert.equal(C.normalizarTag(' 04 a2 b3 c4 d5 '), '04A2B3C4D5');
+  assert.equal(C.normalizarTag(null), '');
+});
+
+test('tagValida aceita o que pode ser UID e recusa digitação', () => {
+  assert.equal(C.tagValida('04A2B3C4'), true);        // 4 bytes
+  assert.equal(C.tagValida('04A2B3C4D5E6F7'), true);  // 7 bytes
+  assert.equal(C.tagValida('04A2B3C'), false);        // ímpar
+  assert.equal(C.tagValida('04A2B3'), false);         // curta demais
+  assert.equal(C.tagValida('ZZZZZZZZ'), false);       // não é hex
+});
+
+test('tagTipica avisa do incomum sem impedir', () => {
+  assert.equal(C.tagTipica('04A2B3C4D5E6F7'), true);
+  // 5 bytes existe em chip nenhum que a Cinérea usa, mas tagValida deixa passar:
+  // quem decide o que chega é o leitor do celular, não esta função.
+  assert.equal(C.tagTipica('04A2B3C4D5'), false);
+  assert.equal(C.tagValida('04A2B3C4D5'), true);
+});
+
+test('codigoAtivacao sai no formato do cartão e sem letra ambígua', () => {
+  assert.equal(C.codigoAtivacao(() => 0), 'AAAA-AAAA');
+  const c = C.codigoAtivacao();
+  assert.match(c, /^[ACDEFGHJKLMNPQRTUVWXY34679]{4}-[ACDEFGHJKLMNPQRTUVWXY34679]{4}$/);
+  // B, I, O, S e Z ficaram de fora porque em papel viram 8, 1, 0, 5 e 2.
+  assert.equal(/[BIOSZ0125]/.test(c.replace('-', '')), false);
+});
+
+test('normalizarCodigo é o contrato com o app: os dois lados chegam no mesmo texto', () => {
+  assert.equal(C.normalizarCodigo('acde fghj'), 'ACDE-FGHJ');
+  assert.equal(C.normalizarCodigo('ACDE-FGHJ'), 'ACDE-FGHJ');
+  // Comprimento errado não vira código pela metade: vira vazio, e a gravação
+  // falha aqui em vez de gravar um segredo que nunca vai conferir.
+  assert.equal(C.normalizarCodigo('ACDE'), '');
+  assert.equal(C.normalizarCodigo(''), '');
+});
