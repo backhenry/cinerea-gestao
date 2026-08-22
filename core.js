@@ -418,3 +418,77 @@ export function sementeRamo(ramo, novoId = uidGen) {
     rotulos: r.rotulos,
   };
 }
+
+// ---------- posse da peça: tag e código de ativação ----------
+//
+// Uma peça é identificada pelo UID de fábrica do chip NFC embutido nela.
+// O UID não é segredo (sai na leitura, e ler é encostar o celular), então
+// ele sozinho não prova posse: quem provava posse era só quem chegasse
+// primeiro. As regras do Firestore passaram a exigir uma segunda prova, e
+// é a gestão que a emite — `pecas/{tagUid}.dono` quando a casa já sabe de
+// quem é, e `ativacoes/{tagUid}.codigo` quando não sabe (venda de balcão).
+
+/**
+ * UID de tag como o Firestore vai guardar: hexadecimal, maiúsculo, sem
+ * separador. Leitores escrevem `04:A2:B3` , `04-a2-b3` e `04 A2 B3` para o
+ * MESMO chip, e três grafias do mesmo UID viram três documentos, dos quais
+ * dois nunca são consultados por ninguém.
+ */
+export function normalizarTag(v) {
+  return String(v ?? '').toUpperCase().replace(/[^0-9A-F]/g, '');
+}
+
+/**
+ * Aceita o que PODE ser um UID: hexadecimal, número par de dígitos, de 8 a
+ * 20 (4 a 10 bytes). A certidão é gravada num documento cujo id é este
+ * texto, e um id digitado errado é uma certidão que a peça real nunca vai
+ * apresentar — vale barrar antes.
+ *
+ * Barrar mais que isto seria pior: os comprimentos DE FATO usados são 8, 14
+ * e 20, mas quem decide qual chega é o leitor do celular, e recusar um chip
+ * de verdade porque a regra era estreita trava a casa sem recurso. Quem
+ * quiser avisar do incomum usa `tagTipica()`, que não impede nada.
+ */
+export function tagValida(v) {
+  const t = normalizarTag(v);
+  return t.length >= 8 && t.length <= 20 && t.length % 2 === 0;
+}
+
+/** Comprimento dos chips que se vê na prática: 4, 7 ou 10 bytes. */
+export function tagTipica(v) {
+  const n = normalizarTag(v).length;
+  return n === 8 || n === 14 || n === 20;
+}
+
+/**
+ * Alfabeto do código de ativação, sem os pares que se confundem em papel
+ * impresso: falta B (vira 8), I e 1, O e 0, S e 5, Z e 2. O cliente vai
+ * copiar isto de um cartão pequeno, à mão, e um caractere ambíguo custa um
+ * atendimento — a regra do Firestore compara texto exato, não parecido.
+ */
+const ALFABETO_CODIGO = 'ACDEFGHJKLMNPQRTUVWXY34679';
+
+/**
+ * Código de ativação no formato canônico `ABCD-EFGH`.
+ *
+ * O sorteio entra por parâmetro para o teste poder fixá-lo. São 26^8, uns
+ * 2·10^11 códigos: não se adivinha, e nem adianta tentar em série, porque
+ * cada tentativa é uma gravação que a regra recusa.
+ */
+export function codigoAtivacao(sorteio = Math.random) {
+  let s = '';
+  for (let i = 0; i < 8; i++) s += ALFABETO_CODIGO[Math.floor(sorteio() * ALFABETO_CODIGO.length)];
+  return s.slice(0, 4) + '-' + s.slice(4);
+}
+
+/**
+ * O código como a regra vai compará-lo. ESTE É O CONTRATO com o app do
+ * cliente: os dois lados normalizam igual, ou o dono legítimo digita o
+ * código certo do cartão e leva "não é sua". Está escrito em
+ * docs/posse-da-peca.md por isso.
+ */
+export function normalizarCodigo(v) {
+  const s = String(v ?? '').toUpperCase().replace(/[^0-9A-Z]/g, '')
+    .split('').filter(c => ALFABETO_CODIGO.includes(c)).join('');
+  return s.length === 8 ? s.slice(0, 4) + '-' + s.slice(4) : '';
+}

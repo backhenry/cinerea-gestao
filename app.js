@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, verifyBeforeUpdateEmail, sendEmailVerification, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, arrayUnion, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, arrayUnion, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
 import * as Core from "./core.js";
@@ -30,7 +30,7 @@ let gravacaoPendente=false;
 /* Exclusão DELIBERADA desde o último snapshot. Existe para o guarda de
    `cloudSave` saber diferenciar "o dono apagou" de "a lista encolheu sozinha". */
 let apagouDeProposito=false;
-let db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],colecoes:[],banners:[],meta:0,checks:{}};
+let db={tags:[],acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],colecoes:[],banners:[],meta:0,checks:{}};
 // dados financeiros vivem num doc separado (empresas/{eid}/fin/dados), só dono/admin/sócio leem
 const FIN_KEYS=['fixos','meta','meiTeto','ultimoBackup'];
 const PROD_FIN=['preco','markup','taxa','custohora','perda','equip'];
@@ -39,7 +39,7 @@ function rebuildDb(){
   // A memória passa a ser o servidor: o que foi apagado já está refletido.
   apagouDeProposito=false;
   const base=JSON.parse(JSON.stringify(rawOp||{}));
-  db={acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],meta:0,checks:{},...base};
+  db={tags:[],acessos:[],equip:[],moldes:[],insumos:[],produtos:[],producao:[],pedidos:[],compras:[],fixos:[],clientes:[],canais:[],tarefas:[],cotacoes:[],fornecedores:[],atividade:[],vendedores:[],cupons:[],meta:0,checks:{},...base};
   if(rawFin){
     FIN_KEYS.forEach(k=>{if(rawFin[k]!==undefined)db[k]=rawFin[k];});
     const pf=rawFin.prodFin||{};db.produtos.forEach(p=>Object.assign(p,pf[p.id]||{}));
@@ -1192,7 +1192,7 @@ window.saveCheck=saveCheck;
 // e 8 gráficos. O badge da Equipe e os rótulos seguem sempre atualizados.
 const RENDER_ABA={
   dashboard:()=>renderDash(),
-  vender:()=>{renderPedidos();renderClientes();renderCanais();renderPostProdutos();renderVendedores();renderCupons();renderComissoes();},
+  vender:()=>{renderPedidos();renderClientes();renderCanais();renderPostProdutos();renderVendedores();renderCupons();renderComissoes();renderTags();},
   produzir:()=>{renderProducao();renderMoldes();renderEquip();},
   comprar:()=>{renderCompras();renderComprasHist();renderCotacoes();renderFornecedores();renderInsumos();},
   numeros:()=>{renderProdutos();renderFixos();renderColecoes();renderBanner();renderFrete();avisoCatalogo();},
@@ -2628,6 +2628,296 @@ async function recusarEncomenda(id){
     renderEncomendas();toast('Encomenda marcada');
   }catch(err){console.error(err);toast('Não consegui atualizar');}
 }
+
+
+// ===========================================================================
+// TAGS: a certidão da peça, e de quem ela é
+//
+// `pecas/{tagUid}` é a CERTIDÃO: modelo, número da série, quando foi feita e
+// onde comprar o refil. Leitura aberta, escrita só de quem é da casa, e é isso
+// que impede alguém de inventar que tem uma Cinérea. O app do cliente já lê e
+// mostra na tela da peça; até aqui não havia tela nenhuma para GRAVAR.
+//
+// O campo novo é `dono`. Sem ele, conhecer o UID do chip era a única
+// credencial da peça, e conhecer o UID é encostar o celular nela uma vez: um
+// convidado na festa registrava a peça na conta dele, publicava a vitrine
+// primeiro, e o dono de verdade ficava trancado para fora da própria peça, sem
+// volta. Com `dono` gravado, a regra só deixa aquela conta registrar.
+//
+// Quando a casa NÃO sabe de quem é (venda de balcão, sem conta), a prova vira
+// `ativacoes/{tagUid}.codigo`, impresso no cartão que vai dentro da caixa.
+// Ninguém lê esse documento, nem quem é da casa: a regra o confere do lado do
+// servidor, onde `get()` enxerga mesmo com a leitura negada.
+//
+// AQUI NÃO SE LISTA NADA. `pecas` tem `list: if false` de propósito: com a
+// lista aberta, qualquer um enumera os UIDs de todas as peças vendidas, e o
+// UID deixa de significar "encostei nesta peça" — que é a premissa em que o
+// sistema inteiro se apoia. Por isso a tabela desta tela sai de `db.tags`, um
+// ESPELHO local do que esta casa gravou, e Conferir busca UMA tag por id para
+// comparar espelho e servidor.
+//
+// O espelho guarda o código junto. Ele é segredo do CLIENTE, não da equipe:
+// quem embala a caixa imprime o cartão, e sem guardar não dá para reimprimir
+// um cartão perdido. Quem tem acesso à gestão já tem acesso às peças.
+
+function tagsOrdenadas(){
+  return [...(db.tags||[])].sort((a,b)=>String(b.em||'').localeCompare(String(a.em||'')));
+}
+
+/** Encomendas que dão para amarrar: as que trazem a conta de quem comprou. */
+function encomendasComConta(){
+  return (encomendas||[]).filter(e=>e.clienteUid)
+    .sort((a,b)=>String(b.criadaEm||b.em||'').localeCompare(String(a.criadaEm||a.em||'')));
+}
+
+function rotuloEncomenda(e){
+  const itens=(e.itens||[]).map(i=>`${i.qtd||1}x ${i.nome||'peça'}`).join(', ');
+  return `${e.clienteNome||'sem nome'} · ${itens||'sem itens'}`;
+}
+
+function appPedeCodigo(){ return !!(db.checks&&db.checks.appPedeCodigo); }
+
+/**
+ * A chave que impede o tiro no pé. Uma tag com código de ativação só é
+ * registrável por quem MANDA o código, e quem manda o código é o app — que
+ * hoje não manda. Gravar um código antes disso não protege a peça: tranca-a
+ * para todo mundo, inclusive para o dono, e não há tela que desfaça no
+ * celular dele.
+ */
+function tagAppPronto(v){
+  db.checks=db.checks||{};
+  db.checks.appPedeCodigo=!!v;
+  cloudSave();renderTags();
+}
+
+function preencherSelectProdutoTag(){
+  const sel=document.getElementById('tg_produto');
+  if(!sel)return;
+  const atual=sel.value;
+  const itens=(db.produtos||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+  sel.innerHTML='<option value="">escrever o nome à mão</option>'
+    +itens.map(p=>`<option value="${esc(p.id)}">${esc(p.nome||'sem nome')}</option>`).join('');
+  if(atual)sel.value=atual;
+}
+
+function preencherSelectDonoTag(){
+  const sel=document.getElementById('tg_dono');
+  if(!sel)return;
+  const atual=sel.value;
+  const lista=encomendasComConta();
+  sel.innerHTML='<option value="">Ninguém ainda (venda de balcão)</option>'
+    +lista.map(e=>`<option value="${esc(e.id)}">${esc(rotuloEncomenda(e))}</option>`).join('');
+  if(atual)sel.value=atual;
+}
+
+function tagDoProduto(id){
+  if(!id)return;
+  const p=(db.produtos||[]).find(x=>String(x.id)===String(id));
+  if(!p)return;
+  const m=document.getElementById('tg_modelo');
+  if(m)m.value=p.nome||'';
+  tagPreview();
+}
+
+/**
+ * Diz o que vai ser gravado ANTES de gravar, porque os dois erros desta tela
+ * são silenciosos: um UID digitado errado grava uma certidão perfeita num id
+ * que peça nenhuma apresenta, e um código gravado cedo demais tranca a peça.
+ */
+function tagPreview(){
+  const bruto=val('tg_uid');
+  const u=Core.normalizarTag(bruto);
+  const h=document.getElementById('tg_uidHint');
+  if(h){
+    if(!bruto.trim())h.textContent='O número que o app mostra ao ler a peça. Pode colar com dois-pontos ou traço, arrumamos aqui.';
+    else if(!Core.tagValida(u))h.innerHTML='<b>Isto não parece um UID.</b> Esperamos de 8 a 20 dígitos hexadecimais (0-9 e A-F), em número par. Veio '+u.length+'.';
+    else if(!Core.tagTipica(u))h.innerHTML='Vai ser gravado como <code>'+esc(u)+'</code>. Comprimento incomum: os chips que a Cinérea usa dão 8, 14 ou 20 dígitos. Confira antes de gravar.';
+    else h.innerHTML='Vai ser gravado como <code>'+esc(u)+'</code>.';
+  }
+  const bloco=document.getElementById('tg_codigoBloco');
+  const hc=document.getElementById('tg_codigoHint');
+  const temDono=!!val('tg_dono');
+  if(bloco)bloco.style.opacity=temDono?'.5':'';
+  if(hc){
+    if(temDono)hc.innerHTML='Com <b>dono</b> escolhido o código não faz falta: a peça já está amarrada naquela conta. Deixe vazio.';
+    else if(!appPedeCodigo())hc.innerHTML='<b>Trancado</b> enquanto o app do cliente não pedir o código no primeiro cadastro. Ligue a chave abaixo da tabela quando ele pedir, não antes: uma tag com código que o app não sabe mandar não é registrada por ninguém, nem pelo dono.';
+    else hc.innerHTML='Vai impresso no cartão dentro da caixa. O cliente digita no app ao cadastrar a peça, uma vez. Guardamos aqui para reimprimir.';
+  }
+}
+
+function renderTags(){
+  const tb=document.getElementById('tbTags');
+  if(!tb)return;
+  preencherSelectProdutoTag();preencherSelectDonoTag();tagPreview();
+
+  const lista=tagsOrdenadas();
+  tb.innerHTML=lista.length?lista.map(t=>{
+    const peca=(t.serie&&t.total)?`${t.serie} de ${t.total}`:(t.serie?String(t.serie):'não numerada');
+    const dono=t.dono
+      ? `${esc(t.donoNome||'conta do app')}<div class="uid-linha"><code>${esc(t.dono)}</code></div>`
+      : '<span class="pill warn">de balcão</span>';
+    const ativ=t.codigo
+      ? `<code>${esc(t.codigo)}</code> <button class="icon-btn" title="Copiar o código" onclick="copiarUid('${esc(t.codigo)}')">${ico("copiar","Copiar o código")}</button>`
+      : (t.dono?'<span class="pill ok">pelo dono</span>':'<span class="pill low">sem prova</span>');
+    return `<tr>
+      <td><code>${esc(t.uid)}</code> <button class="icon-btn" title="Copiar o uid" onclick="copiarUid('${esc(t.uid)}')">${ico("copiar","Copiar o uid")}</button></td>
+      <td>${esc(t.modelo||'sem nome')}</td>
+      <td>${esc(peca)}</td>
+      <td>${dono}</td>
+      <td>${ativ}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" title="Conferir no servidor" onclick="conferirTag('${esc(t.uid)}')">${ico("lupa","Conferir no servidor")}</button>
+        <button class="icon-btn" title="Editar" onclick="editarTag('${esc(t.uid)}')">${ico("lapis","Editar")}</button>
+        <button class="icon-btn" title="Soltar a peça" onclick="soltarTag('${esc(t.uid)}')">${ico("cadeado","Soltar a peça")}</button>
+      </div></td>
+    </tr>`;
+  }).join(''):`<tr><td colspan=6><div class="empty-t">Nenhuma tag gravada ainda. A primeira sai na próxima peça que você embalar.</div></td></tr>`;
+
+  const guia=document.getElementById('tagsGuia');
+  if(guia)guia.innerHTML=`<div class="hint-box" style="margin-top:16px">
+    <b>Peça vendida pelo app:</b> escolha a encomenda em <b>Dono</b>. A peça já sai
+    amarrada na conta de quem comprou e não precisa de cartão nenhum.<br>
+    <b>Peça vendida no balcão:</b> não há conta para amarrar. A prova vira um código
+    impresso no cartão da caixa, e ele só funciona depois que o app pedir o código.
+  </div>
+  <label class="hint-box" style="display:block;cursor:pointer">
+    <input type="checkbox" id="tg_appPronto" ${appPedeCodigo()?'checked':''} onchange="tagAppPronto(this.checked)">
+    O app do cliente <b>já pede</b> o código de ativação no primeiro cadastro da peça
+    <div class="hint" style="margin-top:6px">Enquanto isto estiver desligado, a tela recusa gravar código. Ligado antes da hora, cada tag com código vira uma peça que ninguém registra.</div>
+  </label>`;
+
+  const aviso=document.getElementById('tagsAviso');
+  if(aviso)aviso.innerHTML=(encomendas||[]).length?'':
+    '<div class="hint-box">As encomendas ainda não foram buscadas nesta sessão, então a lista de donos está vazia. Abra <b>Encomendas</b> uma vez, ou toque em Atualizar por lá.</div>';
+}
+
+/**
+ * O que falhou, dito pelo servidor e não por palpite. Gravar em `pecas` exige
+ * `gestores/{uid}`, a mesma coleção que decide quem é da casa, e é o motivo de
+ * quase toda recusa aqui.
+ */
+function porQueFalhouTag(e){
+  const cod=e?.code||e?.name||'erro';
+  if(cod!=='permission-denied')
+    return 'Não gravei: <code>'+esc(cod)+'</code>. Não é recusa de permissão; <code>unavailable</code> é rede.';
+  const u=auth.currentUser;
+  return 'Não gravei: o servidor recusou. Gravar certidão exige estar em <code>gestores/'
+    +esc(u?u.uid:'seu-uid')+'</code>, e as regras publicadas precisam ser as de <code>docs/firestore.rules</code>.';
+}
+
+async function salvarTag(){
+  const bruto=val('tg_uid');
+  const u=Core.normalizarTag(bruto);
+  if(!Core.tagValida(u))return toast('Confira o UID da tag: esperamos de 8 a 20 dígitos hexadecimais, em número par.');
+
+  const modelo=val('tg_modelo').trim();
+  if(!modelo)return toast('Falta o nome na certidão, é o que o dono vê como procedência.');
+
+  const serie=val('tg_serie')===''?null:Math.round(num(val('tg_serie')));
+  const total=val('tg_total')===''?null:Math.round(num(val('tg_total')));
+  if(serie&&total&&serie>total)return toast('A peça '+serie+' não cabe numa série de '+total+'.');
+
+  const refil=val('tg_refil').trim()||null;
+  const enc=val('tg_dono')?(encomendas||[]).find(x=>x.id===val('tg_dono')):null;
+  const digitado=val('tg_codigo').trim();
+  const codigo=Core.normalizarCodigo(digitado);
+
+  // Os dois juntos não somam proteção, somam maneiras de o dono não conseguir:
+  // a regra exige as DUAS provas, então ele teria de estar na conta certa E ter
+  // o cartão em mãos. Escolher um é a decisão, não um detalhe de formulário.
+  if(digitado&&enc)return toast('Escolha um: ou o dono, ou o código. Com dono gravado, o código só cria um segundo jeito de falhar.');
+  if(digitado&&!appPedeCodigo())return toast('O app ainda não pede código. Ligue a chave abaixo da tabela só quando ele pedir: antes disso a tag fica trancada para todos.');
+  if(digitado&&!codigo)return toast('Código incompleto. São 8 letras e números, no formato ACDE-FGHJ.');
+
+  const jaTinha=(db.tags||[]).some(t=>t.uid===u);
+  const corpo={modelo,serie,total,refil};
+  if(enc)corpo.dono=enc.clienteUid;
+  // `feitaEm` só no nascimento: reescrever a cada edição faria a peça mudar de
+  // data de fabricação toda vez que alguém corrigisse o link do refil.
+  if(!jaTinha)corpo.feitaEm=serverTimestamp();
+
+  try{
+    await setDoc(doc(fdb,'pecas',u),corpo,{merge:true});
+    if(codigo)await setDoc(doc(fdb,'ativacoes',u),{codigo},{merge:true});
+  }catch(e){console.error(e);return toast(porQueFalhouTag(e));}
+
+  const linha={uid:u,modelo,serie,total,refil,
+    dono:enc?enc.clienteUid:'',donoNome:enc?(enc.clienteNome||''):'',encomendaId:enc?enc.id:'',
+    codigo:codigo||'',em:new Date().toISOString()};
+  db.tags=db.tags||[];
+  const i=db.tags.findIndex(t=>t.uid===u);
+  if(i>=0)db.tags[i]={...db.tags[i],...linha};else db.tags.push(linha);
+  logAtv((jaTinha?'atualizou':'gravou')+' a certidão da tag '+u);
+  cloudSave();
+
+  ['tg_uid','tg_serie','tg_codigo'].forEach(k=>{const el=document.getElementById(k);if(el)el.value='';});
+  renderTags();
+  toast(enc?('Certidão gravada e amarrada em '+esc(enc.clienteNome||'quem comprou'))
+           :(codigo?'Certidão gravada. Imprima <code>'+esc(codigo)+'</code> no cartão da caixa.'
+                   :'Certidão gravada, sem dono ainda.'));
+}
+
+function editarTag(u){
+  const t=(db.tags||[]).find(x=>x.uid===u);
+  if(!t)return;
+  const set=(k,v)=>{const el=document.getElementById(k);if(el)el.value=v==null?'':String(v);};
+  set('tg_uid',t.uid);set('tg_modelo',t.modelo);set('tg_serie',t.serie);
+  set('tg_total',t.total);set('tg_refil',t.refil);set('tg_codigo',t.codigo);
+  const sd=document.getElementById('tg_dono');
+  if(sd)sd.value=(encomendas||[]).some(e=>e.id===t.encomendaId)?t.encomendaId:'';
+  tagPreview();
+  document.getElementById('tg_uid')?.scrollIntoView({block:'center'});
+}
+
+function gerarCodigoTag(){
+  if(!appPedeCodigo())return toast('O app ainda não pede código. Ligue a chave abaixo da tabela quando ele passar a pedir.');
+  const el=document.getElementById('tg_codigo');
+  if(!el)return;
+  el.value=Core.codigoAtivacao();
+  tagPreview();
+}
+
+/**
+ * Soltar é o conserto e a revenda no mesmo botão: tira o dono e o código, e a
+ * peça volta a ser registrável por quem a tiver em mãos, que é exatamente
+ * como tudo funcionava antes desta regra. É também a única saída quando uma
+ * tag foi amarrada na encomenda errada.
+ */
+async function soltarTag(u){
+  if(!confirm('Soltar a tag '+u+'? Ela volta a aceitar registro de qualquer conta que encostar na peça.'))return;
+  try{
+    await setDoc(doc(fdb,'pecas',u),{dono:deleteField()},{merge:true});
+    await deleteDoc(doc(fdb,'ativacoes',u));
+  }catch(e){console.error(e);return toast(porQueFalhouTag(e));}
+  const t=(db.tags||[]).find(x=>x.uid===u);
+  if(t){t.dono='';t.donoNome='';t.encomendaId='';t.codigo='';}
+  logAtv('soltou a tag '+u);
+  cloudSave();renderTags();
+  toast('Tag solta.');
+}
+
+/**
+ * O espelho pode mentir: outra pessoa da casa grava de outro computador, ou a
+ * gravação falhou depois que a linha já tinha entrado aqui. Conferir busca a
+ * certidão de verdade: UMA, por id, que é o único jeito que a regra permite.
+ * O código NÃO dá para conferir: `ativacoes` não se lê, nem daqui.
+ */
+async function conferirTag(u){
+  try{
+    const d=await getDoc(doc(fdb,'pecas',u));
+    if(!d.exists())return toast('No servidor não existe certidão para <code>'+esc(u)+'</code>. Grave de novo.');
+    const s=d.data()||{};
+    const t=(db.tags||[]).find(x=>x.uid===u)||{};
+    const donoServidor=s.dono||'';
+    const bate=donoServidor===(t.dono||'');
+    toast('No servidor: <b>'+esc(s.modelo||'sem modelo')+'</b>'
+      +(s.serie&&s.total?', peça '+s.serie+' de '+s.total:'')
+      +(donoServidor?', dono <code>'+esc(donoServidor)+'</code>':', sem dono')
+      +(bate?'.':' — <b>diferente</b> do que esta tela mostra.'));
+  }catch(e){console.error(e);toast(porQueFalhouTag(e));}
+}
+
+Object.assign(window,{renderTags,salvarTag,editarTag,soltarTag,conferirTag,gerarCodigoTag,tagDoProduto,tagPreview,tagAppPronto});
 
 // ===========================================================================
 // VENDEDORES E CUPONS
