@@ -3396,6 +3396,17 @@ Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,aviso
  * peça demorando a aparecer. 1200px de lado maior é mais do que suficiente
  * para uma vitrine, e a regra do Storage recusa acima de 2 MB de qualquer jeito.
  */
+/*
+ * WEBP, e não JPEG, desde nov/2026. Medido no Lighthouse da loja: as fotos em
+ * JPEG eram o maior peso da página, com 525 KB a economizar só no formato. Cada
+ * foto sai uma vez por peça para cada visitante, em dados móveis.
+ *
+ * O WebP sai do próprio canvas, mas nem todo navegador sabe GERAR WebP: quem
+ * não sabe devolve PNG em silêncio, que é maior que o JPEG de antes. Por isso
+ * o tipo do resultado é conferido, e o JPEG volta a ser o plano B. O tipo
+ * escolhido viaja no próprio blob (`blob.type`), e é dele que o envio tira a
+ * extensão e o `contentType`.
+ */
 function comprimirImagem(file, ladoMax=1200, qualidade=0.82){
   return new Promise((ok,erro)=>{
     const img=new Image();
@@ -3404,8 +3415,11 @@ function comprimirImagem(file, ladoMax=1200, qualidade=0.82){
       const c=document.createElement('canvas');
       c.width=Math.round(img.width*escala); c.height=Math.round(img.height*escala);
       c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-      c.toBlob(b=>b?ok(b):erro(new Error('nao consegui comprimir')),'image/jpeg',qualidade);
       URL.revokeObjectURL(img.src);
+      c.toBlob(w=>{
+        if(w && w.type==='image/webp') return ok(w);
+        c.toBlob(b=>b?ok(b):erro(new Error('nao consegui comprimir')),'image/jpeg',qualidade);
+      },'image/webp',qualidade);
     };
     img.onerror=()=>erro(new Error('arquivo nao parece ser imagem'));
     img.src=URL.createObjectURL(file);
@@ -3423,7 +3437,9 @@ function comprimirImagem(file, ladoMax=1200, qualidade=0.82){
  * e inventar um aqui faria o salvamento achar que é uma edição e procurar um
  * registro que não existe.
  */
-function caminhoDaFoto(urlAtual){
+function extensaoDe(blob){ return blob && blob.type==='image/webp' ? 'webp' : 'jpg'; }
+
+function caminhoDaFoto(urlAtual, ext='jpg'){
   // O uid entra no CAMINHO porque é assim que a regra do Storage confere quem
   // pode escrever: cada um só grava dentro da própria pasta. Antes a regra
   // perguntava ao Firestore quem era da casa, e essa ponte exigia uma permissão
@@ -3433,9 +3449,11 @@ function caminhoDaFoto(urlAtual){
     const caminho=decodeURIComponent(m[1]);
     // Só reaproveita o arquivo se ele já estiver na pasta certa. Foto antiga,
     // do formato sem uid, seria recusada, melhor gravar uma nova.
-    if(caminho.startsWith(`produtos/${uid}/`))return caminho;
+    // E só se for do MESMO formato: reaproveitar um `.jpg` para gravar WebP
+    // deixaria o nome do arquivo mentindo sobre o que ele é.
+    if(caminho.startsWith(`produtos/${uid}/`) && caminho.endsWith('.'+ext))return caminho;
   }
-  return `produtos/${uid}/${uidGen()}${uidGen().slice(0,4)}.jpg`;
+  return `produtos/${uid}/${uidGen()}${uidGen().slice(0,4)}.${ext}`;
 }
 
 /** Chamado pelo campo de foto no formulário de produto. */
@@ -3470,8 +3488,8 @@ async function escolherImagem(input, campo, pasta, ladoMax, tetoKB){
         + 'Tente uma imagem menos detalhada, ou com menos texto dentro dela.');
       return;
     }
-    const caminho = `${pasta}/${uid}/${campo}-${Date.now()}.jpg`;
-    await uploadBytes(sRef(fstore, caminho), blob, {contentType:'image/jpeg'});
+    const caminho = `${pasta}/${uid}/${campo}-${Date.now()}.${extensaoDe(blob)}`;
+    await uploadBytes(sRef(fstore, caminho), blob, {contentType:blob.type||'image/jpeg'});
     const url = await getDownloadURL(sRef(fstore, caminho));
     if(alvo) alvo.value = url;
     if(prev){ prev.src = url; prev.style.display = 'block'; }
@@ -3498,8 +3516,8 @@ async function escolherFoto(input){
   if(aviso)aviso.textContent='Comprimindo e enviando…';
   try{
     const blob=await comprimirImagem(file);
-    const caminho=caminhoDaFoto(campo&&campo.value);
-    await uploadBytes(sRef(fstore,caminho), blob, {contentType:'image/jpeg'});
+    const caminho=caminhoDaFoto(campo&&campo.value, extensaoDe(blob));
+    await uploadBytes(sRef(fstore,caminho), blob, {contentType:blob.type||'image/jpeg'});
     const url=await getDownloadURL(sRef(fstore,caminho));
     if(campo)campo.value=url;
     if(prev){prev.src=url;prev.style.display='block';}
