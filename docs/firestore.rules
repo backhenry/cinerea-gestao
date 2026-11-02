@@ -233,6 +233,29 @@ service cloud.firestore {
       allow write: if ehMembro(cid);
     }
 
+    // Contador de visitas do site (nov/2026). Quantas vezes cada página foi
+    // aberta por dia, e de onde a pessoa chegou, SEM cookie, sem IP e sem nada
+    // que identifique alguém. É o que deixa a privacidade continuar dizendo que
+    // o site não tem rastreador: não há o que rastrear, só um número que sobe.
+    //
+    // O documento é `visitas/{AAAA-MM-DD}_{chave}` e tem UM campo, `n`, e
+    // escrever é só somar 1. É só isso que a regra deixa: criar valendo 1, ou
+    // atualizar para o valor de antes mais 1. Campo a mais, pulo de 1 para 1000
+    // ou chave fora do formato são recusados.
+    //
+    // A escrita é anônima porque o site não tem servidor, e o dano possível é
+    // inflar um número de vaidade: ninguém lê, ninguém apaga, e cada documento
+    // tem um inteiro só. A data vem do navegador e não é conferida aqui, e o
+    // pior caso é alguém somar visitas num dia errado. Quem lê é só a casa.
+    match /visitas/{id} {
+      allow read: if ehDaCasa();
+      allow create: if id.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}_[a-z0-9-]{1,24}$')
+        && request.resource.data.keys().hasOnly(['n'])
+        && request.resource.data.n == 1;
+      allow update: if request.resource.data.keys().hasOnly(['n'])
+        && request.resource.data.n == resource.data.n + 1;
+    }
+
     // Cupom de vendedor. O id do documento É o código.
     //
     // `get` aberto de propósito: o cupom NASCE para ser divulgado, e quem

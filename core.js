@@ -492,3 +492,37 @@ export function normalizarCodigo(v) {
     .split('').filter(c => ALFABETO_CODIGO.includes(c)).join('');
   return s.length === 8 ? s.slice(0, 4) + '-' + s.slice(4) : '';
 }
+
+/**
+ * Resume o contador de visitas do site (`visitas/{AAAA-MM-DD}_{chave}`).
+ *
+ * Cada documento tem um inteiro, `n`. A chave diz o que foi contado: o nome da
+ * página (`loja`, `aromas`, `p` para a página de uma peça) ou, com o prefixo
+ * `o-`, de onde a visita chegou (`o-instagram`). A origem só é contada na
+ * primeira página de cada visita, e por isso a soma das origens É o número de
+ * visitas, enquanto a soma das páginas é o número de páginas abertas.
+ *
+ * Pura de propósito: recebe a lista `[{ id, n }]` e devolve números, e é isso
+ * que deixa testar sem banco.
+ */
+export function resumirVisitas(docs, desde = '') {
+  const paginas = {}, origens = {}, dias = {};
+  let paginasAbertas = 0, visitas = 0;
+  for (const d of docs || []) {
+    const m = String(d && d.id || '').match(/^(\d{4}-\d{2}-\d{2})_([a-z0-9-]+)$/);
+    const n = Math.max(0, Math.floor(Number(d && d.n) || 0));
+    if (!m || !n || (desde && m[1] < desde)) continue;
+    const [, dia, chave] = m;
+    if (chave.startsWith('o-')) {
+      const o = chave.slice(2);
+      origens[o] = (origens[o] || 0) + n;
+      visitas += n;
+      dias[dia] = (dias[dia] || 0) + n;
+    } else {
+      paginas[chave] = (paginas[chave] || 0) + n;
+      paginasAbertas += n;
+    }
+  }
+  const ordem = (o) => Object.entries(o).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return { visitas, paginasAbertas, paginas: ordem(paginas), origens: ordem(origens), dias };
+}

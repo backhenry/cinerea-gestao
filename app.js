@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, verifyBeforeUpdateEmail, sendEmailVerification, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, arrayUnion, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, arrayUnion, onSnapshot, serverTimestamp, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
 import * as Core from "./core.js";
@@ -3382,7 +3382,58 @@ async function publicarCupons(){
   renderCupons();
 }
 
-Object.assign(window,{carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes,renderBanner,renderAcessos,conferirAcessos,convidarPorEmail,publicarCupons,renderVendedores,renderCupons,renderComissoes});
+// ============================================================
+// VISITAS DO SITE (nov/2026)
+// ============================================================
+//
+// O site conta, sem cookie e sem identificar ninguém, quantas vezes cada
+// página foi aberta por dia e de onde cada visita chegou. Quem conta é o
+// `contador.js` do site; a regra é `visitas/` em docs/firestore.rules; a conta
+// é `Core.resumirVisitas`, testada. Aqui é só a tela.
+
+const ROTULO_PAGINA={home:'Início',loja:'Loja',aromas:'Aromas',oraculo:'Oráculo',livro:'Livro',
+  aplicacoes:'Aplicações',contato:'Contato',privacidade:'Privacidade',perfil:'Meu perfil',
+  p:'Página de uma peça'};
+const ROTULO_ORIGEM={instagram:'Instagram',facebook:'Facebook',google:'Google',whatsapp:'WhatsApp',
+  tiktok:'TikTok',busca:'Outras buscas',direto:'Direto, sem link de origem',interno:'De dentro do site',
+  outro:'Outros sites',nfc:'Encostou o celular numa peça'};
+let visitasCarregadas=false;
+
+async function carregarVisitas(forcar){
+  const box=document.getElementById('visitasConteudo');
+  if(!box||(visitasCarregadas&&!forcar))return;
+  box.innerHTML='<div class="hint">Carregando…</div>';
+  const d=new Date(); d.setDate(d.getDate()-29);
+  const desde=d.toISOString().slice(0,10);
+  try{
+    const snap=await getDocs(query(collection(fdb,'visitas'),where(documentId(),'>=',desde)));
+    const r=Core.resumirVisitas(snap.docs.map(x=>({id:x.id,n:x.data().n})),desde);
+    visitasCarregadas=true;
+    if(!r.visitas&&!r.paginasAbertas){
+      box.innerHTML='<div class="hint-box">Nenhuma visita contada nos últimos 30 dias. Se o contador acabou de entrar no site, a regra <code>visitas</code> do Firestore precisa estar publicada para ele começar a somar.</div>';
+      return;
+    }
+    const pct=(n,t)=>t?Math.round(n*100/t)+'%':'';
+    const linhas=(lista,rot,total)=>lista.slice(0,12).map(([k,n])=>
+      `<tr><td>${esc(rot[k]||k)}</td><td class="money">${n}</td><td class="money" style="color:var(--smoke)">${pct(n,total)}</td></tr>`).join('');
+    box.innerHTML=`<div class="stats">
+        <div class="stat"><div class="k">Visitas</div><div class="v">${r.visitas}</div><div class="s">pessoas que chegaram ao site</div></div>
+        <div class="stat"><div class="k">Páginas abertas</div><div class="v">${r.paginasAbertas}</div><div class="s">${r.visitas?(r.paginasAbertas/r.visitas).toFixed(1).replace('.',','):'0'} por visita</div></div>
+      </div>
+      <div class="chartgrid" style="margin-top:16px">
+        <div class="chartcard"><h3>De onde chegam</h3><table><tbody>${linhas(r.origens,ROTULO_ORIGEM,r.visitas)}</tbody></table></div>
+        <div class="chartcard"><h3>O que mais abrem</h3><table><tbody>${linhas(r.paginas,ROTULO_PAGINA,r.paginasAbertas)}</tbody></table></div>
+      </div>
+      <div class="hint" style="margin-top:12px">Sem cookie e sem identificar ninguém: são só contagens. Robôs que fingem ser navegador podem entrar no número, então ele vale para comparar uma semana com outra, e não como medida exata. Para separar quem vem da bio do Instagram, use no link <code>cinerea.com.br/?utm_source=bio</code>. <a href="#" onclick="carregarVisitas(true);return false">Atualizar</a></div>`;
+  }catch(e){
+    console.error(e);
+    box.innerHTML=e.code==='permission-denied'
+      ? '<div class="hint-box">Só quem é da casa vê as visitas, e esta conta não está em <code>gestores</code>. Se a regra <code>visitas</code> ainda não foi publicada, a leitura também é recusada.</div>'
+      : '<div class="hint-box">Não consegui carregar as visitas agora. Tente de novo em instantes.</div>';
+  }
+}
+
+Object.assign(window,{carregarVisitas,carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes,renderBanner,renderAcessos,conferirAcessos,convidarPorEmail,publicarCupons,renderVendedores,renderCupons,renderComissoes});
 
 // ============================================================
 // FOTO DE PRODUTO, envio para o Cloud Storage
