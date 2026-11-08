@@ -68,7 +68,14 @@ function splitDb(){
   const op=JSON.parse(JSON.stringify(db));
   const fin={prodFin:{}};
   FIN_KEYS.forEach(k=>{if(op[k]!==undefined){fin[k]=op[k];delete op[k];}});
-  (op.produtos||[]).forEach(p=>{const f={};PROD_FIN.forEach(k=>{if(p[k]!==undefined){f[k]=p[k];delete p[k];}});fin.prodFin[p.id]=f;});
+  /* SEGUNDA REDE, para o caso de a memória ter perdido um campo por qualquer
+     outro caminho: o `setDoc` de `fin/dados` SUBSTITUI o doc, então um campo
+     ausente aqui é um campo apagado lá. Nenhuma tela apaga campo financeiro
+     de peça (o formulário sempre grava os seis, nem que seja ''), então
+     ausência nunca é intenção: vale o último valor conhecido do servidor.
+     Peça excluída continua saindo, porque só passam as que estão no `db`. */
+  const pfAntes=(rawFin&&rawFin.prodFin)||{};
+  (op.produtos||[]).forEach(p=>{const f={},antes=pfAntes[p.id]||{};PROD_FIN.forEach(k=>{if(p[k]!==undefined){f[k]=p[k];delete p[k];}else if(antes[k]!==undefined)f[k]=antes[k];});fin.prodFin[p.id]=f;});
   return{op,fin};
 }
 function migrarFinSePreciso(){
@@ -584,6 +591,22 @@ function cloudSave(){if(!uid||!eid)return;limparMemo();flashSync(false);
     return;
   }
 
+  /* ═══ O PREÇO QUE SUMIA DE UMA PEÇA SIM, OUTRA NÃO ═══════════════════════
+     O Firestore devolve o eco local das duas escritas abaixo na ordem em que
+     foram feitas, e o do operacional chega PRIMEIRO (medido no SDK, sem
+     servidor: os dois ecos vêm depois deste bloco, op antes de fin). Esse eco
+     remonta o `db` com `rebuildDb()`, que junta o operacional novo com
+     `rawFin`, e `rawFin` ainda era o financeiro da gravação ANTERIOR: a peça
+     recém-digitada perdia o preço na memória. O eco do financeiro, que traria
+     o preço de volta, é ignorado porque `gravacaoPendente` ainda está de pé. A
+     peça seguinte gravava `fin/dados` inteiro a partir dessa memória e apagava
+     o preço no servidor. Cinco peças seguidas, a 2ª e a 4ª sem preço.
+
+     Daqui em diante o `rawFin` é o que ESTÁ SAINDO, antes de sair. É a mesma
+     coisa que o eco vai trazer, só que sem depender da ordem de chegada. Se o
+     servidor recusar, a memória continua com os valores e a próxima gravação
+     manda de novo. */
+  if(finToWrite) rawFin=JSON.parse(JSON.stringify(finToWrite));
   const p=updateDoc(doc(fdb,'empresas',eid),{dados:payloadOp,atualizado:Date.now()});
   if(finToWrite)setDoc(doc(fdb,'empresas',eid,'fin','dados'),finToWrite)
     .catch(e=>{console.error('financeiro não gravou',e);toast('Salvei o cadastro, mas <b>não consegui gravar os valores</b> (custo, preço, markup). '+esc(e&&e.code||''));});
