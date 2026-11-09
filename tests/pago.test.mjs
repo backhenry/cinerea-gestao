@@ -23,15 +23,18 @@ const fonte = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
  * toca a interface. O que se extrai é a DECISÃO, que é a linha onde o dinheiro
  * se decide, e é a única parte que precisa de teste.
  */
-function decisao(e, descontoDoCadastro) {
+function decisao(e, descontoDoCadastro, kitDoCadastro = 0) {
   const linhas = fonte.slice(fonte.indexOf('const jaPago ='),
                              fonte.indexOf('const valores=ratearDesconto'));
   assert.ok(linhas.includes('jaPago'), 'a decisão saiu do app.js');
-  const fn = new Function('e', 'cod', 'bruto', 'descontoDoCupom', 'Math_', `
+  // O kit (nov/2026) entra na mesma decisão: as dependências vão de mentira,
+  // com o desconto que o cadastro daria, como o cupom.
+  const fn = new Function('e', 'cod', 'bruto', 'descontoDoCupom', 'descontoDoKit', 'kitPublicavel', 'db', 'cheios', `
     ${linhas}
-    return { jaPago, desconto };
+    return { jaPago, desconto, valeKit };
   `);
-  return fn(e, e.cupom || '', 200, () => ({ desconto: descontoDoCadastro }));
+  return fn(e, e.cupom || '', 200, () => ({ desconto: descontoDoCadastro }),
+    () => ({ desconto: kitDoCadastro }), () => 10, { produtos: [] }, []);
 }
 
 test('paga: usa o desconto que foi COBRADO, e não o que o cupom daria hoje', () => {
@@ -121,4 +124,30 @@ test('a aba de Encomendas vem antes da de Pedidos', () => {
   // E é ela que abre.
   assert.ok(/<div class="subpanel active" id="s-encomendas">/.test(html),
             'o painel que abre não é o de encomendas');
+});
+
+// O KIT (nov/2026): kit e cupom não somam, vale o maior, e quando o kit vale
+// o código do cupom não vai para o pedido (não gera comissão).
+test('não paga: o kit maior que o cupom é o que vale', () => {
+  const r = decisao({ situacao: 'nova', cupom: 'MARIA15' }, 15, 21.9);
+  assert.equal(r.valeKit, true);
+  assert.equal(r.desconto, 21.9);
+});
+
+test('não paga: empate fica com o cupom', () => {
+  const r = decisao({ situacao: 'nova', cupom: 'MARIA15' }, 20, 20);
+  assert.equal(r.valeKit, false);
+  assert.equal(r.desconto, 20);
+});
+
+test('paga pelo kit: a origem gravada pelo servidor manda', () => {
+  const r = decisao({ situacao: 'paga', totalFechado: 178.1, descontoAplicado: 21.9, cupom: 'MARIA15',
+    pagamento: { origemDesconto: 'kit' } }, 30, 0);
+  assert.equal(r.jaPago, true);
+  assert.equal(r.valeKit, true);
+  assert.equal(r.desconto, 21.9);
+});
+
+test('o código do cupom só vai para o pedido quando foi o cupom que valeu', () => {
+  assert.match(fonte, /desconto>0&&cod&&!valeKit\?\{cupom:cod\}/);
 });

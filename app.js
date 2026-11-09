@@ -1337,7 +1337,7 @@ function openForm(type,id){
   document.getElementById('modalTitle').textContent=(id?'Editar ':(fem?'Nova ':'Novo '))+(isP?'produto':FORMS[type].title.toLowerCase());
   const body=document.getElementById('modalBody');let ex=id?db[plural(type)].find(x=>x.id===id):{};
   if(isP){currentForm.recipe=ex.receita?JSON.parse(JSON.stringify(ex.receita)):[];
-    body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">, nenhum, </option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" inputmode="decimal" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto da peça</label><label class="fotoup">Escolher imagem do computador<input type="file" accept="image/*" onchange="escolherFoto(this)" hidden></label><img id="f_fotoPrev" class="fotoprev" src="${esc(ex.foto||'')}" style="display:${ex.foto?'block':'none'}" alt=""><div class="hint" id="f_fotoStatus">Reduzimos a imagem antes de enviar, foto crua de celular pesa demais para quem vai abrir a loja.</div><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px"></div><div class="field"><label>Segunda foto</label><label class="fotoup">Escolher imagem<input type="file" accept="image/jpeg,image/png,image/webp" onchange="escolherImagem(this,'foto2','produtos',1200,600)" hidden></label><img id="f_foto2Prev" class="fotoprev" src="${esc(ex.foto2||'')}" style="display:${ex.foto2?'block':'none'}" alt=""><div class="hint" id="f_foto2Status">Aparece quando o cliente passa o mouse sobre a peça, no lugar da primeira. Use outro ângulo, um detalhe ou a peça em uso, não uma variação da mesma foto, que ninguém percebe.</div><input id="f_foto2" value="${esc(ex.foto2||'')}" placeholder="ou cole o endereço" style="margin-top:8px"></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="loja-bloco"><div class="loja-tit">Loja, o que aparece para quem compra</div><div class="field-row"><div class="field"><label>Coleção</label><select id="f_colecao">${['<option value="">, sem coleção, </option>'].concat(colecoesOrdenadas().map(c=>`<option value="${c.id}" ${ex.colecao===c.id?'selected':''}>${esc(c.nome)}</option>`)).join('')}</select><div class="hint">A seção onde a peça aparece no site e no app</div></div><div class="field"><label>Posição na coleção</label><input id="f_posicao" type="number" inputmode="decimal" value="${ex.posicao||10}"><div class="hint">Menor aparece antes</div></div><div class="field"><label>Situação</label><select id="f_situacao"><option value="disponivel" ${!['embreve','esgotado'].includes(ex.situacao)?'selected':''}>À venda</option><option value="esgotado" ${ex.situacao==='esgotado'?'selected':''}>Esgotado</option><option value="embreve" ${ex.situacao==='embreve'?'selected':''}>Em breve</option></select><div class="hint">"Esgotado" mostra a peça com o selo e um botão de avise-me; "Em breve" é peça que ainda não existe. Nos dois, sem sacola</div></div></div><div class="field"><label>Frase curta</label><input id="f_desc" value="${esc(ex.desc||'')}" maxlength="120" placeholder="Duas mãos em concha sustentam uma taça de areia perfumada."><div class="hint">Aparece embaixo do nome, no cartão</div></div><div class="field"><label>Descrição</label><textarea id="f_longa" rows="4" placeholder="O texto que convence, na tela da peça.">${esc(ex.longa||'')}</textarea></div><div class="field"><label>Ficha técnica</label><textarea id="f_ficha" rows="4" placeholder="Escultura: Gesso · duas mãos&#10;Altura: 22 cm&#10;Repõe-se com: Aura-Sand + pavios">${esc(fichaEmTexto(ex.ficha))}</textarea><div class="hint">Uma linha por item, no formato <code>rótulo: valor</code></div></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_destaque" ${ex.destaque?'checked':''} style="width:auto"> peça de destaque na vitrine</label></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_leve" ${ex.leve?'checked':''} style="width:auto"> vai na sobra da caixa</label><div class="hint">Marque para refil, chaveiro e o que não ocupa volume. Peça marcada não faz o frete crescer: ela viaja junto de uma escultura sem pedir caixa maior</div></div><div class="field"><label>Modelo 3D</label><input id="f_modelo" value="${esc(ex.modelo||'')}" placeholder="/3d/david.glb"><div class="hint">Opcional. Com ele, a ficha da peça ganha <b>Ver na sua casa</b>, no celular a peça aparece em tamanho real no espaço da pessoa. O arquivo tem de estar no próprio site, em <code>/3d/</code></div></div></div><div class="field"><label>Receita, insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" inputmode="decimal" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" inputmode="decimal" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" inputmode="decimal" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" inputmode="decimal" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" inputmode="decimal" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" inputmode="decimal" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
+    body.innerHTML=`<div class="field"><label>Nome do produto</label><input id="f_nome" value="${esc(ex.nome||'')}"></div><div class="field-row"><div class="field"><label>Equipamento usado</label><select id="f_equip" onchange="updateCost()"><option value="">, nenhum, </option>${db.equip.map(e=>`<option value="${e.id}" ${ex.equip===e.id?'selected':''}>${esc(e.nome)}</option>`).join('')}</select><div class="hint">Rateia a depreciação no custo</div></div><div class="field"><label>Peças prontas</label><input id="f_pronto" type="number" inputmode="decimal" value="${ex.pronto||0}"><div class="hint">Estoque acabado (ajuste manual)</div></div></div><div class="field-row"><div class="field"><label>Foto da peça</label><label class="fotoup">Escolher imagem do computador<input type="file" accept="image/*" onchange="escolherFoto(this)" hidden></label><img id="f_fotoPrev" class="fotoprev" src="${esc(ex.foto||'')}" style="display:${ex.foto?'block':'none'}" alt=""><div class="hint" id="f_fotoStatus">Reduzimos a imagem antes de enviar, foto crua de celular pesa demais para quem vai abrir a loja.</div><input id="f_foto" value="${esc(ex.foto||'')}" placeholder="ou cole o endereço de uma imagem" style="margin-top:8px"></div><div class="field"><label>Segunda foto</label><label class="fotoup">Escolher imagem<input type="file" accept="image/jpeg,image/png,image/webp" onchange="escolherImagem(this,'foto2','produtos',1200,600)" hidden></label><img id="f_foto2Prev" class="fotoprev" src="${esc(ex.foto2||'')}" style="display:${ex.foto2?'block':'none'}" alt=""><div class="hint" id="f_foto2Status">Aparece quando o cliente passa o mouse sobre a peça, no lugar da primeira. Use outro ângulo, um detalhe ou a peça em uso, não uma variação da mesma foto, que ninguém percebe.</div><input id="f_foto2" value="${esc(ex.foto2||'')}" placeholder="ou cole o endereço" style="margin-top:8px"></div><div class="field"><label>Catálogo público</label><label style="display:flex;gap:8px;align-items:center;padding:11px 0;font-size:13px;color:var(--smoke);cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="f_publico" ${ex.publico?'checked':''} style="width:auto"> mostrar no catálogo</label></div></div><div class="loja-bloco"><div class="loja-tit">Loja, o que aparece para quem compra</div><div class="field-row"><div class="field"><label>Coleção</label><select id="f_colecao">${['<option value="">, sem coleção, </option>'].concat(colecoesOrdenadas().map(c=>`<option value="${c.id}" ${ex.colecao===c.id?'selected':''}>${esc(c.nome)}</option>`)).join('')}</select><div class="hint">A seção onde a peça aparece no site e no app</div></div><div class="field"><label>Posição na coleção</label><input id="f_posicao" type="number" inputmode="decimal" value="${ex.posicao||10}"><div class="hint">Menor aparece antes</div></div><div class="field"><label>Situação</label><select id="f_situacao"><option value="disponivel" ${!['embreve','esgotado'].includes(ex.situacao)?'selected':''}>À venda</option><option value="esgotado" ${ex.situacao==='esgotado'?'selected':''}>Esgotado</option><option value="embreve" ${ex.situacao==='embreve'?'selected':''}>Em breve</option></select><div class="hint">"Esgotado" mostra a peça com o selo e um botão de avise-me; "Em breve" é peça que ainda não existe. Nos dois, sem sacola</div></div><div class="field"><label>No kit</label><select id="f_kit">${[['','fora do kit'],['peca','Peça'],['refil','Refil'],['pavio','Pavio'],['aroma','Aroma']].map(([v,n])=>`<option value="${v}" ${(ex.kit||'')===v?'selected':''}>${n}</option>`).join('')}</select><div class="hint">Em qual passo do "Monte seu kit" a peça aparece. O kit é uma peça, um refil e um pavio (o aroma é opcional)</div></div></div><div class="field"><label>Frase curta</label><input id="f_desc" value="${esc(ex.desc||'')}" maxlength="120" placeholder="Duas mãos em concha sustentam uma taça de areia perfumada."><div class="hint">Aparece embaixo do nome, no cartão</div></div><div class="field"><label>Descrição</label><textarea id="f_longa" rows="4" placeholder="O texto que convence, na tela da peça.">${esc(ex.longa||'')}</textarea></div><div class="field"><label>Ficha técnica</label><textarea id="f_ficha" rows="4" placeholder="Escultura: Gesso · duas mãos&#10;Altura: 22 cm&#10;Repõe-se com: Aura-Sand + pavios">${esc(fichaEmTexto(ex.ficha))}</textarea><div class="hint">Uma linha por item, no formato <code>rótulo: valor</code></div></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_destaque" ${ex.destaque?'checked':''} style="width:auto"> peça de destaque na vitrine</label></div><div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--smoke);cursor:pointer"><input type="checkbox" id="f_leve" ${ex.leve?'checked':''} style="width:auto"> vai na sobra da caixa</label><div class="hint">Marque para refil, chaveiro e o que não ocupa volume. Peça marcada não faz o frete crescer: ela viaja junto de uma escultura sem pedir caixa maior</div></div><div class="field"><label>Modelo 3D</label><input id="f_modelo" value="${esc(ex.modelo||'')}" placeholder="/3d/david.glb"><div class="hint">Opcional. Com ele, a ficha da peça ganha <b>Ver na sua casa</b>, no celular a peça aparece em tamanho real no espaço da pessoa. O arquivo tem de estar no próprio site, em <code>/3d/</code></div></div></div><div class="field"><label>Receita, insumos consumidos</label><div id="recipeLines"></div><button class="add-line" onclick="addRecipeLine()">+ insumo</button></div><div class="field-row"><div class="field"><label>Tempo (min)</label><input id="f_minutos" type="number" inputmode="decimal" value="${ex.minutos||''}" oninput="updateCost()"></div><div class="field"><label>Custo/hora</label><input id="f_custohora" type="number" inputmode="decimal" value="${ex.custohora||25}" oninput="updateCost()"></div></div><div class="field-row"><div class="field"><label>Perda (%)</label><input id="f_perda" type="number" inputmode="decimal" value="${ex.perda||8}" oninput="updateCost()"></div><div class="field"><label>Markup (×)</label><input id="f_markup" type="number" inputmode="decimal" step="0.1" value="${ex.markup||3}" oninput="updateCost();document.getElementById('f_markupR').value=this.value"><input id="f_markupR" type="range" min="1" max="6" step="0.1" value="${ex.markup||3}" style="width:100%;margin-top:6px" oninput="document.getElementById('f_markup').value=this.value;updateCost()"><div class="hint">Arraste para simular o preço</div></div></div><div class="field-row"><div class="field"><label>Preço praticado</label><input id="f_preco" type="number" inputmode="decimal" value="${ex.preco||''}" oninput="updateCost()" placeholder="vazio = sugerido"></div><div class="field"><label>Taxa (%)</label><input id="f_taxa" type="number" inputmode="decimal" value="${ex.taxa||0}" oninput="updateCost()"></div></div><div class="cost-summary" id="costSummary"></div>`;
     renderRecipe();
   } else {
     if(type==='frete'){
@@ -1451,7 +1451,7 @@ function saveForm(){
     return;
   }
   if(type==='colecao'){obj={nome:val('f_nome'),desc:val('f_desc'),ordem:Number(val('f_ordem'))||10};}
-  if(type==='produto'){obj={nome:val('f_nome'),receita:currentForm.recipe.filter(l=>l.insumo&&l.qtd),minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),markup:val('f_markup'),preco:val('f_preco'),taxa:val('f_taxa'),equip:val('f_equip'),pronto:Number(val('f_pronto')||0),foto:val('f_foto'),foto2:val('f_foto2'),publico:!!(document.getElementById('f_publico')||{}).checked,colecao:val('f_colecao'),posicao:Number(val('f_posicao'))||10,situacao:val('f_situacao')||'disponivel',desc:val('f_desc'),longa:val('f_longa'),ficha:parseFicha(val('f_ficha')),destaque:!!(document.getElementById('f_destaque')||{}).checked,
+  if(type==='produto'){obj={nome:val('f_nome'),receita:currentForm.recipe.filter(l=>l.insumo&&l.qtd),minutos:val('f_minutos'),custohora:val('f_custohora'),perda:val('f_perda'),markup:val('f_markup'),preco:val('f_preco'),taxa:val('f_taxa'),equip:val('f_equip'),pronto:Number(val('f_pronto')||0),foto:val('f_foto'),foto2:val('f_foto2'),publico:!!(document.getElementById('f_publico')||{}).checked,colecao:val('f_colecao'),posicao:Number(val('f_posicao'))||10,situacao:val('f_situacao')||'disponivel',kit:val('f_kit')||'',desc:val('f_desc'),longa:val('f_longa'),ficha:parseFicha(val('f_ficha')),destaque:!!(document.getElementById('f_destaque')||{}).checked,
       /* O FORMULÁRIO DA PEÇA É HTML ESCRITO À MÃO, e este objeto também: ele
          NÃO percorre `FORMS.produto.fields` como os outros tipos fazem.
          Acrescentar o campo só na lista de `FORMS`, que foi o que eu fiz
@@ -1857,7 +1857,12 @@ function assinaturaCatalogo(){
   // O frete entra na assinatura pela mesma razão do banner: sem isso, mudar só
   // a tabela deixava o aviso de "catálogo desatualizado" calado, e a loja
   // seguiria cobrando o frete antigo.
-  return JSON.stringify([itensDoCatalogo(), bannersPublicaveis(), fretePublicavel()]);
+  return JSON.stringify([itensDoCatalogo(), bannersPublicaveis(), fretePublicavel(), kitPublicavel()]);
+}
+
+/** O percentual do kit, preso entre 0 e 100. Zero desliga o kit na loja. */
+function kitPublicavel(){
+  return Math.min(Math.max(Number(db.kitDesconto)||0,0),100);
 }
 
 /** O recorte público de cada produto marcado para o catálogo. */
@@ -1880,6 +1885,9 @@ function itensDoCatalogo(){
       // Peça que vai na sobra da caixa não faz o frete crescer. Sobe no recorte
       // público porque quem conta as peças é o servidor, na hora de cobrar.
       leve:!!p.leve,
+      // O papel da peça no "Monte seu kit". Sobe no recorte público porque o
+      // servidor reconhece o kit pelo catálogo, e não pelo que o cliente diz.
+      kit:['peca','refil','pavio','aroma'].includes(p.kit)?p.kit:'',
       // Só endereço do próprio site: um .glb apontado para servidor de terceiro
       // seria script de fora rodando no domínio da marca, pela mesma razão que
       // já trava o logo e a arte do banner.
@@ -1941,6 +1949,9 @@ async function publicarCatalogo(){
     // viessem separados, uma publicação pela metade cobraria o preço novo com
     // o frete velho, e ninguém descobriria isso olhando a loja.
     ...(fretePublicavel() ? {frete:fretePublicavel()} : {}),
+    // O desconto do kit, um percentual só. Viaja com os preços pela mesma
+    // razão do frete: publicação pela metade cobraria kit velho com preço novo.
+    kit:{desconto:kitPublicavel()},
     atualizado:Date.now(),
   });
 
@@ -2608,7 +2619,16 @@ async function aceitarEncomenda(id){
   // compra não pode ser dono do valor.
   const jaPago = e.situacao==='paga' && Number(e.totalFechado)>0;
   const cup=(!jaPago&&cod)?descontoDoCupom(cod,Math.round(bruto*100)/100):null;
-  const desconto=jaPago?(Number(e.descontoAplicado)||0):(cup?cup.desconto:0);
+  // KIT E CUPOM NÃO SOMAM, vale o maior (nov/2026). Pago, quem decidiu foi o
+  // servidor e a origem está em `pagamento.origemDesconto`; não pago, a conta
+  // é refeita aqui com o cadastro desta casa, como a do cupom.
+  const kit=jaPago?null:descontoDoKit((e.itens||[]).map(i=>{
+    const p=db.produtos.find(x=>String(x.id)===String(i.id));
+    return {kit:p?p.kit:'', preco:cheios[(e.itens||[]).indexOf(i)]/Math.max(1,Number(i.qtd||1)), qtd:Number(i.qtd||1)};
+  }),kitPublicavel());
+  const valeKit=jaPago ? (e.pagamento&&e.pagamento.origemDesconto)==='kit'
+                       : !!(kit && kit.desconto > (cup?cup.desconto:0));
+  const desconto=jaPago?(Number(e.descontoAplicado)||0):(valeKit?Math.min(kit.desconto,bruto):(cup?cup.desconto:0));
   const valores=ratearDesconto(cheios,desconto);
 
   (e.itens||[]).forEach((i,k)=>{
@@ -2622,7 +2642,9 @@ async function aceitarEncomenda(id){
       situacao:jaPago?'Pago':'Pendente', data:hoje(), origem:'loja do app', encomendaId:e.id,
       // O código fica gravado no pedido: é dele que a comissão é calculada, e
       // é o que permite conferir a atribuição meses depois.
-      ...(desconto>0?{cupom:cod}:{}),
+      // Quando quem valeu foi o KIT, o código não vai: comissão de cupom sai
+      // de venda que o cupom trouxe, e esta o kit trouxe.
+      ...(desconto>0&&cod&&!valeKit?{cupom:cod}:{}),
     });
   });
 
@@ -3183,6 +3205,27 @@ function normalizarCupom(bruto){
 }
 
 /** O desconto que ESTE cadastro dá, que é o que vale. */
+/**
+ * O desconto do kit: uma peça, um refil e um pavio, e o aroma se tiver.
+ * CÓPIA de `descontoDoKit` em cinerea-app/functions/sacola.js, que é a que
+ * cobra; `tests/kit-copias.test.mjs` exige o mesmo centavo. Mudou lá, mudar aqui.
+ */
+function descontoDoKit(itens, percentual) {
+  const pct = Math.min(Math.max(Number(percentual) || 0, 0), 100);
+  const por = { peca: [], refil: [], pavio: [], aroma: [] };
+  for (const i of itens || []) {
+    const lista = por[i.kit];
+    if (!lista) continue;
+    const q = Math.max(0, Math.floor(Number(i.qtd) || 0));
+    for (let n = 0; n < q; n++) lista.push(Number(i.preco) || 0);
+  }
+  const kits = Math.min(por.peca.length, por.refil.length, por.pavio.length);
+  if (!pct || !kits) return { desconto: 0, kits: 0, base: 0 };
+  const maiores = (l, n) => l.sort((a, b) => b - a).slice(0, n).reduce((s, v) => s + v, 0);
+  const base = maiores(por.peca, kits) + maiores(por.refil, kits) + maiores(por.pavio, kits) + maiores(por.aroma, kits);
+  return { desconto: Math.round((base * pct / 100) * 100) / 100, kits, base: Math.round(base * 100) / 100 };
+}
+
 function descontoDoCupom(codigo,total){
   const c=(db.cupons||[]).find(x=>x.codigo===normalizarCupom(codigo));
   if(!c) return {achou:false,cupom:null,desconto:0,motivo:'cupom não cadastrado aqui'};
@@ -3661,6 +3704,12 @@ function revisarPublicacao(){
     </div><div class="hint">Nada disso impede publicar, só muda o que o cliente vê.</div></div>`:''}
 
     <div class="field">
+      <label>Desconto do kit (%)</label>
+      <input id="f_kitDesconto" type="number" inputmode="decimal" min="0" max="100" value="${esc(String(db.kitDesconto||0))}">
+      <div class="hint">Vale para uma peça, um refil e um pavio comprados juntos (o aroma entra se vier). Não soma com cupom: vale o maior. Zero tira o "Monte seu kit" da loja.</div>
+    </div>
+
+    <div class="field">
       <label>WhatsApp para encomendas</label>
       <input id="f_whats" value="${esc(db.catWhats||'')}" placeholder="31999998888">
       <div class="hint">Só números com DDD. Vazio esconde o botão de encomendar na loja.</div>
@@ -3679,6 +3728,7 @@ async function confirmarPublicacao(){
   const st=document.getElementById('pubStatus');
   const whats=(document.getElementById('f_whats')||{}).value||'';
   db.catWhats=String(whats).replace(/\D/g,'');
+  db.kitDesconto=Math.min(Math.max(Number((document.getElementById('f_kitDesconto')||{}).value)||0,0),100);
   st.textContent='Publicando…';
   try{
     await publicarCatalogo();
