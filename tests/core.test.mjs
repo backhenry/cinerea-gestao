@@ -408,3 +408,12 @@ test('normalizarCodigo é o contrato com o app: os dois lados chegam no mesmo te
   assert.equal(C.normalizarCodigo('ACDE'), '');
   assert.equal(C.normalizarCodigo(''), '');
 });
+
+test('qtd escreve quantidade com vírgula e sem o rabo do ponto flutuante', () => {
+  assert.equal(C.qtd(0.25), '0,25');
+  assert.equal(C.qtd(0.4 - 0.25), '0,15');       // 0.15000000000000002
+  assert.equal(C.qtd(2), '2');
+  assert.equal(C.qtd(1500), '1.500');
+  assert.equal(C.qtd(0.0125), '0,013');
+  assert.equal(C.qtd(undefined), '0');
+});

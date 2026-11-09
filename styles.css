@@ -547,10 +547,38 @@ nav.tabs::after{content:'';flex:0 0 12px}
     display:flex;gap:12px;overflow-x:auto;
     scroll-snap-type:x mandatory;
     margin:0 -20px;padding:0 20px 6px;
+    /* Sem isto o encaixe alinha a coluna na borda da TELA, e não no recuo:
+       o quadro abria já rolado 20px, com "A fazer" colado na margem. */
+    scroll-padding-inline:20px;
     scrollbar-width:none;
   }
   .kanban::-webkit-scrollbar{display:none}
   .kb-col{flex:0 0 82%;scroll-snap-align:start}
   /* O respiro no fim deixa claro que a última coluna acabou. */
   .kanban::after{content:'';flex:0 0 8px}
+}
+
+/* ── A lista de compras no celular ──────────────────────────────────────────
+   O nome do insumo, a quantidade e o botão disputavam a mesma linha sem regra
+   de quem cede: "≈ R$ 24,00" quebrava em duas e o nome se espremia. Quem cede
+   é o nome, que pode quebrar; número e preço não quebram nunca. */
+.shop-item{gap:12px}
+.shop-item .si-l{flex:1;min-width:0}
+.shop-item .si-q .q,.shop-item .si-q .c{white-space:nowrap}
+
+/* ── As peças no celular ────────────────────────────────────────────────────
+   Cada peça era um cartão de nove linhas rotuladas, e com vinte e poucas a aba
+   passava de dez mil pixels de rolagem. No celular o que se procura correndo o
+   olho é preço, custo, margem e quantas há prontas: os quatro numa linha só.
+   Sugerido e R$/h continuam na tela larga, e o custo detalhado está no lápis. */
+@media(max-width:720px){
+  .tb-pecas tbody tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));column-gap:10px;row-gap:6px}
+  /* título e ações dividem a primeira linha: as ações ficam por cima, à
+     direita, e o título reserva o espaço delas para não passar por baixo */
+  .tb-pecas tbody td.celula-titulo{grid-column:1/-1;grid-row:1;border-bottom:none;margin:0;padding:0 96px 0 0}
+  .tb-pecas tbody td[data-l=""]{grid-column:1/-1;grid-row:1;justify-self:end;align-self:start;width:auto;padding:0}
+  .tb-pecas tbody td:nth-child(3),.tb-pecas tbody td:nth-child(6){display:none}
+  .tb-pecas tbody td:not(.celula-titulo):not([data-l=""]){flex-direction:column;align-items:flex-start;gap:1px;padding:0;text-align:left;white-space:nowrap}
+  .tb-pecas tbody td[colspan]{grid-column:1/-1}
+  .tb-pecas .row-actions{gap:0}
 }

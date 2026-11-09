@@ -669,7 +669,7 @@ function flashSync(ok){
 }
 
 // helpers e cálculo vêm de core.js (puro e coberto por testes)
-const {uidGen,brl,esc,num,insumoStatus,moldeStatus,validar,saldoPedido,custoMedio,curvaABC,cestaOtima,precoProduto,baixasProducao,pontoEquilibrio,RAMOS,sementeRamo}=Core;
+const {uidGen,brl,qtd,esc,num,insumoStatus,moldeStatus,validar,saldoPedido,custoMedio,curvaABC,cestaOtima,precoProduto,baixasProducao,pontoEquilibrio,RAMOS,sementeRamo}=Core;
 const hoje=()=>Core.hoje();
 function toast(msg){const t=document.getElementById('toast');t.innerHTML=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2600);}
 function toastUndo(msg,snap){undoState=snap;const t=document.getElementById('toast');t.innerHTML=msg+' <button onclick="doUndo()" style="background:none;border:none;color:#e8a;text-decoration:underline;cursor:pointer;font-size:13px;margin-left:6px">Desfazer</button>';t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),7000);}
@@ -831,7 +831,7 @@ function renderDash(){
     <div class="stat"><div class="k">Ponto de equilíbrio</div><div class="v">${pe||'sem dado'}</div><div class="s">${pe?'peças/mês para empatar':'precisa de custos fixos e produtos'}</div></div>
     <div class="stat" style="cursor:pointer" onclick="setMeta()" title="Toque para definir a meta"><div class="k">Meta do mês</div><div class="v">${meta?pctMeta+'%':'sem meta'}</div><div class="s">${meta?brl(recMes)+' de '+brl(meta):'toque para definir'}</div>${meta?`<div class="bar" style="margin-top:8px"><span class="${pctMeta>=100?'':'warn'}" style="width:${pctMeta}%"></span></div>`:''}</div>
     <div class="stat ${pctMei>=80?'alert':''}" style="cursor:pointer" onclick="setMeiTeto()" title="Toque para ajustar o teto"><div class="k">Teto MEI (${ano})</div><div class="v">${pctMei}%</div><div class="s">${brl(recAno)} de ${brl(teto)}</div><div class="bar" style="margin-top:8px"><span class="${pctMei>=80?'low':pctMei>=50?'warn':''}" style="width:${pctMei}%"></span></div></div>
-    <div class="stat"><div class="k">A receber</div><div class="v" style="font-size:22px">${brl(db.pedidos.filter(p=>p.situacao==='Pendente').reduce((s,p)=>s+Math.max(0,Number(p.valor||0)-(p.pagamentos||[]).reduce((a,x)=>a+Number(x.v||0),0)),0))}</div><div class="s">${db.pedidos.filter(p=>p.situacao==='Pendente').length} pedido(s) pendente(s), já descontando sinais</div></div>`:'');
+    <div class="stat"><div class="k">A receber</div><div class="v" style="font-size:22px">${brl(db.pedidos.filter(p=>p.situacao==='Pendente').reduce((s,p)=>s+Math.max(0,Number(p.valor||0)-(p.pagamentos||[]).reduce((a,x)=>a+Number(x.v||0),0)),0))}</div><div class="s">${(n=>n?`${n} pedido${n>1?'s':''} pendente${n>1?'s':''}, já descontando sinais`:'nenhum pedido pendente')(db.pedidos.filter(p=>p.situacao==='Pendente').length)}</div></div>`:'');
   renderPrazos();
   /* Os avisos deixaram de ser um parágrafo só.
      Eram todos empurrados para uma caixa cinza única, separados por <br>:
@@ -842,7 +842,7 @@ function renderDash(){
      informação, que é a ordem em que se resolve. */
   let a=[];
   const avisar=(nivel,html)=>a.push({nivel,html});
-  lowIns.forEach(i=>avisar('atencao',`Repor <b>${esc(i.nome)}</b>, restam ${i.estoque} ${esc(i.unidade)}`));
+  lowIns.forEach(i=>avisar('atencao',`Repor <b>${esc(i.nome)}</b>, restam ${qtd(i.estoque)} ${esc(i.unidade)}`));
   lowMold.forEach(m=>avisar('atencao',`Molde <b>${esc(m.nome)}</b>, ${m.usos}/${m.vida} usos`));
   const tamKB=Math.round(JSON.stringify(db).length/1024);
   if(tamKB>700)avisar('atencao',`Os dados estão com <b>${tamKB} KB</b> (limite ~1000). Use <b>Arquivar ano</b> para mover registros antigos.`);
@@ -926,8 +926,8 @@ function renderCharts(){
 }
 function renderEquip(){document.getElementById('tbEquip').innerHTML=db.equip.length?db.equip.map(e=>`<tr><td>${esc(e.nome)}</td><td>${esc(e.tipo)||''}</td><td>${esc(e.compra)||''}</td><td class="money">${brl(e.custo)}</td><td><span class="pill ok">${esc(e.situacao||'Ativo')}</span></td><td>${rowActions('equip',e.id)}</td></tr>`).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum equipamento.</div></td></tr>`;}
 function renderMoldes(){document.getElementById('tbMoldes').innerHTML=db.moldes.length?db.moldes.map(m=>{const st=moldeStatus(m);const pct=Math.min(100,Math.round(m.usos/(m.vida||1)*100));const l=st==='low'?'Trocar':st==='warn'?'Quase no fim':'Bom';return `<tr><td>${esc(m.nome)}</td><td>${esc(m.material)}</td><td>${m.usos} / ${m.vida}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div></td><td><span class="pill ${st}">${l}</span></td><td>${rowActions('molde',m.id)}</td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum molde.</div></td></tr>`;}
-function renderInsumos(){document.getElementById('tbInsumos').innerHTML=db.insumos.length?db.insumos.map(i=>{const st=insumoStatus(i);const l=st==='low'?'Repor':st==='warn'?'Baixo':'OK';const pct=Math.min(100,Math.round(i.estoque/((i.minimo||1)*2)*100));const dias=diasEstoque(i);return `<tr><td>${esc(i.nome)}</td><td>${i.estoque} ${esc(i.unidade)}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div><div style="font-size:11px;color:var(--warm);margin-top:3px">mín. ${i.minimo}${dias!==null&&dias<365?` · acaba em ~<b style="color:${dias<15?'var(--ember)':'inherit'}">${dias}d</b>`:''}</div></td><td class="money">${brl(i.custo)}/${esc(i.unidade)}</td><td><span class="pill ${st}">${l}</span>${(()=>{const pv=previsao(i);return pv&&(pv.urgente||pv.atencao)?`<div style="font-size:11px;color:var(--ember);margin-top:3px">${ico("carrinho")} pedir ${pv.urgente?'hoje':'até '+pv.pedirAte.slice(8,10)+'/'+pv.pedirAte.slice(5,7)}</div>`:'';})()}</td><td><div class="row-actions"><button class="icon-btn" title="Histórico de preços" onclick="verPrecos('${i.id}')">${ico("grafico","Histórico de preços")}</button><button class="icon-btn" onclick="openForm('insumo','${i.id}')">${ico("lapis","Editar")}</button><button class="icon-btn" onclick="del('insumo','${i.id}')">${ico("lixeira","Apagar")}</button></div></td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum insumo.</div></td></tr>`;}
-function renderProdutos(){document.getElementById('tbProdutos').innerHTML=db.produtos.length?db.produtos.map(p=>{const c=calcCusto(p);const sug=c.total*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const margem=prat-taxa-c.total;const mpct=prat?Math.round(margem/prat*100):0;const h=Number(p.minutos||0)/60;const lph=h>0?margem/h:0;const def=precoDefasado(p);return `<tr><td>${esc(p.nome)}${p.publico?` <span class="selo-loja" title="no catálogo">${ico("loja","no catálogo")}</span>`:''}${def?`<div style="font-size:11px;color:var(--ember)">${ico("alerta")} defasado · sugerido ${brl(def.sugerido)}</div>`:''}</td><td class="money">${brl(c.total)}</td><td class="money" style="color:var(--smoke)">${brl(sug)}</td><td class="money">${brl(prat)}</td><td><span class="pill ${mpct>50?'ok':mpct>30?'warn':'low'}">${mpct}%</span></td><td class="money">${h>0?brl(lph):''}</td><td>${Number(p.pronto||0)}</td><td><div class="row-actions"><button class="icon-btn" title="Duplicar" onclick="duplicarProduto('${p.id}')">${ico("copiar","Duplicar")}</button><button class="icon-btn" onclick="openForm('produto','${p.id}')">${ico("lapis","Editar")}</button><button class="icon-btn" onclick="del('produto','${p.id}')">${ico("lixeira","Apagar")}</button></div></td></tr>`;}).join(''):`<tr><td colspan=8><div class="empty-t">Nenhum produto.</div></td></tr>`;}
+function renderInsumos(){document.getElementById('tbInsumos').innerHTML=db.insumos.length?db.insumos.map(i=>{const st=insumoStatus(i);const l=st==='low'?'Repor':st==='warn'?'Baixo':'OK';const pct=Math.min(100,Math.round(i.estoque/((i.minimo||1)*2)*100));const dias=diasEstoque(i);return `<tr><td>${esc(i.nome)}</td><td>${qtd(i.estoque)} ${esc(i.unidade)}</td><td><div class="bar"><span class="${st}" style="width:${pct}%"></span></div><div style="font-size:11px;color:var(--warm);margin-top:3px">mín. ${qtd(i.minimo)}${dias!==null&&dias<365?` · acaba em ~<b style="color:${dias<15?'var(--ember)':'inherit'}">${dias}d</b>`:''}</div></td><td class="money">${brl(i.custo)}/${esc(i.unidade)}</td><td><span class="pill ${st}">${l}</span>${(()=>{const pv=previsao(i);return pv&&(pv.urgente||pv.atencao)?`<div style="font-size:11px;color:var(--ember);margin-top:3px">${ico("carrinho")} pedir ${pv.urgente?'hoje':'até '+pv.pedirAte.slice(8,10)+'/'+pv.pedirAte.slice(5,7)}</div>`:'';})()}</td><td><div class="row-actions"><button class="icon-btn" title="Histórico de preços" onclick="verPrecos('${i.id}')">${ico("grafico","Histórico de preços")}</button><button class="icon-btn" onclick="openForm('insumo','${i.id}')">${ico("lapis","Editar")}</button><button class="icon-btn" onclick="del('insumo','${i.id}')">${ico("lixeira","Apagar")}</button></div></td></tr>`;}).join(''):`<tr><td colspan=6><div class="empty-t">Nenhum insumo.</div></td></tr>`;}
+function renderProdutos(){document.getElementById('tbProdutos').innerHTML=db.produtos.length?db.produtos.map(p=>{const c=calcCusto(p);const sug=c.total*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const margem=prat-taxa-c.total;const mpct=prat?Math.round(margem/prat*100):0;const h=Number(p.minutos||0)/60;const lph=h>0?margem/h:0;const def=precoDefasado(p);const semCusto=!(c.total>0);return `<tr><td>${esc(p.nome)}${p.publico?` <span class="selo-loja" title="no catálogo">${ico("loja","no catálogo")}</span>`:''}${def?`<div style="font-size:11px;color:var(--ember)">${ico("alerta")} defasado · sugerido ${brl(def.sugerido)}</div>`:''}</td><td class="money">${brl(c.total)}</td><td class="money" style="color:var(--smoke)">${semCusto?'':brl(sug)}</td><td class="money">${brl(prat)}</td><td>${semCusto?'<span class="pill warn" title="Cadastre a receita ou a mão de obra para a margem existir">sem custo</span>':`<span class="pill ${mpct>50?'ok':mpct>30?'warn':'low'}">${mpct}%</span>`}</td><td class="money">${h>0&&!semCusto?brl(lph):''}</td><td>${Number(p.pronto||0)}</td><td><div class="row-actions"><button class="icon-btn" title="Duplicar" onclick="duplicarProduto('${p.id}')">${ico("copiar","Duplicar")}</button><button class="icon-btn" onclick="openForm('produto','${p.id}')">${ico("lapis","Editar")}</button><button class="icon-btn" onclick="del('produto','${p.id}')">${ico("lixeira","Apagar")}</button></div></td></tr>`;}).join(''):`<tr><td colspan=8><div class="empty-t">Nenhum produto.</div></td></tr>`;}
 function renderProducao(){
   fillMeses('mesPro',db.producao,fP.m);
   const todas=[...db.producao].reverse().filter(p=>{const prod=db.produtos.find(x=>x.id===p.produto);const txt=((prod?prod.nome:'')+' '+(p.variacao||'')+' '+(p.lote||'')).toLowerCase();return(!fP.q||txt.includes(fP.q.toLowerCase()))&&(!fP.m||(p.data||'').slice(0,7)===fP.m);});
@@ -955,7 +955,7 @@ function renderPedidos(){
   if(todos.length){
     const somaV=todos.reduce((s,p)=>s+Number(p.valor||0),0);
     const somaL=todos.reduce((s,p)=>{const l=lucroPedido(p);return l===null||p.situacao==='Cancelado'?s:s+l;},0);
-    document.getElementById('tbPedidos').innerHTML+=`<tr><td style="font-weight:600">Totais</td><td></td><td style="color:var(--warm);font-size:12px">${todos.length} pedido(s)</td><td></td><td class="money" style="font-weight:600">${brl(somaV)}</td><td class="money" style="font-weight:600;color:var(--ok)">${brl(somaL)}</td><td></td><td></td></tr>`;
+    document.getElementById('tbPedidos').innerHTML+=`<tr><td style="font-weight:600">Totais</td><td></td><td style="color:var(--warm);font-size:12px">${(n=>n===1?'1 pedido':n+' pedidos')(todos.length)}</td><td></td><td class="money" style="font-weight:600">${brl(somaV)}</td><td class="money" style="font-weight:600;color:var(--ok)">${brl(somaL)}</td><td></td><td></td></tr>`;
   }
   labelize();
 }
@@ -1158,7 +1158,7 @@ function renderCompras(){
   const low=db.insumos.filter(i=>insumoStatus(i)!=='ok');
   const box=document.getElementById('shopList');
   if(!low.length){box.innerHTML='<div class="empty-t" style="border:1px solid var(--line);border-radius:10px">Nada para comprar, estoque saudável.</div>';return;}
-  box.innerHTML=low.map(i=>{const alvo=(i.minimo||0)*2;const comprar=Math.max(0,(alvo-i.estoque));const custo=comprar*Number(i.custo||0);return `<div class="shop-item"><div class="si-l"><div class="n">${esc(i.nome)}</div><div class="s">tem ${i.estoque} ${esc(i.unidade)} · mínimo ${i.minimo}</div></div><div class="si-r"><div class="si-q"><div class="q">+${comprar.toFixed(comprar%1?2:0)} ${esc(i.unidade)}</div><div class="c">≈ ${brl(custo)}</div></div><button class="btn2" onclick="buyDone('${i.id}',${comprar})">Comprei</button></div></div>`;}).join('');
+  box.innerHTML=low.map(i=>{const alvo=(i.minimo||0)*2;const comprar=Math.max(0,(alvo-i.estoque));const custo=comprar*Number(i.custo||0);return `<div class="shop-item"><div class="si-l"><div class="n">${esc(i.nome)}</div><div class="s">tem ${qtd(i.estoque)} ${esc(i.unidade)} · mínimo ${qtd(i.minimo)}</div></div><div class="si-r"><div class="si-q"><div class="q">+${qtd(comprar)} ${esc(i.unidade)}</div><div class="c">≈ ${brl(custo)}</div></div><button class="btn2" onclick="buyDone('${i.id}',${comprar})">Comprei</button></div></div>`;}).join('');
 }
 function renderComprasHist(){const todas=[...(db.compras||[])].reverse();const rows=todas.slice(0,PAG.compras);document.getElementById('tbCompras').innerHTML=(rows.length?rows.map(c=>{const ins=db.insumos.find(i=>i.id===c.insumo);const q=Number(c.qtd||0),v=Number(c.valor||0);return `<tr><td>${esc(c.data)||''}</td><td>${ins?esc(ins.nome):''}</td><td>${q} ${ins?esc(ins.unidade):''}</td><td class="money">${brl(v)}</td><td class="money" style="color:var(--smoke)">${q&&v?brl(v/q):''}</td><td>${esc(c.fornecedor)||''}</td><td>${rowActions('compra',c.id)}</td></tr>`;}).join(''):`<tr><td colspan=7><div class="empty-t">Nenhuma compra registrada.</div></td></tr>`)+linhaMais('compras',todas.length,rows.length,7);}
 function renderFixos(){const rows=db.fixos||[];const tot=rows.reduce((s,f)=>s+Number(f.valor||0),0);document.getElementById('tbFixos').innerHTML=rows.length?rows.map(f=>`<tr><td>${esc(f.nome)}</td><td class="money">${brl(f.valor)}</td><td>${rowActions('fixo',f.id)}</td></tr>`).join('')+`<tr><td style="font-weight:600">Total</td><td class="money" style="color:var(--ember)">${brl(tot)}</td><td></td></tr>`:`<tr><td colspan=3><div class="empty-t">Nenhum custo fixo, cadastre aluguel, energia, assinaturas…</div></td></tr>`;}
@@ -2010,7 +2010,7 @@ function gerarCotacao(){ // abre a seleção de itens e quantidades
   currentForm={type:'cotacaoSel',id:null,recipe:[]};window.currentForm=currentForm;
   document.getElementById('modalTitle').textContent='Nova cotação, escolha itens e quantidades';
   const low=new Set(db.insumos.filter(i=>insumoStatus(i)!=='ok').map(i=>i.id));
-  document.getElementById('modalBody').innerHTML='<div class="hint-box" style="margin-bottom:14px">Itens da lista de compras já vêm marcados com a quantidade sugerida, ajuste como quiser.</div>'+db.insumos.map(i=>{const sug=Math.round(Math.max(0,(i.minimo||0)*2-i.estoque)*100)/100;return `<div class="recipe-line" style="grid-template-columns:24px 1fr 110px 40px"><input type="checkbox" data-cot="${i.id}" ${low.has(i.id)?'checked':''} style="width:auto"><span>${esc(i.nome)}<div style="font-size:11px;color:var(--warm)">tem ${i.estoque} ${esc(i.unidade)} · mín. ${i.minimo}</div></span><input type="number" inputmode="decimal" step="0.01" min="0" id="cotq_${i.id}" value="${low.has(i.id)?(sug||1):''}" placeholder="qtd"><span style="font-size:11px;color:var(--warm)">${esc(i.unidade)}</span></div>`;}).join('')
+  document.getElementById('modalBody').innerHTML='<div class="hint-box" style="margin-bottom:14px">Itens da lista de compras já vêm marcados com a quantidade sugerida, ajuste como quiser.</div>'+db.insumos.map(i=>{const sug=Math.round(Math.max(0,(i.minimo||0)*2-i.estoque)*100)/100;return `<div class="recipe-line" style="grid-template-columns:24px 1fr 110px 40px"><input type="checkbox" data-cot="${i.id}" ${low.has(i.id)?'checked':''} style="width:auto"><span>${esc(i.nome)}<div style="font-size:11px;color:var(--warm)">tem ${qtd(i.estoque)} ${esc(i.unidade)} · mín. ${qtd(i.minimo)}</div></span><input type="number" inputmode="decimal" step="0.01" min="0" id="cotq_${i.id}" value="${low.has(i.id)?(sug||1):''}" placeholder="qtd"><span style="font-size:11px;color:var(--warm)">${esc(i.unidade)}</span></div>`;}).join('')
     +`<div class="field-row" style="margin-top:16px"><div class="field"><label>Responder até</label><input id="cotValidade" type="date"><div class="hint">Cotações vencidas ficam marcadas</div></div><div class="field"><label>Condições de pagamento</label><input id="cotCond" placeholder="ex.: Pix à vista, 28 dias…"><div class="hint">Vai escrita na planilha</div></div></div>`
     +((db.fornecedores||[]).length?`<div class="field"><label>Enviar para quais fornecedores?</label>${db.fornecedores.map(f=>`<label style="display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13px;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" data-alvo="${f.id}" style="width:auto"> ${esc(f.nome)}${f.categoria?` <span style="color:var(--warm);font-size:11px">· ${esc(f.categoria)}</span>`:''}</label>`).join('')}</div>`:'');
   document.getElementById('overlay').classList.add('open');
@@ -2265,7 +2265,7 @@ function importJSON(){
 function exportCompras(){
   const low=db.insumos.filter(i=>insumoStatus(i)!=='ok');
   if(!low.length){toast('Nada para comprar');return;}
-  const txt='LISTA DE COMPRAS · Cinérea\n'+new Date().toLocaleDateString('pt-BR')+'\n\n'+low.map(i=>{const comprar=Math.max(0,(i.minimo*2-i.estoque));return `• ${i.nome}: comprar ${comprar.toFixed(comprar%1?2:0)} ${i.unidade} (tem ${i.estoque})`;}).join('\n');
+  const txt='LISTA DE COMPRAS · Cinérea\n'+new Date().toLocaleDateString('pt-BR')+'\n\n'+low.map(i=>{const comprar=Math.max(0,(i.minimo*2-i.estoque));return `• ${i.nome}: comprar ${qtd(comprar)} ${i.unidade} (tem ${qtd(i.estoque)})`;}).join('\n');
   navigator.clipboard?.writeText(txt).then(()=>toast('Lista copiada, cole no WhatsApp'),()=>dl('lista-compras.txt',txt,'text/plain'));
 }
 function exportPDF(){
@@ -2276,8 +2276,8 @@ function exportPDF(){
   win.document.write(`<html><head><title>Cinérea, Relatório</title><style>body{font-family:Georgia,serif;color:#1C1A17;padding:40px;max-width:800px;margin:auto}h1{font-size:32px}h2{border-bottom:2px solid #B5462A;padding-bottom:6px;margin-top:32px;font-size:20px}table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}td,th{border:1px solid #ccc;padding:7px 10px;text-align:left}th{background:#eee}.big{font-size:22px;color:#B5462A}</style></head><body>
   <h1>Cinérea, Relatório</h1><p>${new Date().toLocaleDateString('pt-BR')}</p>
   <p class="big">Receita registrada: ${brl(receita)} · Peças produzidas: ${db.producao.reduce((s,p)=>s+Number(p.qtd||0),0)}</p>
-  <h2>Produtos e custos</h2><table><tr><th>Produto</th><th>Custo</th><th>Preço</th><th>Margem</th><th>Prontas</th></tr>${db.produtos.map(p=>{const c=calcCusto(p).total;const sug=c*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const m=prat?Math.round((prat-taxa-c)/prat*100):0;return row([p.nome,brl(c),brl(prat),m+'%',p.pronto||0]);}).join('')}</table>
-  <h2>Insumos em estoque</h2><table><tr><th>Insumo</th><th>Estoque</th><th>Mínimo</th><th>Situação</th></tr>${db.insumos.map(i=>row([i.nome,i.estoque+' '+i.unidade,i.minimo,insumoStatus(i)==='low'?'REPOR':insumoStatus(i)==='warn'?'baixo':'ok'])).join('')}</table>
+  <h2>Produtos e custos</h2><table><tr><th>Produto</th><th>Custo</th><th>Preço</th><th>Margem</th><th>Prontas</th></tr>${db.produtos.map(p=>{const c=calcCusto(p).total;const sug=c*Number(p.markup||3);const prat=Number(p.preco||sug);const taxa=prat*Number(p.taxa||0)/100;const m=prat?Math.round((prat-taxa-c)/prat*100):0;return row([p.nome,brl(c),brl(prat),c>0?m+'%':'sem custo',p.pronto||0]);}).join('')}</table>
+  <h2>Insumos em estoque</h2><table><tr><th>Insumo</th><th>Estoque</th><th>Mínimo</th><th>Situação</th></tr>${db.insumos.map(i=>row([i.nome,qtd(i.estoque)+' '+i.unidade,qtd(i.minimo),insumoStatus(i)==='low'?'REPOR':insumoStatus(i)==='warn'?'baixo':'ok'])).join('')}</table>
   <h2>Moldes</h2><table><tr><th>Molde</th><th>Usos</th><th>Vida</th></tr>${db.moldes.map(m=>row([m.nome,m.usos,m.vida])).join('')}</table>
   <p style="margin-top:40px;color:#999;font-size:11px">Gerado pelo sistema de gestão Cinérea</p>
   </body></html>`);
@@ -2536,7 +2536,7 @@ function renderEncomendas(){
   const esperando = e => e.situacao==='paga' || e.situacao==='nova';
   const novas=encomendas.filter(esperando);
   if(!encomendas.length){box.innerHTML='<div class="hint-box">Nenhuma encomenda ainda. Elas chegam quando alguém fecha a sacola no app.</div>';return;}
-  box.innerHTML=(novas.length?'':'<div class="hint">Nenhuma encomenda esperando.</div>')
+  box.innerHTML=(novas.length?'':'<div class="hint">Nenhuma esperando você. As de baixo já foram vistas ou aguardam o pagamento do cliente.</div>')
     +[...encomendas].sort((a,b)=>
         (a.situacao==='paga'?0:a.situacao==='nova'?1:2)
       - (b.situacao==='paga'?0:b.situacao==='nova'?1:2)).map(e=>{
@@ -3351,7 +3351,7 @@ function renderComissoes(){
     <div class="desc">Sobre pedido criado e não cancelado. Encomenda do app só entra depois de aceita</div></div></div>`
     + com.map(c=>`<div class="chartcard" style="margin-bottom:12px">
         <h3>${esc(c.vendedor.nome)} · ${brl(c.comissao)}</h3>
-        <div class="hint">${c.pedidos.length} pedido(s) · ${brl(c.vendido)} vendidos · ${Number(c.vendedor.comissao)||0}% de comissão${c.vendedor.chavePix?' · Pix '+esc(c.vendedor.chavePix):''}</div>
+        <div class="hint">${(n=>n===1?'1 pedido':n+' pedidos')(c.pedidos.length)} · ${brl(c.vendido)} vendidos · ${Number(c.vendedor.comissao)||0}% de comissão${c.vendedor.chavePix?' · Pix '+esc(c.vendedor.chavePix):''}</div>
         <div style="margin-top:10px">${c.pedidos.map(p=>`<div class="prazo-item"><span>${esc(p.data||'')} · ${esc(p.cliente||'cliente')} <span style="color:var(--warm)">(${esc(normalizarCupom(p.cupom))})</span></span><b>${brl(p.valor)}</b></div>`).join('')}</div>
       </div>`).join('')
     + `<div class="hint" style="margin-top:6px">Total a pagar: <b>${brl(Math.round(total*100)/100)}</b></div>`;
@@ -3947,7 +3947,9 @@ function margemMediaDoCatalogo(){
   const margens=publicas.map(p=>{
     const custo=calcCusto(p).total;
     const preco=Number(p.preco)||custo*Number(p.markup||3);
-    if(!(preco>0)) return null;
+    // Sem custo cadastrado a conta dá 100%, e isso não é margem, é cadastro
+    // faltando. Entrar na média inflaria o lucro que paga o frete grátis.
+    if(!(preco>0)||!(custo>0)) return null;
     const taxa=preco*Number(p.taxa||0)/100;
     return (preco-taxa-custo)/preco;
   }).filter(m=>m!==null&&isFinite(m));
@@ -3989,7 +3991,7 @@ function renderFrete(){
            atingiu o corte na régua, que é onde o frete mais pesa.`
         : `Sem frete grátis: todo pedido paga o valor da região. O quadro fica sem conta de margem.`}
       ${margemReal===null
-        ? ' Nenhuma peça publicada ainda, então estou <b>estimando 50% de margem</b>.'
+        ? ' Nenhuma peça publicada com custo cadastrado, então estou <b>estimando 50% de margem</b>.'
         : ` Margem média das peças publicadas: <b>${Math.round(margem*100)}%</b>.`}
     </div>
     <div class="tablewrap"><table>

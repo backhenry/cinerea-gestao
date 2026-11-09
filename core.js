@@ -13,6 +13,11 @@ export const hoje = (d = new Date()) =>
   d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 
 // número tolerante a vírgula decimal e texto vazio
+// Quantidade de estoque como se lê no Brasil: vírgula, e sem o rabo do ponto
+// flutuante (0,15 e não 0.15000000000000002). Até três casas, que é o grama
+// dentro do quilo.
+export const qtd = n => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+
 export const num = v => {
   if (v === null || v === undefined || v === '') return 0;
   const n = Number(String(v).replace(',', '.'));
