@@ -587,6 +587,47 @@ test('o código se prova uma vez, e não a cada gravação', async () => {
     fs('ana').doc('clientes/ana/pecas/BALCAO').set({ nome: 'Ondina da sala' }, { merge: true }));
 });
 
+test('a marca do cartão só entra com o código junto', async () => {
+  // `cartao: true` é o que faz o perfil do site pedir o código. Marca sem
+  // código seria um campo que aceita qualquer coisa: a regra de registro só
+  // confere quando `ativacoes/` existe.
+  await assertFails(fs('dacasa').doc('pecas/SOMARCA').set({ modelo: 'David', cartao: true }));
+
+  // O jeito certo é um lote: certidão e código na mesma gravação.
+  const d = fs('dacasa');
+  const lote = d.batch();
+  lote.set(d.doc('pecas/CARTAO1'), { modelo: 'David', cartao: true }, { merge: true });
+  lote.set(d.doc('ativacoes/CARTAO1'), { codigo: 'ACDE-FGHJ' });
+  await assertSucceeds(lote.commit());
+
+  // Mexer depois na certidão (o refil, o modelo) não exige regravar o código.
+  await assertSucceeds(d.doc('pecas/CARTAO1').set({ refil: 'https://x' }, { merge: true }));
+
+  // Soltar tira a marca e o código juntos.
+  const soltar = d.batch();
+  soltar.set(d.doc('pecas/CARTAO1'), { cartao: null }, { merge: true });
+  soltar.delete(d.doc('ativacoes/CARTAO1'));
+  await assertSucceeds(soltar.commit());
+});
+
+test('peça com cartão: o perfil guarda com o código, e só com ele', async () => {
+  // O caminho inteiro do cliente sem conta na compra, como o perfil grava.
+  const d = fs('dacasa');
+  const lote = d.batch();
+  lote.set(d.doc('pecas/CARTAO2'), { modelo: 'Chaveiro', cartao: true });
+  lote.set(d.doc('ativacoes/CARTAO2'), { codigo: 'KLMN-PQRT' });
+  await assertSucceeds(lote.commit());
+
+  const registro = ativacao => ({
+    nome: 'Meu chaveiro', capacidade: null, permanente: true,
+    conteudoAtual: null, historico: [], ...(ativacao ? { ativacao } : {}),
+  });
+  await assertFails(fs('bruno').doc('clientes/bruno/pecas/CARTAO2').set(registro()));
+  await assertFails(fs('bruno').doc('clientes/bruno/pecas/CARTAO2').set(registro('KLMN-PQRX')));
+  await assertFails(fs('bruno').doc('clientes/bruno/pecas/CARTAO2').set(registro('klmn-pqrt')));
+  await assertSucceeds(fs('ana').doc('clientes/ana/pecas/CARTAO2').set(registro('KLMN-PQRT')));
+});
+
 test('a casa desfaz o sequestro de uma peça antiga', async () => {
   // Para tudo que foi vendido antes da certidão com `dono`, o conserto não pode
   // ser "não há o que fazer". A casa apaga a vitrine tomada, e o dono publica.

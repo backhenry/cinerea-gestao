@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, verifyBeforeUpdateEmail, sendEmailVerification, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, arrayUnion, onSnapshot, serverTimestamp, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, arrayUnion, onSnapshot, serverTimestamp, query, where, documentId, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
 import * as Core from "./core.js";
@@ -2696,10 +2696,15 @@ async function recusarEncomenda(id){
 //
 // AQUI NÃO SE LISTA NADA. `pecas` tem `list: if false` de propósito: com a
 // lista aberta, qualquer um enumera os UIDs de todas as peças vendidas, e o
-// UID deixa de significar "encostei nesta peça" — que é a premissa em que o
+// UID deixa de significar "encostei nesta peça", que é a premissa em que o
 // sistema inteiro se apoia. Por isso a tabela desta tela sai de `db.tags`, um
 // ESPELHO local do que esta casa gravou, e Conferir busca UMA tag por id para
 // comparar espelho e servidor.
+//
+// `pecas/{tagUid}.cartao` é a MARCA PÚBLICA de que existe código (nov/2026):
+// sem ela o perfil do site não sabe quando pedir, porque `ativacoes/` não se
+// lê. A regra só aceita a marca se o código existir ao fim da MESMA gravação,
+// e por isso certidão e código saem num lote só, e saem juntos ao soltar.
 //
 // O espelho guarda o código junto. Ele é segredo do CLIENTE, não da equipe:
 // quem embala a caixa imprime o cartão, e sem guardar não dá para reimprimir
@@ -2724,8 +2729,8 @@ function appPedeCodigo(){ return !!(db.checks&&db.checks.appPedeCodigo); }
 
 /**
  * A chave que impede o tiro no pé. Uma tag com código de ativação só é
- * registrável por quem MANDA o código, e quem manda o código é o app — que
- * hoje não manda. Gravar um código antes disso não protege a peça: tranca-a
+ * registrável por quem MANDA o código. Quem manda é o perfil do site, desde
+ * nov/2026; antes não havia quem mandasse. Gravar um código antes disso não protege a peça: tranca-a
  * para todo mundo, inclusive para o dono, e não há tela que desfaça no
  * celular dele.
  */
@@ -2785,8 +2790,8 @@ function tagPreview(){
   if(bloco)bloco.style.opacity=temDono?'.5':'';
   if(hc){
     if(temDono)hc.innerHTML='Com <b>dono</b> escolhido o código não faz falta: a peça já está amarrada naquela conta. Deixe vazio.';
-    else if(!appPedeCodigo())hc.innerHTML='<b>Trancado</b> enquanto o app do cliente não pedir o código no primeiro cadastro. Ligue a chave abaixo da tabela quando ele pedir, não antes: uma tag com código que o app não sabe mandar não é registrada por ninguém, nem pelo dono.';
-    else hc.innerHTML='Vai impresso no cartão dentro da caixa. O cliente digita no app ao cadastrar a peça, uma vez. Guardamos aqui para reimprimir.';
+    else if(!appPedeCodigo())hc.innerHTML='<b>Trancado</b> até a chave abaixo da tabela ser ligada. Ligue depois de o perfil do site que pede o código estar no ar, não antes: uma tag com código que ninguém sabe mandar não é registrada por ninguém, nem pelo dono.';
+    else hc.innerHTML='Vai impresso no cartão dentro da caixa (botão de imprimir na tabela). O cliente encosta o celular na peça, toca em "Esta peça é sua?" e digita o código uma vez, no site. Guardamos aqui para reimprimir.';
   }
 }
 
@@ -2802,7 +2807,7 @@ function renderTags(){
       ? `${esc(t.donoNome||'conta do app')}<div class="uid-linha"><code>${esc(t.dono)}</code></div>`
       : '<span class="pill warn">de balcão</span>';
     const ativ=t.codigo
-      ? `<code>${esc(t.codigo)}</code> <button class="icon-btn" title="Copiar o código" onclick="copiarUid('${esc(t.codigo)}')">${ico("copiar","Copiar o código")}</button>`
+      ? `<code>${esc(t.codigo)}</code> <button class="icon-btn" title="Copiar o código" onclick="copiarUid('${esc(t.codigo)}')">${ico("copiar","Copiar o código")}</button> <button class="icon-btn" title="Imprimir o cartão" onclick="imprimirCartaoTag('${esc(t.uid)}')">${ico("imprimir","Imprimir o cartão")}</button>`
       : (t.dono?'<span class="pill ok">pelo dono</span>':'<span class="pill low">sem prova</span>');
     return `<tr>
       <td><code>${esc(t.uid)}</code> <button class="icon-btn" title="Copiar o uid" onclick="copiarUid('${esc(t.uid)}')">${ico("copiar","Copiar o uid")}</button></td>
@@ -2822,12 +2827,12 @@ function renderTags(){
   if(guia)guia.innerHTML=`<div class="hint-box" style="margin-top:16px">
     <b>Peça vendida pelo app:</b> escolha a encomenda em <b>Dono</b>. A peça já sai
     amarrada na conta de quem comprou e não precisa de cartão nenhum.<br>
-    <b>Peça vendida no balcão:</b> não há conta para amarrar. A prova vira um código
-    impresso no cartão da caixa, e ele só funciona depois que o app pedir o código.
+    <b>Peça vendida no balcão ou pelo WhatsApp:</b> não há conta para amarrar. A prova
+    vira um código impresso no cartão da caixa, e o cliente o digita no site ao guardar a peça.
   </div>
   <label class="hint-box" style="display:block;cursor:pointer">
     <input type="checkbox" id="tg_appPronto" ${appPedeCodigo()?'checked':''} onchange="tagAppPronto(this.checked)">
-    O app do cliente <b>já pede</b> o código de ativação no primeiro cadastro da peça
+    O perfil do site (<code>cinerea.com.br/perfil</code>) <b>já pede</b> o código do cartão ao guardar a peça
     <div class="hint" style="margin-top:6px">Enquanto isto estiver desligado, a tela recusa gravar código. Ligado antes da hora, cada tag com código vira uma peça que ninguém registra.</div>
   </label>`;
 
@@ -2877,13 +2882,22 @@ async function salvarTag(){
   const jaTinha=(db.tags||[]).some(t=>t.uid===u);
   const corpo={modelo,serie,total,refil};
   if(enc)corpo.dono=enc.clienteUid;
+  // A marca pública acompanha o código, nos dois sentidos: sem código, a marca
+  // sai, e o código antigo também. Sem apagar, uma tag que trocou o cartão
+  // pelo dono continuaria exigindo as duas provas.
+  corpo.cartao=codigo?true:deleteField();
   // `feitaEm` só no nascimento: reescrever a cada edição faria a peça mudar de
   // data de fabricação toda vez que alguém corrigisse o link do refil.
   if(!jaTinha)corpo.feitaEm=serverTimestamp();
 
   try{
-    await setDoc(doc(fdb,'pecas',u),corpo,{merge:true});
-    if(codigo)await setDoc(doc(fdb,'ativacoes',u),{codigo},{merge:true});
+    // UM lote: a regra só aceita `cartao` se o código existir ao fim da mesma
+    // gravação, e gravar em dois passos deixaria uma marca sem código.
+    const lote=writeBatch(fdb);
+    lote.set(doc(fdb,'pecas',u),corpo,{merge:true});
+    if(codigo)lote.set(doc(fdb,'ativacoes',u),{codigo});
+    else lote.delete(doc(fdb,'ativacoes',u));
+    await lote.commit();
   }catch(e){console.error(e);return toast(porQueFalhouTag(e));}
 
   const linha={uid:u,modelo,serie,total,refil,
@@ -2931,8 +2945,10 @@ function gerarCodigoTag(){
 async function soltarTag(u){
   if(!confirm('Soltar a tag '+u+'? Ela volta a aceitar registro de qualquer conta que encostar na peça.'))return;
   try{
-    await setDoc(doc(fdb,'pecas',u),{dono:deleteField()},{merge:true});
-    await deleteDoc(doc(fdb,'ativacoes',u));
+    const lote=writeBatch(fdb);
+    lote.set(doc(fdb,'pecas',u),{dono:deleteField(),cartao:deleteField()},{merge:true});
+    lote.delete(doc(fdb,'ativacoes',u));
+    await lote.commit();
   }catch(e){console.error(e);return toast(porQueFalhouTag(e));}
   const t=(db.tags||[]).find(x=>x.uid===u);
   if(t){t.dono='';t.donoNome='';t.encomendaId='';t.codigo='';}
@@ -2958,11 +2974,55 @@ async function conferirTag(u){
     toast('No servidor: <b>'+esc(s.modelo||'sem modelo')+'</b>'
       +(s.serie&&s.total?', peça '+s.serie+' de '+s.total:'')
       +(donoServidor?', dono <code>'+esc(donoServidor)+'</code>':', sem dono')
-      +(bate?'.':' — <b>diferente</b> do que esta tela mostra.'));
+      +(s.cartao===true?', com cartão':'')
+      +(bate?'.':'. <b>Diferente</b> do que esta tela mostra.'));
   }catch(e){console.error(e);toast(porQueFalhouTag(e));}
 }
 
-Object.assign(window,{renderTags,salvarTag,editarTag,soltarTag,conferirTag,gerarCodigoTag,tagDoProduto,tagPreview,tagAppPronto});
+/**
+ * O cartão que vai dentro da caixa, no tamanho de um cartão de visita.
+ *
+ * O texto ensina o caminho que EXISTE: encostar, tocar em "Esta peça é sua?",
+ * digitar o código. São as mesmas palavras do link da página do convidado e
+ * da tela do perfil; cartão dizendo uma coisa e tela outra é a pessoa parada
+ * na frente do celular sem saber onde tocar.
+ *
+ * Não promete que o código vale uma vez só: a regra deixa qualquer conta com o
+ * código guardar a peça. Por isso o conselho é tratá-lo como uma chave.
+ */
+function cartaoTagHtml(t){
+  const nome=esc(t.modelo||'sua peça');
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartão ${esc(t.uid)}</title><style>
+@page{size:85mm 55mm;margin:0}
+*{box-sizing:border-box;margin:0}
+body{font-family:Georgia,'Times New Roman',serif;color:#1C1A17;background:#fff}
+.c{width:85mm;height:55mm;padding:5mm 6mm;display:flex;flex-direction:column;gap:1.6mm}
+.m{font-size:9pt;letter-spacing:.18em;text-transform:uppercase}.m b{color:#B5462A}
+h1{font-size:12.5pt;font-weight:normal;line-height:1.15}
+ol{padding-left:4mm;font-family:Helvetica,Arial,sans-serif;font-size:7.2pt;line-height:1.35;color:#3a3631}
+.cod{font-family:'Courier New',monospace;font-size:15pt;letter-spacing:.12em;font-weight:bold;margin-top:auto}
+.p{font-family:Helvetica,Arial,sans-serif;font-size:5.6pt;color:#645E58}
+</style></head><body><div class="c">
+<div class="m">Cinérea<b>.</b></div>
+<h1>Esta peça é sua: ${nome}</h1>
+<ol><li>Encoste o celular na peça.</li>
+<li>Na página que abrir, toque em “Esta peça é sua? Guarde na sua conta”.</li>
+<li>Entre ou crie sua conta e digite o código abaixo.</li></ol>
+<div class="cod">${esc(t.codigo)}</div>
+<div class="p">Guarde este cartão como uma chave: quem tem o código pode guardar a peça.</div>
+</div></body></html>`;
+}
+
+function imprimirCartaoTag(u){
+  const t=(db.tags||[]).find(x=>x.uid===u);
+  if(!t||!t.codigo)return toast('Esta tag não tem código para imprimir.');
+  const win=window.open('','_blank');
+  if(!win)return toast('O navegador bloqueou a janela de impressão. Libere janelas para este site.');
+  win.document.write(cartaoTagHtml(t));
+  win.document.close();setTimeout(()=>win.print(),400);
+}
+
+Object.assign(window,{renderTags,salvarTag,editarTag,soltarTag,conferirTag,gerarCodigoTag,tagDoProduto,tagPreview,tagAppPronto,imprimirCartaoTag});
 
 // ===========================================================================
 // VENDEDORES E CUPONS
@@ -3856,6 +3916,7 @@ const ICONES={
   repetir:'<path d="M4.5 12a7.5 7.5 0 0 1 12.8-5.3L20 9.5"/><path d="M20 4.5v5h-5"/><path d="M19.5 12a7.5 7.5 0 0 1-12.8 5.3L4 14.5"/><path d="M4 19.5v-5h5"/>',
   play:'<path d="M8 5.5v13l11-6.5-11-6.5Z"/>',
   antes:'<path d="m14 6-6 6 6 6"/>',
+  imprimir:'<path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="1.5"/><path d="M7 14h10v6H7Z"/>',
   depois:'<path d="m10 6 6 6-6 6"/>',
 };
 

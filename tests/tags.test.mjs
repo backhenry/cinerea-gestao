@@ -4,7 +4,7 @@
 //
 // Errar a ligação não dá erro em lugar nenhum. Um id renomeado num lado só
 // aparece como um campo que não preenche; uma função fora do `window` só
-// aparece como um botão que não faz nada — no computador de quem está
+// aparece como um botão que não faz nada, no computador de quem está
 // embalando uma caixa, não no de quem escreveu. Por isso o teste guarda as
 // LIGAÇÕES, e não o desenho da tela.
 import test from 'node:test';

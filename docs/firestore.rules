@@ -51,9 +51,9 @@ service cloud.firestore {
     // A correção é exigir POSSE, e não só conhecimento do UID. Duas provas,
     // porque os dois canais de venda são diferentes:
     //
-    //   `pecas/{tagUid}.dono`      — venda pela loja, onde a casa já sabe o uid
+    //   `pecas/{tagUid}.dono`:      venda pela loja, onde a casa já sabe o uid
     //                                de quem comprou (está em `encomendas`).
-    //   `ativacoes/{tagUid}.codigo`— venda de balcão, onde não há uid: a peça
+    //   `ativacoes/{tagUid}.codigo`: venda de balcão, onde não há uid: a peça
     //                                sai com um código impresso no cartão, e só
     //                                quem tem o cartão registra a peça.
     //
@@ -107,10 +107,19 @@ service cloud.firestore {
     // permissão de reescrever a vitrine pública de cada peça vendida.
     //
     // Nada no projeto lista estas coleções: app, site e gestão buscam por id.
+    //
+    // `cartao: true` é a MARCA PÚBLICA de que a peça saiu com código (nov/2026).
+    // O código mora em `ativacoes/`, que ninguém lê, então sem a marca o perfil
+    // do site não tem como saber quando pedir o código. A marca não prova nada:
+    // quem prova é `ativacaoConfere`. Mas marca sem código seria um formulário
+    // que aceita qualquer coisa digitada, então ela só entra se o código
+    // existir ao fim da mesma gravação (a gestão grava os dois num lote).
     match /pecas/{tagUid} {
       allow get: if true;
       allow list: if false;
-      allow create, update: if ehDaCasa();
+      allow create, update: if ehDaCasa()
+        && (request.resource.data.get('cartao', false) != true
+            || existsAfter(/databases/$(database)/documents/ativacoes/$(tagUid)));
       allow delete: if false;
     }
 

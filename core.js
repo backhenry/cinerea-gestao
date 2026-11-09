@@ -430,7 +430,7 @@ export function sementeRamo(ramo, novoId = uidGen) {
 // O UID não é segredo (sai na leitura, e ler é encostar o celular), então
 // ele sozinho não prova posse: quem provava posse era só quem chegasse
 // primeiro. As regras do Firestore passaram a exigir uma segunda prova, e
-// é a gestão que a emite — `pecas/{tagUid}.dono` quando a casa já sabe de
+// é a gestão que a emite: `pecas/{tagUid}.dono` quando a casa já sabe de
 // quem é, e `ativacoes/{tagUid}.codigo` quando não sabe (venda de balcão).
 
 /**
@@ -447,7 +447,7 @@ export function normalizarTag(v) {
  * Aceita o que PODE ser um UID: hexadecimal, número par de dígitos, de 8 a
  * 20 (4 a 10 bytes). A certidão é gravada num documento cujo id é este
  * texto, e um id digitado errado é uma certidão que a peça real nunca vai
- * apresentar — vale barrar antes.
+ * apresentar, e vale barrar antes.
  *
  * Barrar mais que isto seria pior: os comprimentos DE FATO usados são 8, 14
  * e 20, mas quem decide qual chega é o leitor do celular, e recusar um chip
@@ -469,7 +469,7 @@ export function tagTipica(v) {
  * Alfabeto do código de ativação, sem os pares que se confundem em papel
  * impresso: falta B (vira 8), I e 1, O e 0, S e 5, Z e 2. O cliente vai
  * copiar isto de um cartão pequeno, à mão, e um caractere ambíguo custa um
- * atendimento — a regra do Firestore compara texto exato, não parecido.
+ * atendimento, porque a regra do Firestore compara texto exato, não parecido.
  */
 const ALFABETO_CODIGO = 'ACDEFGHJKLMNPQRTUVWXY34679';
 
@@ -487,10 +487,11 @@ export function codigoAtivacao(sorteio = Math.random) {
 }
 
 /**
- * O código como a regra vai compará-lo. ESTE É O CONTRATO com o app do
- * cliente: os dois lados normalizam igual, ou o dono legítimo digita o
- * código certo do cartão e leva "não é sua". Está escrito em
- * docs/posse-da-peca.md por isso.
+ * O código como a regra vai compará-lo. ESTE É O CONTRATO com o perfil do
+ * site (`cinerea-site/perfil/`), que tem uma cópia: os dois lados normalizam
+ * igual, ou o dono legítimo digita o código certo do cartão e leva "não é
+ * sua". Está escrito em docs/posse-da-peca.md, e um teste do repositório do
+ * app passa os mesmos textos pelas duas cópias.
  */
 export function normalizarCodigo(v) {
   const s = String(v ?? '').toUpperCase().replace(/[^0-9A-Z]/g, '')
