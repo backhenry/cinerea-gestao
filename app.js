@@ -2388,7 +2388,7 @@ function postLegenda(){
   if(s)c+=s.charAt(0).toUpperCase()+s.slice(1)+'.\n\n';
   c+='Feito à mão em Campos do Jordão. Cada peça é única.\n';
   if(pr)c+=`${pr} · link na bio.\n`;
-  c+='\n#cinerea #velasdeautor #decoração #velasartesanais #camposdojordão #homedecor #velasperfumadas #aromaterapia';
+  c+='\n#cinerea #velasdeautor #decoração #velasartesanais #camposdojordão #homedecor #velasperfumadas';
   document.getElementById('po_caption').textContent=c;
 }
 
