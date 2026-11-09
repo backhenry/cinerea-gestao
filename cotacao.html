@@ -83,7 +83,7 @@ function total(){
     if(p>0)t+=p*num(it.qtd);
   });
   const el=document.getElementById('totalV');
-  if(el)el.textContent=t>0?brl(t):', ';
+  if(el)el.textContent=brl(t);
 }
 window.__total=total;
 
@@ -107,7 +107,7 @@ function render(){
           <div><label>Observação</label><input id="o${i}" placeholder="marca, embalagem…"></div>
         </div>
       </div>`).join('')}
-    <div class="total"><span class="k">Total da proposta</span><span class="v" id="totalV">, </span></div>
+    <div class="total"><span class="k">Total da proposta</span><span class="v" id="totalV">R$ 0,00</span></div>
     <button class="btn" id="enviar">Enviar proposta</button>
     <div class="erro" id="erro"></div>`;
   msg.hidden=true;form.hidden=false;
