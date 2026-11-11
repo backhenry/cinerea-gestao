@@ -12,6 +12,20 @@ export const uidGen = () => Date.now().toString(36) + Math.random().toString(36)
 export const hoje = (d = new Date()) =>
   d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 
+/**
+ * Peça SOB ENCOMENDA (nov/2026): `envioDias` é o prazo que a loja promete ao
+ * cliente, e esta é a data em que o pedido tem de sair. Vira o `prazo` do
+ * pedido ao aceitar a encomenda, e é ele que aparece em "vence hoje" no
+ * painel: o prazo dito na loja vira compromisso visível aqui.
+ * Vazio quando a peça não tem prazo (pronta, ou sem o campo).
+ */
+export const prazoDeEnvio = (envioDias, de = new Date()) => {
+  const d = Math.round(Number(envioDias) || 0);
+  if (d < 1) return '';
+  const x = new Date(de.getFullYear(), de.getMonth(), de.getDate() + d);
+  return hoje(x);
+};
+
 // número tolerante a vírgula decimal e texto vazio
 // Quantidade de estoque como se lê no Brasil: vírgula, e sem o rabo do ponto
 // flutuante (0,15 e não 0.15000000000000002). Até três casas, que é o grama
