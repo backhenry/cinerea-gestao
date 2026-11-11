@@ -265,6 +265,32 @@ service cloud.firestore {
         && request.resource.data.n == resource.data.n + 1;
     }
 
+    // Lista de espera (nov/2026). "Quero ser avisado" numa peça esgotada
+    // grava aqui o nome e o WhatsApp de quem quer, em vez de abrir uma
+    // conversa que o ateliê teria de lembrar de responder. A loja não tem
+    // login, então criar é anônimo, como o contador; e por isso a regra só
+    // aceita os quatro campos exatos, com tamanho e formato:
+    //   peca  o id da peça, como no catálogo
+    //   nome  como a pessoa quer ser chamada, até 60 caracteres
+    //   whats só dígitos, de 10 a 13 (DDD, ou com o 55 na frente)
+    //   em    a hora do SERVIDOR, e não a do navegador
+    // Ler e apagar é só da casa: são dados pessoais, e a privacidade promete
+    // que somem depois do aviso. Alterar, ninguém: ou está na lista, ou saiu.
+    match /espera/{id} {
+      allow read, delete: if ehDaCasa();
+      allow create: if id.matches('^[A-Za-z0-9_-]{8,40}$')
+        && request.resource.data.keys().hasOnly(['peca', 'nome', 'whats', 'em'])
+        && request.resource.data.keys().hasAll(['peca', 'nome', 'whats', 'em'])
+        && request.resource.data.peca is string
+        && request.resource.data.peca.matches('^[A-Za-z0-9_-]{1,40}$')
+        && request.resource.data.nome is string
+        && request.resource.data.nome.size() >= 1
+        && request.resource.data.nome.size() <= 60
+        && request.resource.data.whats is string
+        && request.resource.data.whats.matches('^[0-9]{10,13}$')
+        && request.resource.data.em == request.time;
+    }
+
     // Cupom de vendedor. O id do documento É o código.
     //
     // `get` aberto de propósito: o cupom NASCE para ser divulgado, e quem

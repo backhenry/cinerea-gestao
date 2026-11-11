@@ -26,6 +26,43 @@ export const prazoDeEnvio = (envioDias, de = new Date()) => {
   return hoje(x);
 };
 
+/**
+ * LISTA DE ESPERA (nov/2026). Quem pediu, na loja, para ser avisado de uma
+ * peça esgotada. A loja grava em `espera/` só peça, nome, WhatsApp e a hora; o
+ * resto vem do cadastro, aqui.
+ *
+ * Agrupa por peça, porque o aviso sai quando UMA peça volta, e a pergunta da
+ * tela é "quantos esperam o David": a peça com mais gente vem primeiro, e,
+ * dentro dela, quem pediu antes.
+ */
+export const agruparEspera = (lista, produtos = []) => {
+  const nomeDe = id => (produtos.find(p => String(p.id) === String(id)) || {}).nome || 'peça fora do cadastro';
+  const ms = v => (v && typeof v.toMillis === 'function') ? v.toMillis() : (v instanceof Date ? v.getTime() : 0);
+  const grupos = {};
+  for (const e of lista || []) {
+    const g = grupos[e.peca] || (grupos[e.peca] = { peca: e.peca, nome: nomeDe(e.peca), gente: [] });
+    g.gente.push(e);
+  }
+  return Object.values(grupos)
+    .map(g => ({ ...g, gente: g.gente.slice().sort((a, b) => ms(a.em) - ms(b.em)) }))
+    .sort((a, b) => b.gente.length - a.gente.length || a.nome.localeCompare(b.nome, 'pt-BR'));
+};
+
+/**
+ * O link do WhatsApp do aviso, já com a mensagem. O número chega só com
+ * dígitos (a regra garante); sem o 55, ele entra. A mensagem leva o link da
+ * PRÓPRIA peça, e não a loja inteira: quem esperava o David quer o David.
+ */
+export const linkDoAviso = (e, nomePeca, pecaId) => {
+  const d = String(e && e.whats || '').replace(/\D/g, '');
+  if (d.length < 10 || d.length > 13) return '';
+  const numero = d.length <= 11 ? '55' + d : d;
+  const primeiro = String(e.nome || '').trim().split(/\s+/)[0] || '';
+  const texto = `Oi${primeiro ? ', ' + primeiro : ''}! Aqui é da Cinérea. Você pediu para ser avisado, e ${nomePeca} voltou: ` +
+    `https://cinerea.com.br/loja/?peca=${encodeURIComponent(pecaId)}`;
+  return `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`;
+};
+
 // número tolerante a vírgula decimal e texto vazio
 // Quantidade de estoque como se lê no Brasil: vírgula, e sem o rabo do ponto
 // flutuante (0,15 e não 0.15000000000000002). Até três casas, que é o grama

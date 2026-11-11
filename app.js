@@ -2681,6 +2681,65 @@ async function recusarEncomenda(id){
 
 
 // ===========================================================================
+// LISTA DE ESPERA (nov/2026)
+//
+// "Quero ser avisado", na ficha de uma peça esgotada, grava `espera/{id}` com
+// peça, nome, WhatsApp e a hora. Antes abria o WhatsApp, e cada interessado
+// era uma conversa a lembrar; quem desistia de escrever se perdia.
+//
+// Avisar é abrir o WhatsApp com a mensagem pronta, um por vez, porque o
+// WhatsApp não manda em lote de um navegador. Avisou, tira da lista: a
+// privacidade promete que esses dados somem depois do aviso, e quem fica
+// esquecido na lista é dado pessoal guardado sem motivo.
+// ===========================================================================
+let espera=[];
+
+async function carregarEspera(){
+  const box=document.getElementById('esperaList');
+  if(!box)return;
+  box.innerHTML='<div class="hint">Buscando…</div>';
+  try{
+    const snap=await getDocs(collection(fdb,'espera'));
+    espera=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderEspera();
+  }catch(e){
+    console.error(e);
+    box.innerHTML='<div class="hint-box">Não consegui buscar a lista: <code>'+esc(e?.code||'erro')+'</code>. '
+      +(e?.code==='permission-denied'?'Ler a lista exige estar em <code>gestores</code>, e as regras publicadas precisam ser as de <code>docs/firestore.rules</code>.':'Se for <code>unavailable</code>, é a rede.')+'</div>';
+  }
+}
+
+function renderEspera(){
+  const box=document.getElementById('esperaList');
+  if(!box)return;
+  const grupos=Core.agruparEspera(espera,db.produtos||[]);
+  if(!grupos.length){box.innerHTML='<div class="empty-t">Ninguém esperando. Quando alguém pedir aviso de uma peça esgotada, aparece aqui.</div>';return;}
+  const quando=v=>{const d=v&&v.toDate?v.toDate():null;return d?d.toLocaleDateString('pt-BR'):''};
+  box.innerHTML=grupos.map(g=>{
+    const prod=(db.produtos||[]).find(p=>String(p.id)===String(g.peca));
+    const sit=prod?(prod.situacao==='esgotado'?'<span class="pill warn">esgotada</span>':prod.situacao==='embreve'?'<span class="pill low">em breve</span>':'<span class="pill ok">à venda</span>'):'';
+    return `<div class="panel-head" style="margin-top:22px"><div><h3 style="margin:0">${esc(g.nome)} ${sit}</h3><div class="desc">${g.gente.length} ${g.gente.length===1?'pessoa esperando':'pessoas esperando'}</div></div></div>
+    <div class="tablewrap"><table><thead><tr><th>Nome</th><th>WhatsApp</th><th>Pediu em</th><th></th></tr></thead><tbody>${g.gente.map(e=>`<tr>
+      <td>${esc(e.nome||'')}</td><td><code>${esc(e.whats||'')}</code></td><td>${esc(quando(e.em))}</td>
+      <td><div class="row-actions">
+        <a class="btn2" href="${esc(Core.linkDoAviso(e,g.nome,g.peca))}" target="_blank" rel="noopener">Avisar</a>
+        <button class="btn2" onclick="tirarDaEspera('${esc(e.id)}')">Avisado, tirar da lista</button>
+      </div></td></tr>`).join('')}</tbody></table></div>`;
+  }).join('')+'<div class="hint" style="margin-top:14px">Avisar abre o WhatsApp com a mensagem e o link da peça. Depois de mandar, tire a pessoa da lista: a página de privacidade promete apagar esses dados depois do aviso.</div>';
+}
+
+async function tirarDaEspera(id){
+  const e=espera.find(x=>x.id===id);
+  if(!confirm('Tirar '+(e?.nome||'esta pessoa')+' da lista de espera? O nome e o WhatsApp são apagados.'))return;
+  try{ await deleteDoc(doc(fdb,'espera',id)); }
+  catch(err){console.error(err);return toast('Não consegui tirar da lista: <code>'+esc(err?.code||'erro')+'</code>');}
+  espera=espera.filter(x=>x.id!==id);
+  logAtv('tirou '+(e?.nome||'alguém')+' da lista de espera');
+  renderEspera();
+  toast('Tirado da lista.');
+}
+
+// ===========================================================================
 // TAGS: a certidão da peça, e de quem ela é
 //
 // `pecas/{tagUid}` é a CERTIDÃO: modelo, número da série, quando foi feita e
@@ -3564,7 +3623,7 @@ async function carregarVisitas(forcar){
   }
 }
 
-Object.assign(window,{carregarVisitas,carregarEncomendas,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes,renderBanner,renderAcessos,conferirAcessos,convidarPorEmail,publicarCupons,renderVendedores,renderCupons,renderComissoes});
+Object.assign(window,{carregarVisitas,carregarEncomendas,carregarEspera,tirarDaEspera,aceitarEncomenda,recusarEncomenda,avisoCatalogo,semearColecoes,renderColecoes,renderBanner,renderAcessos,conferirAcessos,convidarPorEmail,publicarCupons,renderVendedores,renderCupons,renderComissoes});
 
 // ============================================================
 // FOTO DE PRODUTO, envio para o Cloud Storage

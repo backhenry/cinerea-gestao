@@ -117,6 +117,9 @@
            você confere, e só então ela vira pedido. Pedidos na frente pedia
            para começar pelo fim. -->
       <button class="active" role="tab" aria-selected="true" data-sub="encomendas" onclick="subAba('encomendas');carregarEncomendas()">Encomendas</button>
+      <!-- ESPERA LOGO DEPOIS DE ENCOMENDAS: as duas são gente pedindo uma peça,
+           uma que dá para vender hoje e outra que espera a próxima leva. -->
+      <button class="" role="tab" aria-selected="false" data-sub="espera" onclick="subAba('espera');carregarEspera()">Espera</button>
       <button class="" role="tab" aria-selected="false" data-sub="pedidos" onclick="subAba('pedidos')">Pedidos</button>
       <!-- TAGS DEPOIS DE PEDIDOS porque é onde ela entra no dia: a encomenda
            vira pedido, o pedido vira peça embalada, e é embalando que a tag
@@ -141,6 +144,13 @@
       <div class="head-btns"><button class="btn2" onclick="carregarEncomendas()">Atualizar</button></div>
     </div>
     <div id="encList"></div>
+  </div>
+    <div class="subpanel" id="s-espera">
+    <div class="panel-head">
+      <div><h2>Lista de espera</h2><div class="desc">Quem pediu para ser avisado de uma peça esgotada, pela loja</div></div>
+      <div class="head-btns"><button class="btn2" onclick="carregarEspera()">Atualizar</button></div>
+    </div>
+    <div id="esperaList"></div>
   </div>
     <div class="subpanel" id="s-tags">
     <div class="panel-head">
